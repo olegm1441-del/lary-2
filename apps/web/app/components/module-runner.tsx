@@ -349,9 +349,7 @@ export function ModuleRunner({ module }: { module: LaryModule }) {
                     ? "Остановить запись"
                     : voiceState === "uploading" && voiceTarget?.key === key
                       ? "Распознаем..."
-                      : values[key]
-                        ? "Записать заново"
-                        : "Наговорить"}
+                      : "Наговорить"}
                 </button>
                 {values[key] ? (
                   <button

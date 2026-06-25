@@ -12,6 +12,7 @@ os.environ.setdefault("FILE_STORAGE_DIR", tempfile.mkdtemp(prefix="lary-api-test
 from app.main import app  # noqa: E402
 from app.core.config import settings  # noqa: E402
 from app.services.ai_router import extract_gigachat_text  # noqa: E402
+from app.services.vosk_speech import VoskSpeechError, transcribe_with_vosk  # noqa: E402
 from app.services.run_store import run_store  # noqa: E402
 
 
@@ -146,6 +147,34 @@ class LaryMvpContractsTest(unittest.TestCase):
 
         self.assertEqual(speech.status_code, 415)
         self.assertEqual(speech.json()["detail"]["code"], "unsupported_audio_format")
+
+    def test_vosk_speech_reports_missing_model_cleanly(self):
+        original_path = settings.vosk_model_path
+        settings.vosk_model_path = "/tmp/lary-missing-vosk-model"
+        try:
+            with self.assertRaises(VoskSpeechError) as error:
+                transcribe_with_vosk(b"demo", "audio/x-pcm;bit=16;rate=16000")
+        finally:
+            settings.vosk_model_path = original_path
+
+        self.assertEqual(error.exception.code, "vosk_model_missing")
+
+    def test_speech_uses_vosk_provider_without_salute_key_requirement(self):
+        original_provider = settings.speech_provider
+        original_path = settings.vosk_model_path
+        original_key = settings.salute_speech_authorization_key
+        settings.speech_provider = "vosk"
+        settings.vosk_model_path = "/tmp/lary-missing-vosk-model"
+        settings.salute_speech_authorization_key = None
+        try:
+            speech = self.client.post("/api/speech/transcribe", files={"audio": ("voice.pcm", b"demo", "audio/x-pcm")})
+        finally:
+            settings.speech_provider = original_provider
+            settings.vosk_model_path = original_path
+            settings.salute_speech_authorization_key = original_key
+
+        self.assertEqual(speech.status_code, 503)
+        self.assertEqual(speech.json()["detail"]["code"], "vosk_model_missing")
 
     def test_social_research_keeps_user_inputs_and_russian_download_filename(self):
         response = self.client.post(

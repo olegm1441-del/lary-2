@@ -2,6 +2,7 @@ fastapi[standard]
 uvicorn[standard]
 gigachat
 httpx
+vosk
 python-dotenv
 pydantic
 sqlalchemy

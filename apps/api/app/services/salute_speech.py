@@ -1,10 +1,9 @@
 from uuid import uuid4
-import io
-import wave
 
 import httpx
 
 from app.core.config import settings
+from app.services.audio_payload import AudioPayloadError, audio_to_pcm16_16khz
 
 
 class SaluteSpeechError(Exception):
@@ -22,6 +21,8 @@ SUPPORTED_CONTENT_TYPES = {
     "audio/mp3": "audio/mpeg",
     "audio/flac": "audio/flac",
     "audio/x-pcm": "audio/x-pcm;bit=16;rate=16000",
+    "audio/wav": "audio/x-pcm;bit=16;rate=16000",
+    "audio/x-wav": "audio/x-pcm;bit=16;rate=16000",
 }
 
 
@@ -83,7 +84,10 @@ def _get_access_token() -> str:
 def _prepare_audio_payload(audio: bytes, content_type: str | None) -> tuple[bytes, str]:
     normalized = (content_type or "").split(";")[0].strip().lower()
     if normalized in {"audio/wav", "audio/x-wav"}:
-        return _wav_to_pcm(audio), "audio/x-pcm;bit=16;rate=16000"
+        try:
+            return audio_to_pcm16_16khz(audio, content_type), "audio/x-pcm;bit=16;rate=16000"
+        except AudioPayloadError as exc:
+            raise SaluteSpeechError("unsupported_audio_format") from exc
     return audio, _normalize_content_type(content_type)
 
 
@@ -94,21 +98,6 @@ def _normalize_content_type(content_type: str | None) -> str:
     if normalized in SUPPORTED_CONTENT_TYPES:
         return SUPPORTED_CONTENT_TYPES[normalized]
     raise SaluteSpeechError("unsupported_audio_format")
-
-
-def _wav_to_pcm(audio: bytes) -> bytes:
-    try:
-        with wave.open(io.BytesIO(audio), "rb") as wav_file:
-            channels = wav_file.getnchannels()
-            sample_width = wav_file.getsampwidth()
-            frame_rate = wav_file.getframerate()
-            frames = wav_file.readframes(wav_file.getnframes())
-    except wave.Error as exc:
-        raise SaluteSpeechError("unsupported_audio_format") from exc
-
-    if channels != 1 or sample_width != 2 or frame_rate != 16000:
-        raise SaluteSpeechError("unsupported_audio_format")
-    return frames
 
 
 def _extract_text(payload) -> str:

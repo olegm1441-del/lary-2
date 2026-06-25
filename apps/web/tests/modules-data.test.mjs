@@ -135,12 +135,15 @@ test("frontend has API client and voice-enabled module runner", () => {
   assert.equal(runner.includes("Запустить модуль бесплатно"), true);
   assert.equal(runner.includes("за 320 руб / бесплатно"), false);
   assert.equal(runner.includes("Наговорить"), true);
+  assert.equal(runner.includes("Записать заново"), false);
   assert.equal(runner.includes("/api/speech/transcribe"), true);
   assert.equal(runner.includes("audio/x-pcm;bit=16;rate=16000"), true);
   assert.equal(runner.includes("/api/module-runs"), true);
   assert.equal(resultViewer.includes("/result"), true);
   assert.equal(resultViewer.includes("Не получилось подготовить ответ"), true);
   assert.equal(resultPage.includes("Если результат еще готовится или произошла ошибка"), false);
+  assert.equal(resultPage.includes("Действия"), false);
+  assert.equal(resultPage.includes("Сохранить в мои работы"), false);
 });
 
 test("web railway workspace file is valid for pnpm auto-detection", () => {

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { ResultViewer } from "../../../components/result-viewer";
-import { InfoCallout, PageShell, PrimaryLink, SecondaryLink } from "../../../components/lary-ui";
+import { InfoCallout, PageShell, PrimaryLink } from "../../../components/lary-ui";
 import { getActiveModules } from "../../../lib/lary-data";
 
 export const metadata = {
@@ -30,14 +30,6 @@ export default async function ResultPage({ params }: { params: Promise<{ id: str
           <InfoCallout title="Не потерять результат">
             Без email работа доступна во временном кабинете 24 часа. Чтобы сохранить надолго, отправьте ссылку себе на почту.
           </InfoCallout>
-          <div className="rounded-3xl border border-slate-200 bg-white p-5">
-            <p className="text-xl font-bold">Действия</p>
-            <div className="mt-4 grid gap-3">
-              <SecondaryLink href="/account">Сохранить в мои работы</SecondaryLink>
-              <SecondaryLink href="/account">Прикрепить к проекту</SecondaryLink>
-              <SecondaryLink href="/modules">Запустить другой модуль</SecondaryLink>
-            </div>
-          </div>
         </aside>
       </section>
 
