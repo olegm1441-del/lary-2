@@ -37,9 +37,20 @@ def generate_with_gigachat(prompt: str) -> str:
         timeout=settings.gigachat_timeout,
         max_retries=settings.gigachat_max_retries,
     ) as client:
-        response = client.chat.create(prompt)
+        response = client.chat(prompt)
 
-    return response.messages[0].content[0].text
+    return extract_gigachat_text(response)
+
+
+def extract_gigachat_text(response) -> str:
+    choices = getattr(response, "choices", None) or []
+    if not choices:
+        raise AiRouterError("GigaChat returned an empty response.")
+    message = getattr(choices[0], "message", None)
+    content = getattr(message, "content", None)
+    if not isinstance(content, str) or not content.strip():
+        raise AiRouterError("GigaChat returned an empty message.")
+    return content.strip()
 
 
 def run_ai_test(user_text: str) -> str:

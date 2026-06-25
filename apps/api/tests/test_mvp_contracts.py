@@ -2,6 +2,7 @@ import os
 from urllib.parse import unquote
 import tempfile
 import unittest
+from types import SimpleNamespace
 
 from fastapi.testclient import TestClient
 
@@ -10,6 +11,7 @@ os.environ.setdefault("FILE_STORAGE_DIR", tempfile.mkdtemp(prefix="lary-api-test
 
 from app.main import app  # noqa: E402
 from app.core.config import settings  # noqa: E402
+from app.services.ai_router import extract_gigachat_text  # noqa: E402
 from app.services.run_store import run_store  # noqa: E402
 
 
@@ -122,6 +124,17 @@ class LaryMvpContractsTest(unittest.TestCase):
         self.assertEqual(response.status_code, 503)
         self.assertIn("AI-проверка временно недоступна", response.json()["detail"]["message"])
         self.assertNotIn("GigaChat", str(response.json()))
+
+    def test_gigachat_response_text_is_extracted_from_current_sdk_shape(self):
+        response = SimpleNamespace(
+            choices=[
+                SimpleNamespace(
+                    message=SimpleNamespace(content="  Рабочий ответ Лари  "),
+                )
+            ]
+        )
+
+        self.assertEqual(extract_gigachat_text(response), "Рабочий ответ Лари")
 
     def test_speech_rejects_browser_webm_before_provider_call(self):
         original_key = settings.salute_speech_authorization_key
