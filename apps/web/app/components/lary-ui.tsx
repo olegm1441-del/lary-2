@@ -13,14 +13,14 @@ const navItems = [
 export function Header() {
   return (
     <header className="sticky top-0 z-40 border-b border-slate-200 bg-white/95 backdrop-blur">
-      <div className="mx-auto flex min-h-20 w-full max-w-7xl items-center justify-between gap-5 px-5 py-3 sm:px-8">
-        <Link href="/" className="flex items-center gap-3 text-slate-950" aria-label="Лари — на главную">
-          <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-800 text-xl font-bold text-white">
+      <div className="mx-auto flex min-h-20 w-full max-w-7xl items-center justify-between gap-3 overflow-hidden px-5 py-3 sm:gap-5 sm:px-8">
+        <Link href="/" className="flex min-w-0 items-center gap-3 text-slate-950" aria-label="Лари — на главную">
+          <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-blue-800 text-xl font-bold text-white">
             L
           </span>
-          <span>
+          <span className="min-w-0">
             <span className="block text-2xl font-bold leading-6">Лари</span>
-            <span className="block text-sm text-slate-500">помощник по заявке ПФКИ</span>
+            <span className="block truncate text-sm text-slate-500 max-[420px]:hidden">помощник по заявке ПФКИ</span>
           </span>
         </Link>
 
@@ -32,11 +32,11 @@ export function Header() {
           ))}
         </nav>
 
-        <div className="flex items-center gap-3">
+        <div className="flex shrink-0 items-center gap-3">
           <Link href="/account" className="hidden rounded-2xl px-4 py-3 text-base font-semibold text-blue-800 hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-blue-700 sm:inline-flex">
             Войти
           </Link>
-          <Link href="/modules" className="rounded-2xl bg-blue-800 px-5 py-3 text-base font-semibold text-white shadow-sm hover:bg-blue-900 focus:outline-none focus:ring-2 focus:ring-blue-700 focus:ring-offset-2">
+          <Link href="/modules" className="rounded-2xl bg-blue-800 px-4 py-3 text-base font-semibold text-white shadow-sm hover:bg-blue-900 focus:outline-none focus:ring-2 focus:ring-blue-700 focus:ring-offset-2 sm:px-5">
             Начать
           </Link>
         </div>
@@ -103,9 +103,9 @@ export function PageShell({ children }: { children: React.ReactNode }) {
 
 export function Section({ eyebrow, title, children, className = "", id }: { eyebrow?: string; title: string; children: React.ReactNode; className?: string; id?: string }) {
   return (
-    <section id={id} className={`mx-auto w-full max-w-7xl px-5 py-14 sm:px-8 lg:py-18 ${className}`}>
+    <section id={id} className={`mx-auto w-full max-w-7xl overflow-hidden px-5 py-14 sm:px-8 lg:py-18 ${className}`}>
       {eyebrow ? <p className="mb-3 text-base font-semibold uppercase tracking-wide text-blue-800">{eyebrow}</p> : null}
-      <h2 className="max-w-4xl text-3xl font-bold tracking-tight text-slate-950 sm:text-4xl">{title}</h2>
+      <h2 className="max-w-4xl break-words text-3xl font-bold tracking-tight text-slate-950 hyphens-auto sm:text-4xl">{title}</h2>
       <div className="mt-8">{children}</div>
     </section>
   );
@@ -115,7 +115,7 @@ export function ModuleCard({ module, compact = false }: { module: LaryModule; co
   const href = module.status === "active" ? `/m/${module.slug}` : `/m/${module.slug}`;
 
   return (
-    <article className="group flex h-full min-w-0 flex-col rounded-3xl border border-slate-200 bg-white p-6 shadow-sm transition hover:-translate-y-1 hover:border-blue-200 hover:shadow-lg">
+    <article className="group flex h-full min-w-0 max-w-full flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white p-6 shadow-sm transition hover:-translate-y-1 hover:border-blue-200 hover:shadow-lg">
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
           <p className="text-sm font-semibold uppercase tracking-wide text-blue-800">{module.stage}</p>
@@ -125,7 +125,7 @@ export function ModuleCard({ module, compact = false }: { module: LaryModule; co
           {module.status === "active" ? "MVP" : "Скоро"}
         </span>
       </div>
-      <p className="mt-4 text-lg leading-8 text-slate-700">{module.promise}</p>
+      <p className="mt-4 break-words text-lg leading-8 text-slate-700">{module.promise}</p>
       <p className="mt-3 text-base font-semibold text-slate-600">Закройте одну задачу по заявке.</p>
       <div className="mt-5 flex flex-wrap gap-2">
         <Badge>{module.duration}</Badge>
@@ -136,14 +136,14 @@ export function ModuleCard({ module, compact = false }: { module: LaryModule; co
       <div className="mt-6 grid gap-3 sm:grid-cols-2">
         <Link
           href={href}
-          className="inline-flex min-h-12 items-center justify-center whitespace-normal rounded-2xl bg-blue-800 px-5 py-3 text-center text-base font-semibold text-white group-hover:bg-blue-900 focus:outline-none focus:ring-2 focus:ring-blue-700 focus:ring-offset-2"
+          className="inline-flex min-h-12 w-full items-center justify-center whitespace-normal rounded-2xl bg-blue-800 px-5 py-3 text-center text-base font-semibold text-white group-hover:bg-blue-900 focus:outline-none focus:ring-2 focus:ring-blue-700 focus:ring-offset-2"
         >
           {module.status === "active" ? "Начать" : "Сообщить, когда модуль будет готов"}
         </Link>
         {module.status === "active" ? (
           <Link
             href={`/m/${module.slug}?example=1`}
-            className="inline-flex min-h-12 items-center justify-center whitespace-normal rounded-2xl border border-slate-300 bg-white px-5 py-3 text-center text-base font-semibold text-slate-900 hover:border-blue-300 hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-blue-700 focus:ring-offset-2"
+            className="inline-flex min-h-12 w-full items-center justify-center whitespace-normal rounded-2xl border border-slate-300 bg-white px-5 py-3 text-center text-base font-semibold text-slate-900 hover:border-blue-300 hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-blue-700 focus:ring-offset-2"
           >
             Посмотреть пример
           </Link>

@@ -17,6 +17,11 @@ body {
   color: var(--foreground);
   font-family: system-ui, "Segoe UI", Arial, sans-serif;
   font-size: 18px;
+  overflow-x: hidden;
+}
+
+html {
+  overflow-x: hidden;
 }
 
 a {
