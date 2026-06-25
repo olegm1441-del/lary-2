@@ -8,3 +8,4 @@ psycopg[binary]
 python-docx
 python-pptx
 reportlab
+font-roboto==0.0.1

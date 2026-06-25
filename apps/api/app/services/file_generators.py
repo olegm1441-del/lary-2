@@ -1,5 +1,6 @@
 from pathlib import Path
 from textwrap import shorten
+from importlib import resources
 
 from docx import Document
 from docx.shared import Pt
@@ -50,6 +51,14 @@ def generate_docx(path: Path, title: str, summary: str, sections: list[dict[str,
 
 
 def _register_pdf_font() -> str:
+    try:
+        roboto_path = resources.files("font_roboto").joinpath("files/Roboto-Regular.ttf")
+        if roboto_path.is_file():
+            pdfmetrics.registerFont(TTFont("LarySans", str(roboto_path)))
+            return "LarySans"
+    except Exception:
+        pass
+
     candidates = [
         "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
         "/System/Library/Fonts/Supplemental/Arial.ttf",
