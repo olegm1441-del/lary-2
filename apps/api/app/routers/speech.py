@@ -26,14 +26,12 @@ async def transcribe(audio: UploadFile):
     except SaluteSpeechError as exc:
         code = exc.code
         logger.warning(
-            "speech_transcription_failed",
-            extra={
-                "error_code": code,
-                "provider_status": exc.provider_status,
-                "request_id": exc.request_id,
-                "content_type": audio.content_type,
-                "file_size": len(audio_bytes),
-            },
+            "speech_transcription_failed code=%s provider_status=%s request_id=%s content_type=%s file_size=%s",
+            code,
+            exc.provider_status,
+            exc.request_id,
+            audio.content_type,
+            len(audio_bytes),
         )
         status_code = 415 if code == "unsupported_audio_format" else 413 if code == "audio_too_large" else 502
         message = "Не получилось распознать голос. Можно заполнить поле текстом."
