@@ -123,12 +123,28 @@ test("frontend has API client and voice-enabled module runner", () => {
   const apiClient = readFileSync(join(root, "app/lib/api-client.ts"), "utf8");
   const runner = readFileSync(join(root, "app/components/module-runner.tsx"), "utf8");
   const resultViewer = readFileSync(join(root, "app/components/result-viewer.tsx"), "utf8");
+  const resultPage = readFileSync(join(root, "app/run/[id]/result/page.tsx"), "utf8");
 
   assert.equal(apiClient.includes("NEXT_PUBLIC_API_URL"), true);
+  assert.equal(apiClient.includes("startsWith(\"http://\")"), true);
+  assert.equal(apiClient.includes("https://"), true);
+  assert.equal(runner.includes("FIELD_KEYS_BY_MODULE"), true);
+  assert.equal(runner.includes("getFieldKey"), true);
+  assert.equal(runner.includes("/api/modules/"), true);
+  assert.equal(runner.includes("/validate-inputs"), true);
+  assert.equal(runner.includes("Запустить модуль бесплатно"), true);
+  assert.equal(runner.includes("за 320 руб / бесплатно"), false);
   assert.equal(runner.includes("Наговорить"), true);
   assert.equal(runner.includes("/api/speech/transcribe"), true);
   assert.equal(runner.includes("audio/x-pcm;bit=16;rate=16000"), true);
   assert.equal(runner.includes("/api/module-runs"), true);
   assert.equal(resultViewer.includes("/result"), true);
   assert.equal(resultViewer.includes("Не получилось подготовить ответ"), true);
+  assert.equal(resultPage.includes("Если результат еще готовится или произошла ошибка"), false);
+});
+
+test("web railway workspace file is valid for pnpm auto-detection", () => {
+  const workspace = readFileSync(join(root, "pnpm-workspace.yaml"), "utf8");
+  assert.equal(workspace.includes("packages:"), true);
+  assert.equal(workspace.includes("- \".\""), true);
 });

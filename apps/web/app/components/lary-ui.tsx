@@ -47,12 +47,18 @@ export function Header() {
 export function Footer() {
   return (
     <footer className="border-t border-slate-200 bg-slate-950 text-slate-100">
-      <div className="mx-auto grid max-w-7xl gap-8 px-5 py-10 sm:px-8 lg:grid-cols-[1.3fr_1fr_1fr]">
+      <div className="mx-auto grid max-w-7xl gap-8 px-5 py-10 sm:px-8 lg:grid-cols-[1.3fr_1fr_1fr_1fr]">
         <div>
           <p className="text-2xl font-bold">Лари</p>
           <p className="mt-3 max-w-xl text-base leading-7 text-slate-300">
             Модульный сервис для подготовки рабочих материалов к заявке ПФКИ. Лари помогает собрать документы, но не обещает победу в конкурсе.
           </p>
+          <div className="mt-5 text-sm leading-6 text-slate-400">
+            <p>ИП Сумин Александр Николаевич</p>
+            <p>г. Екатеринбург, ул. Сыромолотова 14, оф. 600</p>
+            <p>ОГРНИП: 315665800076101 · ИНН: 667005585512</p>
+            <p>E-mail: legacyinfo@yandex.ru</p>
+          </div>
         </div>
         <div>
           <p className="font-semibold">Разделы</p>
@@ -67,9 +73,17 @@ export function Footer() {
           <p className="font-semibold">Документы</p>
           <div className="mt-3 grid gap-2 text-slate-300">
             <Link href="/docs/privacy">Политика персональных данных</Link>
+            <Link href="/docs/agreement">Пользовательское соглашение</Link>
             <Link href="/docs/offer">Публичная оферта</Link>
             <Link href="/docs/cookies">Политика cookie</Link>
+            <Link href="/docs/conditions">Оплата и возврат</Link>
           </div>
+        </div>
+        <div>
+          <p className="font-semibold">Важно</p>
+          <p className="mt-3 text-base leading-7 text-slate-300">
+            Аудио используется только для распознавания речи. Работы без email временно доступны 24 часа. Перед подачей документы нужно проверить вручную.
+          </p>
         </div>
       </div>
     </footer>

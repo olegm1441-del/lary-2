@@ -15,6 +15,15 @@ MEDIA_TYPES = {
     "pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
 }
 
+DOWNLOAD_TITLES = {
+    "social-research": "Анализ социальной значимости",
+    "legal-acts": "Нормативные акты",
+    "salary": "Расчет зарплаты",
+    "support-letter": "Письмо поддержки",
+    "presentation": "Презентация проекта",
+    "scenario-plan": "Сценарный план",
+}
+
 
 @router.post("", response_model=ModuleRunCreateResponse)
 def create_run(payload: ModuleRunCreateRequest):
@@ -63,7 +72,8 @@ def download(run_id: str, file_format: str):
     if not path.exists():
         raise HTTPException(status_code=404, detail={"message": "Файл временно недоступен. Запустите модуль еще раз."})
 
-    return FileResponse(path, media_type=MEDIA_TYPES.get(file_format, "application/octet-stream"), filename=path.name)
+    filename = f"{DOWNLOAD_TITLES.get(run.module_slug, run.module_slug)}.{file_format}"
+    return FileResponse(path, media_type=MEDIA_TYPES.get(file_format, "application/octet-stream"), filename=filename)
 
 
 def _result(run_id: str) -> ModuleRunResultResponse:

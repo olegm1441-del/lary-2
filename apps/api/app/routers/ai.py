@@ -16,6 +16,18 @@ def ai_test(payload: AiTestRequest):
             result=result,
         )
     except AiRouterError as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "message": "AI-проверка временно недоступна. Данные не потеряны, попробуйте еще раз через минуту.",
+                "code": "ai_not_configured",
+            },
+        ) from e
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"GigaChat request failed: {e}")
+        raise HTTPException(
+            status_code=502,
+            detail={
+                "message": "AI-проверка временно недоступна. Данные не потеряны, попробуйте еще раз через минуту.",
+                "code": "ai_provider_failed",
+            },
+        ) from e

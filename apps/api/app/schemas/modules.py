@@ -22,6 +22,22 @@ class ModuleRunCreateRequest(BaseModel):
     presentation_variant: str | None = Field(default=None, description="grant_defense or calendar_plan")
 
 
+class ModuleValidationRequest(BaseModel):
+    inputs: dict[str, str | int | float | bool | None] = Field(default_factory=dict)
+
+
+class ModuleValidationHint(BaseModel):
+    field_key: str
+    message: str
+    tone: str = "attention"
+
+
+class ModuleValidationResponse(BaseModel):
+    module_slug: str
+    status: str
+    hints: list[ModuleValidationHint]
+
+
 class ModuleRunCreateResponse(BaseModel):
     run_id: str
     status: str

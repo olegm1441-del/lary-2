@@ -58,6 +58,19 @@ export function ResultViewer({ runId }: { runId: string }) {
     );
   }
 
+  if (result.status !== "completed") {
+    return (
+      <div className="rounded-3xl border border-blue-200 bg-blue-50 p-6 text-blue-950">
+        <p className="text-2xl font-bold">{result.status === "failed" ? "Не получилось подготовить ответ" : "Лари готовит результат"}</p>
+        <p className="mt-3 text-lg leading-8">
+          {result.status === "failed"
+            ? "Данные сохранены. Попробуйте повторить запуск через минуту или напишите в поддержку."
+            : "Обычно это занимает меньше минуты. Не закрывайте страницу, данные уже сохранены."}
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div className="rounded-3xl border border-slate-200 bg-white p-6">
       <div className="flex flex-wrap items-center justify-between gap-4">

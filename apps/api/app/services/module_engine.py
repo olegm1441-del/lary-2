@@ -5,6 +5,7 @@ from app.core.config import settings
 from app.data.modules import get_module
 from app.services.ai_router import AiRouterError, generate_with_gigachat
 from app.services.file_generators import generate_docx, generate_pdf, generate_pptx
+from app.services.module_inputs import normalize_inputs, primary_project_label
 from app.services.run_store import StoredRun, run_store
 
 
@@ -13,6 +14,7 @@ def create_module_run(module_slug: str, inputs: dict, presentation_variant: str 
     if not module or module["status"] != "active":
         raise ValueError("Такой модуль пока недоступен.")
 
+    inputs = normalize_inputs(module_slug, inputs)
     run_id = str(uuid4())
     title = _result_title(module, inputs)
     sections = _build_sections(module_slug, inputs, presentation_variant)
@@ -83,31 +85,32 @@ def improve_run(run_id: str, instruction: str) -> StoredRun:
 
 
 def _result_title(module: dict, inputs: dict) -> str:
-    project = str(inputs.get("project_title") or inputs.get("title") or "проект").strip()
+    project = primary_project_label(inputs)
     return f"{module['title']}: {project}"
 
 
 def _build_summary(module: dict, inputs: dict) -> str:
-    project = inputs.get("project_title") or inputs.get("title") or "ваш проект"
-    region = inputs.get("region") or "выбранная территория"
+    project = primary_project_label(inputs)
+    region = inputs.get("region") or inputs.get("region_value") or "выбранная территория"
     return f"Рабочий результат модуля «{module['title']}» для проекта «{project}» в контексте ПФКИ. Территория: {region}."
 
 
 def _build_sections(module_slug: str, inputs: dict, presentation_variant: str | None) -> list[dict[str, str]]:
-    project = str(inputs.get("project_title") or inputs.get("title") or "Проект").strip()
+    project = primary_project_label(inputs)
+    direction = str(inputs.get("direction") or "").strip()
     region = str(inputs.get("region") or "территория проекта").strip()
     target_group = str(inputs.get("target_group") or "целевая группа").strip()
     problem = str(inputs.get("problem") or inputs.get("project_description") or inputs.get("description") or "описание нужно уточнить").strip()
 
     base = [
-        {"title": "Проект", "body": f"Название или рабочая тема: {project}.\nТерритория: {region}."},
+        {"title": "Проект", "body": _project_body(project, direction, region)},
         {"title": "Целевая группа", "body": f"Основная аудитория: {target_group}. Уточните возраст, статус и территорию перед подачей."},
         {"title": "Актуальность", "body": f"Проблема или потребность: {problem}. Для финальной заявки нужны проверенные источники и свежие данные."},
     ]
 
     specific: dict[str, list[dict[str, str]]] = {
         "social-research": [
-            {"title": "Доказательная база", "body": "Добавьте официальную статистику, региональные данные, исследования, ВЦИОМ/ФОМ/Росстат или профильные источники."},
+            {"title": "Доказательная база", "body": f"Ищите данные по теме «{direction or project}» для территории «{region}»: официальная статистика, региональные данные, исследования, ВЦИОМ/ФОМ/Росстат или профильные источники."},
             {"title": "Где использовать", "body": "Эти аргументы подходят для разделов актуальности, социальной значимости и описания проблемы."},
         ],
         "legal-acts": [
@@ -133,6 +136,14 @@ def _build_sections(module_slug: str, inputs: dict, presentation_variant: str | 
         ],
     }
     return base + specific.get(module_slug, [])
+
+
+def _project_body(project: str, direction: str, region: str) -> str:
+    lines = [f"Название или рабочая тема: {project}."]
+    if direction and direction != project:
+        lines.append(f"Основное направление: {direction}.")
+    lines.append(f"Территория: {region}.")
+    return "\n".join(lines)
 
 
 def _enrich_with_ai(module_slug: str, inputs: dict, sections: list[dict[str, str]]) -> list[dict[str, str]]:

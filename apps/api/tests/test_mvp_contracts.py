@@ -1,4 +1,5 @@
 import os
+from urllib.parse import unquote
 import tempfile
 import unittest
 
@@ -110,6 +111,18 @@ class LaryMvpContractsTest(unittest.TestCase):
         self.assertEqual(speech.status_code, 503)
         self.assertIn("Голосовой ввод временно недоступен", speech.json()["detail"]["message"])
 
+    def test_ai_test_errors_are_user_friendly(self):
+        original_credentials = settings.gigachat_credentials
+        settings.gigachat_credentials = None
+        try:
+            response = self.client.post("/api/ai/test", json={"text": "проект про дворовый футбол"})
+        finally:
+            settings.gigachat_credentials = original_credentials
+
+        self.assertEqual(response.status_code, 503)
+        self.assertIn("AI-проверка временно недоступна", response.json()["detail"]["message"])
+        self.assertNotIn("GigaChat", str(response.json()))
+
     def test_speech_rejects_browser_webm_before_provider_call(self):
         original_key = settings.salute_speech_authorization_key
         settings.salute_speech_authorization_key = "test-key"
@@ -120,6 +133,74 @@ class LaryMvpContractsTest(unittest.TestCase):
 
         self.assertEqual(speech.status_code, 415)
         self.assertEqual(speech.json()["detail"]["code"], "unsupported_audio_format")
+
+    def test_social_research_keeps_user_inputs_and_russian_download_filename(self):
+        response = self.client.post(
+            "/api/module-runs",
+            json={
+                "module_slug": "social-research",
+                "inputs": {
+                    "region": "Республика Татарстан",
+                    "direction": "дворовой футбол",
+                    "target_group": "подростки 12-17 лет",
+                    "problem": "мало регулярных дворовых событий для подростков в малых городах",
+                },
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        result = self.client.get(f"/api/module-runs/{payload['run_id']}/result").json()
+        joined = "\n".join([result["title"], result["summary"]] + [section["body"] for section in result["sections"]])
+
+        self.assertIn("Республика Татарстан", joined)
+        self.assertIn("дворовой футбол", joined)
+        self.assertIn("подростки 12-17 лет", joined)
+        self.assertNotIn("территория проекта", joined)
+        self.assertNotIn("целевая группа", joined)
+
+        download = self.client.get(f"/api/module-runs/{payload['run_id']}/download/docx")
+        content_disposition = unquote(download.headers["content-disposition"])
+        self.assertIn("Анализ социальной значимости", content_disposition)
+
+    def test_legacy_russian_field_keys_are_normalized(self):
+        response = self.client.post(
+            "/api/module-runs",
+            json={
+                "module_slug": "social-research",
+                "inputs": {
+                    "регион": "Республика Татарстан",
+                    "основное_направление": "дворовой футбол",
+                    "целевая_группа": "подростки 12-17 лет",
+                    "описание_проблемы": "мало регулярных дворовых событий",
+                },
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        result = self.client.get(f"/api/module-runs/{payload['run_id']}/result").json()
+        joined = "\n".join([result["title"], result["summary"]] + [section["body"] for section in result["sections"]])
+        self.assertIn("Республика Татарстан", joined)
+        self.assertIn("дворовой футбол", joined)
+
+    def test_module_validation_returns_contextual_inline_hints(self):
+        response = self.client.post(
+            "/api/modules/social-research/validate-inputs",
+            json={
+                "inputs": {
+                    "region": "Татарстан",
+                    "target_group": "подростки",
+                    "problem": "мало событий",
+                }
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        messages = [item["message"] for item in payload["hints"]]
+        self.assertTrue(any("город" in message or "район" in message for message in messages))
+        self.assertTrue(any("возраст" in message for message in messages))
 
 
 if __name__ == "__main__":

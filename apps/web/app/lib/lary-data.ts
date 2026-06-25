@@ -10,6 +10,29 @@ export type ModuleField = {
   hint: string;
 };
 
+export const FIELD_KEYS_BY_MODULE: Record<string, string[]> = {
+  "social-research": ["region", "direction", "target_group", "problem", "details"],
+  "legal-acts": ["program_level", "region", "direction", "target_group", "details"],
+  salary: ["role", "region", "functionality", "months", "workload", "calendar_items", "cofunding"],
+  "support-letter": ["competition", "partner_role", "partner", "project_title", "target_value", "region_value", "contribution"],
+  presentation: ["project_description", "target_group", "slide_count", "visual_style", "calendar_plan"],
+  "scenario-plan": ["scenario_type", "description", "duration", "preparation", "participants", "details"],
+  "check-application": ["file", "competition", "focus_sections", "email"],
+};
+
+export const FIELD_OPTIONS_BY_KEY: Record<string, string[]> = {
+  region: ["Республика Татарстан", "Свердловская область", "Москва", "Санкт-Петербург", "Краснодарский край", "Нижегородская область"],
+  direction: ["Дворовой футбол", "Театр", "Музей", "Семейная память", "Локальная история", "Культурный фестиваль", "Спорт и культура"],
+  program_level: ["Федеральные и региональные документы", "Только федеральные документы", "Только региональные документы"],
+  role: ["Координатор проекта", "Организатор", "Куратор", "Режиссер", "Методист", "SMM-специалист"],
+  cofunding: ["Собственные средства", "Письмо поддержки", "Имущественный вклад", "Без софинансирования"],
+  partner_role: ["Информационная поддержка", "Организационная поддержка", "Консультационная поддержка", "Материальная поддержка", "Финансовая поддержка"],
+  competition: ["ПФКИ", "Фонд президентских грантов", "Движение Первых", "Региональный конкурс"],
+  scenario_type: ["Фестиваль", "Постановка", "Видеоролик", "Концерт", "Мастер-класс", "Выставка"],
+  slide_count: ["8 слайдов", "10 слайдов", "12 слайдов"],
+  visual_style: ["Официально и спокойно", "Для защиты заявки", "Для календарного плана", "Минимум текста"],
+};
+
 export type LaryModule = {
   slug: string;
   status: ModuleStatus;
@@ -45,6 +68,14 @@ export function getModuleBySlug(slug: string) {
 
 export function getModuleSlugs() {
   return modules.map((module) => module.slug);
+}
+
+export function getFieldKey(moduleSlug: string, fieldIndex: number, label: string) {
+  return FIELD_KEYS_BY_MODULE[moduleSlug]?.[fieldIndex] || label.toLowerCase().replace(/\s+/g, "_");
+}
+
+export function getFieldOptions(fieldKey: string) {
+  return FIELD_OPTIONS_BY_KEY[fieldKey] || [];
 }
 
 export const legalDocuments = [

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { ResultViewer } from "../../../components/result-viewer";
-import { ApiStatePanel, InfoCallout, PageShell, PrimaryLink, SecondaryLink } from "../../../components/lary-ui";
+import { InfoCallout, PageShell, PrimaryLink, SecondaryLink } from "../../../components/lary-ui";
 import { getActiveModules } from "../../../lib/lary-data";
 
 export const metadata = {
@@ -18,7 +18,7 @@ export default async function ResultPage({ params }: { params: Promise<{ id: str
           <p className="text-base font-semibold uppercase tracking-wide text-green-800">Работа сохранена</p>
           <h1 className="mt-3 max-w-4xl text-4xl font-bold tracking-tight text-slate-950 sm:text-5xl">Результат готов к скачиванию</h1>
           <p className="mt-5 max-w-3xl text-xl leading-9 text-slate-700">
-            Это экран результата для запуска `{id}`. В реальном API здесь будет статус, версия результата, файлы и действия пользователя.
+            Проверьте текст, скачайте файл и при необходимости запустите следующий модуль для той же заявки.
           </p>
         </div>
       </section>
@@ -39,13 +39,6 @@ export default async function ResultPage({ params }: { params: Promise<{ id: str
             </div>
           </div>
         </aside>
-      </section>
-
-      <section className="mx-auto max-w-7xl px-5 pb-14 sm:px-8">
-        <h2 className="text-3xl font-bold">Если результат еще готовится или произошла ошибка</h2>
-        <div className="mt-6">
-          <ApiStatePanel />
-        </div>
       </section>
 
       {recommended ? (

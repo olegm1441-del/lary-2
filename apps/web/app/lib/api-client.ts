@@ -1,7 +1,9 @@
 const DEFAULT_API_URL = "http://127.0.0.1:8000";
 
 export function apiBaseUrl() {
-  return (process.env.NEXT_PUBLIC_API_URL || DEFAULT_API_URL).replace(/\/$/, "");
+  const configured = (process.env.NEXT_PUBLIC_API_URL || DEFAULT_API_URL).trim().replace(/\/$/, "");
+  if (configured.startsWith("http://") || configured.startsWith("https://")) return configured;
+  return `https://${configured}`;
 }
 
 export function apiUrl(path: string) {
