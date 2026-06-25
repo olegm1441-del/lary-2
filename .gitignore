@@ -1,1 +1,6 @@
 setup_architecture.log
+.DS_Store
+.Rhistory
+__pycache__/
+*.pyc
+.pytest_cache/

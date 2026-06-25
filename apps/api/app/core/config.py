@@ -7,6 +7,7 @@ class Settings:
 
     cors_origins: str = os.getenv("CORS_ORIGINS", "*")
     database_url: str | None = os.getenv("DATABASE_URL")
+    file_storage_dir: str = os.getenv("FILE_STORAGE_DIR", "/tmp/lary-generated")
 
     gigachat_credentials: str | None = os.getenv("GIGACHAT_CREDENTIALS")
     gigachat_scope: str = os.getenv("GIGACHAT_SCOPE", "GIGACHAT_API_PERS")
@@ -17,6 +18,7 @@ class Settings:
 
     salute_speech_authorization_key: str | None = os.getenv("SALUTE_SPEECH_AUTHORIZATION_KEY")
     salute_speech_scope: str = os.getenv("SALUTE_SPEECH_SCOPE", "SALUTE_SPEECH_PERS")
+    payment_provider_mode: str = os.getenv("PAYMENT_PROVIDER_MODE", "placeholder")
 
     def cors_list(self) -> list[str]:
         if self.cors_origins.strip() == "*":
