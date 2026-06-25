@@ -1,11 +1,13 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useMemo, useRef, useState } from "react";
 import type { LaryModule } from "../lib/lary-data";
 import { apiUrl, readApiError } from "../lib/api-client";
 
 type RunState = "idle" | "submitting" | "error";
+type VoiceState = "idle" | "recording" | "uploading";
+type VoiceTarget = { key: string; label: string };
 
 export function ModuleRunner({ module }: { module: LaryModule }) {
   const router = useRouter();
@@ -13,6 +15,17 @@ export function ModuleRunner({ module }: { module: LaryModule }) {
   const [state, setState] = useState<RunState>("idle");
   const [message, setMessage] = useState("");
   const [voiceMessage, setVoiceMessage] = useState("");
+  const [voiceState, setVoiceState] = useState<VoiceState>("idle");
+  const [voiceTarget, setVoiceTarget] = useState<VoiceTarget | null>(null);
+
+  const mediaStreamRef = useRef<MediaStream | null>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const processorRef = useRef<ScriptProcessorNode | null>(null);
+  const sourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
+  const silentGainRef = useRef<GainNode | null>(null);
+  const audioChunksRef = useRef<Float32Array[]>([]);
+  const sourceSampleRateRef = useRef(44100);
+  const stopTimerRef = useRef<number | null>(null);
 
   const presentationVariant = useMemo(() => {
     if (module.slug !== "presentation") return undefined;
@@ -51,8 +64,136 @@ export function ModuleRunner({ module }: { module: LaryModule }) {
     setValues((current) => ({ ...current, [key]: value }));
   }
 
-  function startVoice(label: string) {
-    setVoiceMessage(`Голосовой ввод для поля «${label}» будет отправлять аудио в SaluteSpeech через backend. Сейчас можно заполнить поле текстом.`);
+  function appendValue(key: string, value: string) {
+    setValues((current) => ({
+      ...current,
+      [key]: current[key] ? `${current[key]}\n${value}` : value,
+    }));
+  }
+
+  async function startVoice(key: string, label: string) {
+    if (voiceState === "recording" && voiceTarget?.key === key) {
+      await stopVoiceAndSend();
+      return;
+    }
+
+    if (voiceState !== "idle") {
+      setVoiceMessage("Сначала завершите текущую голосовую запись.");
+      return;
+    }
+
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setVoiceMessage("В этом браузере голосовой ввод недоступен. Заполните поле текстом.");
+      return;
+    }
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const AudioContextClass = window.AudioContext || (window as Window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+      if (!AudioContextClass) {
+        stream.getTracks().forEach((track) => track.stop());
+        setVoiceMessage("Браузер не поддерживает запись звука. Заполните поле текстом.");
+        return;
+      }
+
+      const audioContext = new AudioContextClass();
+      const source = audioContext.createMediaStreamSource(stream);
+      const processor = audioContext.createScriptProcessor(4096, 1, 1);
+      const silentGain = audioContext.createGain();
+      silentGain.gain.value = 0;
+
+      audioChunksRef.current = [];
+      sourceSampleRateRef.current = audioContext.sampleRate;
+      processor.onaudioprocess = (event) => {
+        audioChunksRef.current.push(new Float32Array(event.inputBuffer.getChannelData(0)));
+      };
+
+      source.connect(processor);
+      processor.connect(silentGain);
+      silentGain.connect(audioContext.destination);
+
+      mediaStreamRef.current = stream;
+      audioContextRef.current = audioContext;
+      processorRef.current = processor;
+      sourceRef.current = source;
+      silentGainRef.current = silentGain;
+      setVoiceTarget({ key, label });
+      setVoiceState("recording");
+      setVoiceMessage(`Идет запись поля «${label}». Нажмите «Остановить запись», когда закончите. Максимум — около минуты.`);
+
+      stopTimerRef.current = window.setTimeout(() => {
+        void stopVoiceAndSend();
+      }, 55_000);
+    } catch {
+      setVoiceState("idle");
+      setVoiceTarget(null);
+      setVoiceMessage("Не удалось получить доступ к микрофону. Проверьте разрешение браузера или заполните поле текстом.");
+      cleanupVoice();
+    }
+  }
+
+  async function stopVoiceAndSend() {
+    const target = voiceTarget;
+    if (!target) return;
+
+    setVoiceState("uploading");
+    setVoiceMessage(`Распознаем запись для поля «${target.label}»...`);
+    cleanupVoice();
+
+    const chunks = audioChunksRef.current;
+    if (!chunks.length) {
+      setVoiceState("idle");
+      setVoiceTarget(null);
+      setVoiceMessage("Запись получилась пустой. Попробуйте еще раз или заполните поле текстом.");
+      return;
+    }
+
+    try {
+      const pcm = encodePcm16(downsampleTo16Khz(chunks, sourceSampleRateRef.current));
+      const formData = new FormData();
+      formData.append("audio", new File([pcm], "voice.pcm", { type: "audio/x-pcm;bit=16;rate=16000" }));
+
+      const response = await fetch(apiUrl("/api/speech/transcribe"), {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!response.ok) {
+        throw new Error(await readApiError(response));
+      }
+
+      const payload = await response.json();
+      const text = typeof payload?.text === "string" ? payload.text.trim() : "";
+      if (!text) {
+        throw new Error("Не получилось распознать голос. Можно заполнить поле текстом.");
+      }
+
+      appendValue(target.key, text);
+      setVoiceMessage(`Голос распознан и добавлен в поле «${target.label}». Проверьте текст перед запуском модуля.`);
+    } catch (error) {
+      setVoiceMessage(error instanceof Error ? error.message : "Не получилось распознать голос. Можно заполнить поле текстом.");
+    } finally {
+      setVoiceState("idle");
+      setVoiceTarget(null);
+      audioChunksRef.current = [];
+    }
+  }
+
+  function cleanupVoice() {
+    if (stopTimerRef.current) {
+      window.clearTimeout(stopTimerRef.current);
+      stopTimerRef.current = null;
+    }
+    processorRef.current?.disconnect();
+    sourceRef.current?.disconnect();
+    silentGainRef.current?.disconnect();
+    mediaStreamRef.current?.getTracks().forEach((track) => track.stop());
+    void audioContextRef.current?.close();
+    processorRef.current = null;
+    sourceRef.current = null;
+    silentGainRef.current = null;
+    mediaStreamRef.current = null;
+    audioContextRef.current = null;
   }
 
   return (
@@ -114,10 +255,15 @@ export function ModuleRunner({ module }: { module: LaryModule }) {
             {isLongText ? (
               <button
                 type="button"
-                onClick={() => startVoice(field.label)}
+                onClick={() => void startVoice(key, field.label)}
+                disabled={voiceState === "uploading" || (voiceState === "recording" && voiceTarget?.key !== key)}
                 className="mt-3 min-h-12 rounded-2xl border border-blue-800 px-4 py-3 text-base font-semibold text-blue-800 hover:bg-blue-50"
               >
-                Наговорить
+                {voiceState === "recording" && voiceTarget?.key === key
+                  ? "Остановить запись"
+                  : voiceState === "uploading" && voiceTarget?.key === key
+                    ? "Распознаем..."
+                    : "Наговорить"}
               </button>
             ) : null}
           </label>
@@ -150,4 +296,43 @@ export function ModuleRunner({ module }: { module: LaryModule }) {
       </div>
     </form>
   );
+}
+
+function downsampleTo16Khz(chunks: Float32Array[], inputSampleRate: number) {
+  const inputLength = chunks.reduce((sum, chunk) => sum + chunk.length, 0);
+  const input = new Float32Array(inputLength);
+  let offset = 0;
+  for (const chunk of chunks) {
+    input.set(chunk, offset);
+    offset += chunk.length;
+  }
+
+  const targetSampleRate = 16000;
+  if (inputSampleRate === targetSampleRate) return input;
+
+  const ratio = inputSampleRate / targetSampleRate;
+  const outputLength = Math.floor(input.length / ratio);
+  const output = new Float32Array(outputLength);
+  for (let index = 0; index < outputLength; index += 1) {
+    const start = Math.floor(index * ratio);
+    const end = Math.min(Math.floor((index + 1) * ratio), input.length);
+    let total = 0;
+    let count = 0;
+    for (let sourceIndex = start; sourceIndex < end; sourceIndex += 1) {
+      total += input[sourceIndex];
+      count += 1;
+    }
+    output[index] = count ? total / count : 0;
+  }
+  return output;
+}
+
+function encodePcm16(samples: Float32Array) {
+  const buffer = new ArrayBuffer(samples.length * 2);
+  const view = new DataView(buffer);
+  for (let index = 0; index < samples.length; index += 1) {
+    const sample = Math.max(-1, Math.min(1, samples[index]));
+    view.setInt16(index * 2, sample < 0 ? sample * 0x8000 : sample * 0x7fff, true);
+  }
+  return buffer;
 }

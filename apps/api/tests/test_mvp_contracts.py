@@ -8,6 +8,7 @@ os.environ.setdefault("APP_ENV", "test")
 os.environ.setdefault("FILE_STORAGE_DIR", tempfile.mkdtemp(prefix="lary-api-test-"))
 
 from app.main import app  # noqa: E402
+from app.core.config import settings  # noqa: E402
 from app.services.run_store import run_store  # noqa: E402
 
 
@@ -108,6 +109,17 @@ class LaryMvpContractsTest(unittest.TestCase):
         speech = self.client.post("/api/speech/transcribe", files={"audio": ("voice.webm", b"demo", "audio/webm")})
         self.assertEqual(speech.status_code, 503)
         self.assertIn("Голосовой ввод временно недоступен", speech.json()["detail"]["message"])
+
+    def test_speech_rejects_browser_webm_before_provider_call(self):
+        original_key = settings.salute_speech_authorization_key
+        settings.salute_speech_authorization_key = "test-key"
+        try:
+            speech = self.client.post("/api/speech/transcribe", files={"audio": ("voice.webm", b"demo", "audio/webm")})
+        finally:
+            settings.salute_speech_authorization_key = original_key
+
+        self.assertEqual(speech.status_code, 415)
+        self.assertEqual(speech.json()["detail"]["code"], "unsupported_audio_format")
 
 
 if __name__ == "__main__":

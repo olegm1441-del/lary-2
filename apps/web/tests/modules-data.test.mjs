@@ -126,6 +126,8 @@ test("frontend has API client and voice-enabled module runner", () => {
 
   assert.equal(apiClient.includes("NEXT_PUBLIC_API_URL"), true);
   assert.equal(runner.includes("Наговорить"), true);
+  assert.equal(runner.includes("/api/speech/transcribe"), true);
+  assert.equal(runner.includes("audio/x-pcm;bit=16;rate=16000"), true);
   assert.equal(runner.includes("/api/module-runs"), true);
   assert.equal(resultViewer.includes("/result"), true);
   assert.equal(resultViewer.includes("Не получилось подготовить ответ"), true);
