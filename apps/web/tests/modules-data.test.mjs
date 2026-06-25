@@ -127,6 +127,9 @@ test("frontend has API client and voice-enabled module runner", () => {
   const moduleAttempts = readFileSync(join(root, "app/lib/module-attempts.ts"), "utf8");
   const resultViewer = readFileSync(join(root, "app/components/result-viewer.tsx"), "utf8");
   const resultPage = readFileSync(join(root, "app/run/[id]/result/page.tsx"), "utf8");
+  const modulePage = readFileSync(join(root, "app/m/[slug]/page.tsx"), "utf8");
+  const homePage = readFileSync(join(root, "app/page.tsx"), "utf8");
+  const emailResultForm = readFileSync(join(root, "app/components/email-result-form.tsx"), "utf8");
 
   assert.equal(apiClient.includes("NEXT_PUBLIC_API_URL"), true);
   assert.equal(apiClient.includes("startsWith(\"http://\")"), true);
@@ -153,6 +156,27 @@ test("frontend has API client and voice-enabled module runner", () => {
   assert.equal(resultPage.includes("Если результат еще готовится или произошла ошибка"), false);
   assert.equal(resultPage.includes("Действия"), false);
   assert.equal(resultPage.includes("Сохранить в мои работы"), false);
+  assert.equal(resultPage.includes("Чтобы сохранить надолго, отправьте файл на почту."), true);
+  assert.equal(emailResultForm.includes("type=\"email\""), true);
+  assert.equal(emailResultForm.includes("type=\"password\""), true);
+  assert.equal(modulePage.includes("Поля собраны по ТЗ"), false);
+  assert.equal(modulePage.includes("При запуске нейросеть проанализирует задачу и подготовит файл для скачивания."), true);
+  assert.equal(homePage.includes("DOCX/PDF"), false);
+  assert.equal(homePage.includes("DOCX/PDF/PPTX"), false);
+  assert.equal(homePage.includes("готовый файл"), true);
+});
+
+test("presentation form avoids duplicated type and manual slide count", () => {
+  const modules = readModules();
+  const presentation = modules.find((module) => module.slug === "presentation");
+  const fieldLabels = presentation.fields.map((field) => field.label);
+  const laryData = readFileSync(join(root, "app/lib/lary-data.ts"), "utf8");
+
+  assert.equal(fieldLabels.includes("Тип презентации"), false);
+  assert.equal(fieldLabels.includes("Количество слайдов"), false);
+  assert.equal(fieldLabels.includes("Шаблон"), true);
+  assert.equal(laryData.includes("Официальный"), true);
+  assert.equal(laryData.includes("Минималистичный"), true);
 });
 
 test("web railway workspace file is valid for pnpm auto-detection", () => {

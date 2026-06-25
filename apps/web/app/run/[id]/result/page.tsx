@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { EmailResultForm } from "../../../components/email-result-form";
 import { ResultViewer } from "../../../components/result-viewer";
 import { InfoCallout, PageShell, PrimaryLink } from "../../../components/lary-ui";
 import { getActiveModules } from "../../../lib/lary-data";
@@ -28,8 +29,9 @@ export default async function ResultPage({ params }: { params: Promise<{ id: str
 
         <aside className="grid content-start gap-5">
           <InfoCallout title="Не потерять результат">
-            Без email работа доступна во временном кабинете 24 часа. Чтобы сохранить надолго, отправьте ссылку себе на почту.
+            Без email работа доступна во временном кабинете 24 часа. Чтобы сохранить надолго, отправьте файл на почту.
           </InfoCallout>
+          <EmailResultForm runId={id} />
         </aside>
       </section>
 

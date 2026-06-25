@@ -6,7 +6,7 @@ MODULES = [
         "task_title": "Собрать доказательства актуальности",
         "duration": "4-7 минут",
         "competition": "ПФКИ",
-        "output_formats": ["docx", "pdf"],
+        "output_formats": ["docx"],
         "fields": ["region", "direction", "target_group", "problem", "details"],
     },
     {
@@ -16,7 +16,7 @@ MODULES = [
         "task_title": "Найти правовую основу проекта",
         "duration": "3-6 минут",
         "competition": "ПФКИ",
-        "output_formats": ["docx", "pdf"],
+        "output_formats": ["docx"],
         "fields": ["program_level", "region", "direction", "target_group", "details"],
     },
     {
@@ -26,7 +26,7 @@ MODULES = [
         "task_title": "Рассчитать зарплату",
         "duration": "5-8 минут",
         "competition": "ПФКИ",
-        "output_formats": ["docx", "pdf"],
+        "output_formats": ["docx"],
         "fields": ["role", "region", "functionality", "months", "workload", "calendar_items", "cofunding"],
     },
     {
@@ -36,7 +36,7 @@ MODULES = [
         "task_title": "Сделать письмо поддержки",
         "duration": "4-7 минут",
         "competition": "ПФКИ",
-        "output_formats": ["docx", "pdf"],
+        "output_formats": ["docx"],
         "fields": ["competition", "partner_role", "partner", "project_title", "target_value", "region_value", "contribution"],
     },
     {
@@ -46,8 +46,8 @@ MODULES = [
         "task_title": "Собрать презентацию",
         "duration": "10-12 минут",
         "competition": "ПФКИ",
-        "output_formats": ["pptx", "pdf"],
-        "fields": ["presentation_variant", "project_title", "project_description", "target_group", "region", "calendar_plan"],
+        "output_formats": ["pptx"],
+        "fields": ["presentation_variant", "project_description", "visual_style", "calendar_plan", "details"],
     },
     {
         "slug": "scenario-plan",
@@ -56,7 +56,7 @@ MODULES = [
         "task_title": "Составить сценарный план",
         "duration": "6-10 минут",
         "competition": "ПФКИ",
-        "output_formats": ["docx", "pdf"],
+        "output_formats": ["docx"],
         "fields": ["scenario_type", "description", "duration", "preparation", "participants", "details"],
     },
     {
@@ -66,7 +66,7 @@ MODULES = [
         "task_title": "Проверить готовую заявку",
         "duration": "Скоро",
         "competition": "ПФКИ",
-        "output_formats": ["pdf", "docx"],
+        "output_formats": ["docx"],
         "fields": ["file", "competition", "focus_sections", "email"],
     },
 ]

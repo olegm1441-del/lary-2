@@ -3,8 +3,9 @@ from pathlib import Path
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse
 
-from app.schemas.modules import ImproveRequest, ModuleRunCreateRequest, ModuleRunCreateResponse, ModuleRunResultResponse
+from app.schemas.modules import EmailFileRequest, EmailFileResponse, ImproveRequest, ModuleRunCreateRequest, ModuleRunCreateResponse, ModuleRunResultResponse
 from app.services.module_engine import create_module_run, improve_run
+from app.services.account_store import save_result_for_email
 from app.services.run_store import run_store
 
 router = APIRouter(prefix="/api/module-runs", tags=["Module runs"])
@@ -58,6 +59,18 @@ def improve(run_id: str, payload: ImproveRequest):
     except KeyError as exc:
         raise HTTPException(status_code=404, detail={"message": "Работа не найдена или срок хранения истек."}) from exc
     return _result(run_id)
+
+
+@router.post("/{run_id}/email-file", response_model=EmailFileResponse)
+def email_file(run_id: str, payload: EmailFileRequest):
+    run = run_store.get(run_id)
+    if not run:
+        raise HTTPException(status_code=404, detail={"message": "Работа не найдена или срок хранения истек."})
+    try:
+        saved = save_result_for_email(run, payload.email, payload.password)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail={"message": str(exc)}) from exc
+    return EmailFileResponse(**saved)
 
 
 @router.get("/{run_id}/download/{file_format}")

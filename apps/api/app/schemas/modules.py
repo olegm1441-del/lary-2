@@ -57,6 +57,18 @@ class ModuleRunResultResponse(BaseModel):
     downloads: dict[str, str]
 
 
+class EmailFileRequest(BaseModel):
+    email: str = Field(..., min_length=5)
+    password: str = Field(..., min_length=6)
+
+
+class EmailFileResponse(BaseModel):
+    status: str
+    email: str
+    file_format: str
+    message: str
+
+
 class ImproveRequest(BaseModel):
     instruction: str = Field(default="Сделать текст понятнее и официальнее")
 

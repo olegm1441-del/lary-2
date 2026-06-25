@@ -65,7 +65,7 @@ export default async function ModulePage({ params }: { params: Promise<{ slug: s
                 <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">Форма модуля</p>
                 <h2 className="mt-2 text-3xl font-bold">Ответьте на несколько вопросов</h2>
                 <p className="mt-3 text-lg leading-8 text-slate-700">
-                  Поля собраны по ТЗ. При запуске форма отправит данные в backend, создаст работу и подготовит файлы для скачивания.
+                  При запуске нейросеть проанализирует задачу и подготовит файл для скачивания.
                 </p>
               </div>
               <ModuleRunner module={laryModule} />

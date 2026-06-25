@@ -15,7 +15,7 @@ export const FIELD_KEYS_BY_MODULE: Record<string, string[]> = {
   "legal-acts": ["program_level", "region", "direction", "target_group", "details"],
   salary: ["role", "region", "functionality", "months", "workload", "calendar_items", "cofunding"],
   "support-letter": ["competition", "partner_role", "partner", "project_title", "target_value", "region_value", "contribution"],
-  presentation: ["project_description", "target_group", "slide_count", "visual_style", "calendar_plan"],
+  presentation: ["project_description", "visual_style", "calendar_plan", "details"],
   "scenario-plan": ["scenario_type", "description", "duration", "preparation", "participants", "details"],
   "check-application": ["file", "competition", "focus_sections", "email"],
 };
@@ -29,8 +29,7 @@ export const FIELD_OPTIONS_BY_KEY: Record<string, string[]> = {
   partner_role: ["Информационная поддержка", "Организационная поддержка", "Консультационная поддержка", "Материальная поддержка", "Финансовая поддержка"],
   competition: ["ПФКИ", "Фонд президентских грантов", "Движение Первых", "Региональный конкурс"],
   scenario_type: ["Фестиваль", "Постановка", "Видеоролик", "Концерт", "Мастер-класс", "Выставка"],
-  slide_count: ["8 слайдов", "10 слайдов", "12 слайдов"],
-  visual_style: ["Официально и спокойно", "Для защиты заявки", "Для календарного плана", "Минимум текста"],
+  visual_style: ["Официальный", "Минималистичный"],
 };
 
 export type LaryModule = {

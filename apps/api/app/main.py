@@ -1,9 +1,14 @@
+import logging
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import settings
 from app.routers import ai, health, module_runs, modules, payments, speech
+from app.services.account_store import ensure_account_schema
 from app.services.vosk_model_manager import ensure_vosk_model_available
+
+logger = logging.getLogger(__name__)
 
 app = FastAPI(title=settings.app_name)
 
@@ -26,3 +31,7 @@ app.include_router(speech.router)
 @app.on_event("startup")
 def prepare_runtime_dependencies() -> None:
     ensure_vosk_model_available()
+    try:
+        ensure_account_schema()
+    except Exception as exc:
+        logger.warning("Account schema initialization failed: %s", exc)

@@ -66,7 +66,7 @@ class LaryMvpContractsTest(unittest.TestCase):
         self.assertEqual(created["status"], "completed")
         self.assertIn("run_id", created)
         self.assertIn("docx", created["downloads"])
-        self.assertIn("pdf", created["downloads"])
+        self.assertNotIn("pdf", created["downloads"])
 
         result_response = self.client.get(f"/api/module-runs/{created['run_id']}/result")
         self.assertEqual(result_response.status_code, 200)
@@ -74,7 +74,7 @@ class LaryMvpContractsTest(unittest.TestCase):
         self.assertEqual(result["status"], "completed")
         self.assertGreaterEqual(len(result["sections"]), 4)
 
-        for fmt in ["docx", "pdf"]:
+        for fmt in ["docx"]:
             download = self.client.get(f"/api/module-runs/{created['run_id']}/download/{fmt}")
             self.assertEqual(download.status_code, 200)
             self.assertGreater(len(download.content), 500)
@@ -308,6 +308,34 @@ class LaryMvpContractsTest(unittest.TestCase):
             settings.vosk_auto_download = original_auto_download
 
         self.assertTrue((target_path / "conf" / "model.conf").exists())
+
+    def test_result_can_be_saved_to_email_account_for_later_delivery(self):
+        create_response = self.client.post(
+            "/api/module-runs",
+            json={
+                "module_slug": "social-research",
+                "inputs": {
+                    "region": "Республика Татарстан",
+                    "direction": "музей",
+                    "target_group": "молодежь 18-22 лет",
+                    "problem": "низкая посещаемость музеев молодежью",
+                },
+            },
+        )
+        self.assertEqual(create_response.status_code, 200)
+        run_id = create_response.json()["run_id"]
+
+        save_response = self.client.post(
+            f"/api/module-runs/{run_id}/email-file",
+            json={"email": "test@example.com", "password": "strong-pass"},
+        )
+
+        self.assertEqual(save_response.status_code, 200)
+        payload = save_response.json()
+        self.assertEqual(payload["status"], "saved")
+        self.assertEqual(payload["email"], "test@example.com")
+        self.assertIn("docx", payload["file_format"])
+        self.assertIn("аккаунт", payload["message"])
 
     def test_legacy_russian_field_keys_are_normalized(self):
         response = self.client.post(
