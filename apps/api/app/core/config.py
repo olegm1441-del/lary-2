@@ -5,7 +5,10 @@ class Settings:
     app_name: str = os.getenv("APP_NAME", "Lary 2 MVP 0.1")
     app_env: str = os.getenv("APP_ENV", "development")
 
-    cors_origins: str = os.getenv("CORS_ORIGINS", "*")
+    cors_origins: str = os.getenv(
+        "CORS_ORIGINS",
+        "https://web-production-532a8.up.railway.app,http://localhost:3000,http://127.0.0.1:3000",
+    )
     database_url: str | None = os.getenv("DATABASE_URL")
     file_storage_dir: str = os.getenv("FILE_STORAGE_DIR", "/tmp/lary-generated")
 
@@ -24,6 +27,7 @@ class Settings:
     vosk_model_url: str | None = os.getenv("VOSK_MODEL_URL")
     vosk_auto_download: bool = os.getenv("VOSK_AUTO_DOWNLOAD", "false").lower() == "true"
     payment_provider_mode: str = os.getenv("PAYMENT_PROVIDER_MODE", "placeholder")
+    payment_webhook_secret: str | None = os.getenv("PAYMENT_WEBHOOK_SECRET")
 
     def cors_list(self) -> list[str]:
         if self.cors_origins.strip() == "*":

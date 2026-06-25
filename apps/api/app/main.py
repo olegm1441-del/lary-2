@@ -4,7 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import settings
-from app.routers import ai, health, module_runs, modules, payments, speech
+from app.routers import account, ai, auth, health, module_runs, modules, payments, projects, speech
 from app.services.account_store import ensure_account_schema
 from app.services.vosk_model_manager import ensure_vosk_model_available
 
@@ -15,16 +15,19 @@ app = FastAPI(title=settings.app_name)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_list(),
-    allow_credentials=False,
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 app.include_router(health.router)
+app.include_router(account.router)
+app.include_router(auth.router)
 app.include_router(ai.router)
 app.include_router(modules.router)
 app.include_router(module_runs.router)
 app.include_router(payments.router)
+app.include_router(projects.router)
 app.include_router(speech.router)
 
 

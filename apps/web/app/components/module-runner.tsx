@@ -4,12 +4,16 @@ import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { FIELD_KEYS_BY_MODULE, getFieldKey, getFieldOptions, type LaryModule } from "../lib/lary-data";
 import { apiUrl, readApiError } from "../lib/api-client";
-import { isModuleAttemptUsed, markModuleAttemptUsed } from "../lib/module-attempts";
+import { USAGE_UPDATED_EVENT } from "./module-attempt-status";
 
 type RunState = "idle" | "submitting" | "error";
 type VoiceState = "idle" | "recording" | "uploading";
 type VoiceTarget = { key: string; label: string };
 type ValidationHint = { field_key: string; message: string; tone: string };
+type UsagePayload = {
+  paid_runs: number;
+  modules: Record<string, { free_attempt_available: boolean; free_attempt_used: boolean }>;
+};
 
 export function ModuleRunner({ module }: { module: LaryModule }) {
   const router = useRouter();
@@ -21,7 +25,8 @@ export function ModuleRunner({ module }: { module: LaryModule }) {
   const [voiceTarget, setVoiceTarget] = useState<VoiceTarget | null>(null);
   const [validationHints, setValidationHints] = useState<ValidationHint[]>([]);
   const [isCheckingInputs, setIsCheckingInputs] = useState(false);
-  const [attemptUsed, setAttemptUsed] = useState(false);
+  const [usage, setUsage] = useState<UsagePayload | null>(null);
+  const [showSummary, setShowSummary] = useState(false);
 
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
@@ -41,7 +46,41 @@ export function ModuleRunner({ module }: { module: LaryModule }) {
   const fieldKeys = FIELD_KEYS_BY_MODULE[module.slug] || [];
 
   useEffect(() => {
-    setAttemptUsed(isModuleAttemptUsed(module.slug));
+    try {
+      const raw = window.localStorage.getItem(`lary.module_draft.${module.slug}`);
+      if (raw) setValues(JSON.parse(raw));
+    } catch {
+      setValues({});
+    }
+  }, [module.slug]);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(`lary.module_draft.${module.slug}`, JSON.stringify(values));
+    } catch {
+      // Draft persistence is a convenience only. Backend state remains authoritative.
+    }
+  }, [module.slug, values]);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function loadUsage() {
+      try {
+        const response = await fetch(apiUrl("/api/usage"), { credentials: "include" });
+        if (!response.ok) return;
+        const payload = await response.json();
+        if (!cancelled) setUsage(payload);
+      } catch {
+        if (!cancelled) setUsage(null);
+      }
+    }
+
+    void loadUsage();
+    window.addEventListener(USAGE_UPDATED_EVENT, loadUsage);
+    return () => {
+      cancelled = true;
+      window.removeEventListener(USAGE_UPDATED_EVENT, loadUsage);
+    };
   }, [module.slug]);
 
   useEffect(() => {
@@ -78,8 +117,16 @@ export function ModuleRunner({ module }: { module: LaryModule }) {
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (attemptUsed) {
-      router.push("/pay");
+    if (!showSummary) {
+      setShowSummary(true);
+      return;
+    }
+
+    const freeAvailable = usage?.modules?.[module.slug]?.free_attempt_available ?? true;
+    const paidRuns = usage?.paid_runs ?? 0;
+    if (!freeAvailable && paidRuns <= 0) {
+      setState("error");
+      setMessage("Для повторного запуска необходимо купить запуск модуля или применить промокод.");
       return;
     }
 
@@ -89,6 +136,7 @@ export function ModuleRunner({ module }: { module: LaryModule }) {
     try {
       const response = await fetch(apiUrl("/api/module-runs"), {
         method: "POST",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           module_slug: module.slug,
@@ -102,8 +150,12 @@ export function ModuleRunner({ module }: { module: LaryModule }) {
       }
 
       const payload = await response.json();
-      markModuleAttemptUsed(module.slug);
-      setAttemptUsed(true);
+      try {
+        window.localStorage.removeItem(`lary.module_draft.${module.slug}`);
+      } catch {
+        // ignore draft cleanup errors
+      }
+      window.dispatchEvent(new CustomEvent(USAGE_UPDATED_EVENT));
       router.push(`/run/${payload.run_id}/result`);
     } catch (error) {
       setState("error");
@@ -113,6 +165,7 @@ export function ModuleRunner({ module }: { module: LaryModule }) {
 
   function updateValue(key: string, value: string) {
     setValues((current) => ({ ...current, [key]: value }));
+    setShowSummary(false);
   }
 
   function appendValue(key: string, value: string) {
@@ -206,6 +259,7 @@ export function ModuleRunner({ module }: { module: LaryModule }) {
 
       const response = await fetch(apiUrl("/api/speech/transcribe"), {
         method: "POST",
+        credentials: "include",
         body: formData,
       });
 
@@ -255,8 +309,8 @@ export function ModuleRunner({ module }: { module: LaryModule }) {
           <p className="mt-2 text-base text-slate-600">Выберите один из двух MVP-подвариантов.</p>
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
             {[
-              ["grant_defense", "Защита заявки"],
-              ["calendar_plan", "Демонстрация календарного плана"],
+              ["grant_defense", "Презентация проекта"],
+              ["calendar_plan", "Презентация сценарного плана"],
             ].map(([value, label]) => (
               <label key={value} className="flex cursor-pointer items-center gap-3 rounded-2xl border border-slate-200 p-4 hover:border-blue-300">
                 <input
@@ -400,13 +454,43 @@ export function ModuleRunner({ module }: { module: LaryModule }) {
             </div>
           </div>
         ) : null}
+        {showSummary ? (
+          <div className="mb-6 rounded-3xl border border-blue-100 bg-blue-50 p-5 text-blue-950">
+            <h2 className="text-2xl font-bold">Сводка перед запуском</h2>
+            <p className="mt-2 text-base leading-7">
+              Проверьте данные. После подтверждения будет использован бесплатный запуск этого модуля или 1 оплаченный запуск.
+            </p>
+            <div className="mt-4 grid gap-2 text-base">
+              {Object.entries(values)
+                .filter(([, value]) => value.trim())
+                .slice(0, 8)
+                .map(([key, value]) => (
+                  <p key={key} className="rounded-2xl bg-white/80 p-3">
+                    <span className="font-semibold">{key}:</span> {value.slice(0, 220)}
+                  </p>
+                ))}
+            </div>
+            <button type="button" onClick={() => setShowSummary(false)} className="mt-4 min-h-11 rounded-2xl border border-blue-800 px-4 py-2 text-base font-semibold text-blue-900">
+              Исправить данные
+            </button>
+          </div>
+        ) : null}
         <button
           type="submit"
           disabled={state === "submitting"}
           className="mt-6 min-h-14 rounded-2xl bg-blue-800 px-6 py-4 text-lg font-semibold text-white shadow-sm hover:bg-blue-900 disabled:cursor-not-allowed disabled:bg-slate-400"
         >
-          {state === "submitting" ? "Готовим результат..." : attemptUsed ? "Купить запуск модуля" : "Запустить модуль бесплатно"}
+          {state === "submitting" ? "Готовим результат..." : showSummary ? launchButtonLabel(module.slug, usage) : "Проверить данные"}
         </button>
+        {showSummary && !(usage?.modules?.[module.slug]?.free_attempt_available ?? true) && (usage?.paid_runs ?? 0) <= 0 ? (
+          <button
+            type="button"
+            onClick={() => router.push(`/pay?return=/m/${module.slug}`)}
+            className="mt-3 min-h-14 rounded-2xl border border-blue-800 px-6 py-4 text-lg font-semibold text-blue-800 hover:bg-blue-50"
+          >
+            Купить запуск или применить промокод
+          </button>
+        ) : null}
         {message ? (
           <p className={`mt-4 rounded-2xl p-4 text-base leading-7 ${state === "error" ? "bg-red-50 text-red-900" : "bg-green-50 text-green-900"}`}>
             {message}
@@ -444,6 +528,13 @@ function downsampleTo16Khz(chunks: Float32Array[], inputSampleRate: number) {
     output[index] = count ? total / count : 0;
   }
   return output;
+}
+
+function launchButtonLabel(moduleSlug: string, usage: UsagePayload | null) {
+  const freeAvailable = usage?.modules?.[moduleSlug]?.free_attempt_available ?? true;
+  if (freeAvailable) return "Сделать бесплатный запуск";
+  if ((usage?.paid_runs ?? 0) > 0) return "Использовать 1 запуск";
+  return "Купить запуск модуля";
 }
 
 function encodePcm16(samples: Float32Array) {

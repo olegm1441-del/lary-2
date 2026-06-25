@@ -1,11 +1,11 @@
 from pathlib import Path
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request, Response
 from fastapi.responses import FileResponse
 
 from app.schemas.modules import EmailFileRequest, EmailFileResponse, ImproveRequest, ModuleRunCreateRequest, ModuleRunCreateResponse, ModuleRunResultResponse
 from app.services.module_engine import create_module_run, improve_run
-from app.services.account_store import save_result_for_email
+from app.services.account_store import ModuleAccessError, get_request_context, prepare_module_access, record_module_run_success, save_result_for_email
 from app.services.run_store import run_store
 
 router = APIRouter(prefix="/api/module-runs", tags=["Module runs"])
@@ -27,11 +27,17 @@ DOWNLOAD_TITLES = {
 
 
 @router.post("", response_model=ModuleRunCreateResponse)
-def create_run(payload: ModuleRunCreateRequest):
+def create_run(payload: ModuleRunCreateRequest, request: Request, response: Response):
+    context = get_request_context(request, response)
+    try:
+        access = prepare_module_access(payload.module_slug, context)
+    except ModuleAccessError as exc:
+        raise HTTPException(status_code=402, detail={"message": str(exc)}) from exc
     try:
         run = create_module_run(payload.module_slug, payload.inputs, payload.presentation_variant)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail={"message": str(exc)}) from exc
+    record_module_run_success(run, access)
     return ModuleRunCreateResponse(
         run_id=run.run_id,
         status=run.status,
@@ -67,7 +73,7 @@ def email_file(run_id: str, payload: EmailFileRequest):
     if not run:
         raise HTTPException(status_code=404, detail={"message": "Работа не найдена или срок хранения истек."})
     try:
-        saved = save_result_for_email(run, payload.email, payload.password)
+        saved = save_result_for_email(run, payload.email)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail={"message": str(exc)}) from exc
     return EmailFileResponse(**saved)

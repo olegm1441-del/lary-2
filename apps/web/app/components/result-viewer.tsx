@@ -23,7 +23,7 @@ export function ResultViewer({ runId }: { runId: string }) {
     async function load() {
       setError("");
       try {
-        const response = await fetch(apiUrl(`/api/module-runs/${runId}/result`));
+        const response = await fetch(apiUrl(`/api/module-runs/${runId}/result`), { credentials: "include" });
         if (!response.ok) throw new Error(await readApiError(response));
         const payload = await response.json();
         if (!cancelled) setResult(payload);

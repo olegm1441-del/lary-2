@@ -13,19 +13,19 @@ export default function Home() {
           <div>
             <p className="text-base font-semibold uppercase tracking-wide text-blue-800">Лари 2.0 MVP 0.1</p>
             <h1 className="mt-4 max-w-4xl text-4xl font-bold tracking-tight text-slate-950 sm:text-5xl lg:text-6xl">
-              Соберите документы для заявки ПФКИ быстрее и без лишних ошибок
+              Соберите рабочие документы для заявки ПФКИ быстрее и без лишних ошибок
             </h1>
             <p className="mt-6 max-w-3xl text-xl leading-9 text-slate-700">
-              Выберите задачу, ответьте на несколько вопросов и скачайте готовый файл. Для презентации — PPTX, для остальных модулей — DOCX. Первая попытка в каждом модуле бесплатна.
+              Выберите задачу, ответьте на несколько вопросов и скачайте редактируемый DOCX или PPTX. По одному бесплатному запуску в каждом модуле.
             </p>
             <div className="mt-8 flex flex-col gap-4 sm:flex-row">
-              <PrimaryLink href="/modules">Выбрать модуль</PrimaryLink>
-              <SecondaryLink href="/security">Как хранятся данные</SecondaryLink>
+              <PrimaryLink href="/modules">Выбрать задачу</PrimaryLink>
+              <SecondaryLink href="/#how-it-works">Как работает Лари</SecondaryLink>
             </div>
             <div className="mt-8 grid gap-3 text-base text-slate-700 sm:grid-cols-3">
               <div className="rounded-2xl bg-blue-50 p-4">Без регистрации до первого результата</div>
               <div className="rounded-2xl bg-green-50 p-4">Временные работы доступны 24 часа</div>
-              <div className="rounded-2xl bg-slate-100 p-4">ПФКИ выбран по умолчанию</div>
+              <div className="rounded-2xl bg-slate-100 p-4">На выходе — рабочий редактируемый файл</div>
             </div>
           </div>
 
@@ -46,7 +46,7 @@ export default function Home() {
         </div>
       </section>
 
-      <Section eyebrow="Модули" title="Выберите конкретную задачу, а не сложную систему">
+      <Section eyebrow="Задачи" title="Закройте одну задачу по заявке - без сложной системы">
         <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
           {activeModules.map((module) => (
             <ModuleCard key={module.slug} module={module} />
@@ -63,7 +63,7 @@ export default function Home() {
             ["1", "Выберите задачу", "Карточки говорят, что получится, сколько займет и какой файл будет на выходе."],
             ["2", "Заполните короткую форму", "4-7 основных полей, примеры, голосовой ввод в длинных описаниях."],
             ["3", "Проверьте подсказки", "Лари мягко укажет, если не хватает территории, целевой группы или цифр."],
-            ["4", "Скачайте результат", "Готовый файл сразу, затем email, кабинет и проект — по желанию."],
+            ["4", "Скачайте результат", "Рабочий редактируемый файл сразу, затем email, кабинет и проект — по желанию."],
           ].map(([step, title, text]) => (
             <div key={step} className="rounded-3xl border border-slate-200 bg-slate-50 p-6">
               <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-800 text-lg font-bold text-white">{step}</span>

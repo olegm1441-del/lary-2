@@ -111,7 +111,7 @@ def _presentation_plan(title: str, summary: str, sections: list[dict[str, str]],
     common = [
         {
             "title": title,
-            "subtitle": "Презентация для заявки ПФКИ" if variant != "calendar_plan" else "Демонстрация календарного плана",
+            "subtitle": "Презентация для заявки ПФКИ" if variant != "calendar_plan" else "Презентация сценарного плана",
             "bullets": [shorten(summary, width=150, placeholder="...")],
             "visual": "Ключевая идея проекта",
         },
@@ -153,9 +153,9 @@ def _presentation_plan(title: str, summary: str, sections: list[dict[str, str]],
     else:
         middle = [
             {
-                "title": "Социальная значимость",
+                "title": "Значимость для целевой группы",
                 "subtitle": "Что изменится для аудитории и территории",
-                "bullets": _lines(by_title.get("Социальная значимость", "Покажите изменения для целевой группы и региона."), 3),
+                "bullets": _lines(by_title.get("Значимость для целевой группы", "Покажите изменения для целевой группы и региона."), 3),
                 "visual": "Ожидаемые изменения",
             },
             {

@@ -1,4 +1,5 @@
 import os
+import hashlib
 from urllib.parse import unquote
 import tempfile
 import unittest
@@ -18,11 +19,13 @@ from app.services.ai_router import extract_gigachat_text  # noqa: E402
 from app.services.vosk_model_manager import ensure_vosk_model_available  # noqa: E402
 from app.services.vosk_speech import VoskSpeechError, transcribe_with_vosk  # noqa: E402
 from app.services.run_store import run_store  # noqa: E402
+from app.services.account_store import clear_account_store_for_tests  # noqa: E402
 
 
 class LaryMvpContractsTest(unittest.TestCase):
     def setUp(self) -> None:
         run_store.clear()
+        clear_account_store_for_tests()
         self.client = TestClient(app)
 
     def test_modules_catalog_exposes_six_active_modules_and_future_check(self):
@@ -117,6 +120,197 @@ class LaryMvpContractsTest(unittest.TestCase):
         speech = self.client.post("/api/speech/transcribe", files={"audio": ("voice.webm", b"demo", "audio/webm")})
         self.assertEqual(speech.status_code, 503)
         self.assertIn("Голосовой ввод временно недоступен", speech.json()["detail"]["message"])
+
+    def test_usage_cookie_and_server_side_free_attempts_are_per_module(self):
+        usage = self.client.get("/api/usage")
+        self.assertEqual(usage.status_code, 200)
+        self.assertIn("anon_session_id", usage.headers.get("set-cookie", ""))
+        self.assertIn("HttpOnly", usage.headers.get("set-cookie", ""))
+        self.assertTrue(usage.json()["modules"]["social-research"]["free_attempt_available"])
+
+        first = self.client.post(
+            "/api/module-runs",
+            json={
+                "module_slug": "social-research",
+                "inputs": {
+                    "region": "Республика Татарстан",
+                    "direction": "музей",
+                    "target_group": "молодежь 18-22 лет",
+                    "problem": "низкая посещаемость музеев молодежью",
+                },
+            },
+        )
+        self.assertEqual(first.status_code, 200)
+
+        after_first = self.client.get("/api/usage").json()
+        self.assertFalse(after_first["modules"]["social-research"]["free_attempt_available"])
+        self.assertTrue(after_first["modules"]["legal-acts"]["free_attempt_available"])
+
+        repeat = self.client.post(
+            "/api/module-runs",
+            json={
+                "module_slug": "social-research",
+                "inputs": {
+                    "region": "Республика Татарстан",
+                    "direction": "музей",
+                    "target_group": "молодежь 18-22 лет",
+                    "problem": "повторная проверка той же темы",
+                },
+            },
+        )
+        self.assertEqual(repeat.status_code, 402)
+        self.assertIn("необходимо купить запуск модуля", repeat.json()["detail"]["message"])
+
+        other_module = self.client.post(
+            "/api/module-runs",
+            json={
+                "module_slug": "legal-acts",
+                "inputs": {
+                    "program_level": "Федеральные и региональные документы",
+                    "region": "Республика Татарстан",
+                    "direction": "музей",
+                    "target_group": "молодежь 18-22 лет",
+                },
+            },
+        )
+        self.assertEqual(other_module.status_code, 200)
+
+    def test_promo_is_one_time_and_adds_paid_module_runs(self):
+        promo = self.client.post("/api/promos/apply", json={"code": "LARY-START"})
+        self.assertEqual(promo.status_code, 200)
+        self.assertEqual(promo.json()["added_runs"], 3)
+        self.assertEqual(promo.json()["remaining_runs"], 3)
+
+        duplicate = self.client.post("/api/promos/apply", json={"code": "LARY-START"})
+        self.assertEqual(duplicate.status_code, 409)
+        self.assertIn("уже был применен", duplicate.json()["detail"]["message"])
+
+        first = self.client.post(
+            "/api/module-runs",
+            json={
+                "module_slug": "social-research",
+                "inputs": {
+                    "region": "Москва",
+                    "direction": "театр",
+                    "target_group": "подростки 14-17 лет",
+                    "problem": "мало доступных театральных занятий",
+                },
+            },
+        )
+        self.assertEqual(first.status_code, 200)
+        paid_repeat = self.client.post(
+            "/api/module-runs",
+            json={
+                "module_slug": "social-research",
+                "inputs": {
+                    "region": "Москва",
+                    "direction": "театр",
+                    "target_group": "подростки 14-17 лет",
+                    "problem": "нужен второй вариант результата",
+                },
+            },
+        )
+        self.assertEqual(paid_repeat.status_code, 200)
+        self.assertEqual(self.client.get("/api/usage").json()["paid_runs"], 2)
+
+    def test_payment_webhook_is_idempotent_and_frontend_cannot_set_price(self):
+        payment = self.client.post("/api/payments/create", json={"package": "single", "amount_rub": 1, "runs": 99})
+        self.assertEqual(payment.status_code, 200)
+        payload = payment.json()
+        self.assertEqual(payload["amount_rub"], 320)
+        self.assertEqual(payload["runs"], 1)
+
+        status = self.client.get(f"/api/payments/{payload['payment_id']}")
+        self.assertEqual(status.status_code, 200)
+        self.assertIn(status.json()["status"], ["created", "pending"])
+
+        webhook_payload = {
+            "payment_id": payload["payment_id"],
+            "provider_payment_id": "provider-payment-1",
+            "status": "paid",
+            "signature": "placeholder-signature",
+        }
+        webhook = self.client.post("/api/payments/webhook/placeholder", json=webhook_payload)
+        self.assertEqual(webhook.status_code, 200)
+        self.assertEqual(webhook.json()["runs_added"], 1)
+
+        duplicate = self.client.post("/api/payments/webhook/placeholder", json=webhook_payload)
+        self.assertEqual(duplicate.status_code, 200)
+        self.assertEqual(duplicate.json()["runs_added"], 0)
+        self.assertEqual(self.client.get("/api/usage").json()["paid_runs"], 1)
+
+    def test_payment_webhook_signature_is_checked_when_secret_is_configured(self):
+        original_secret = settings.payment_webhook_secret
+        settings.payment_webhook_secret = "test-secret"
+        try:
+            payment = self.client.post("/api/payments/create", json={"package": "single"}).json()
+            invalid = self.client.post(
+                "/api/payments/webhook/placeholder",
+                json={
+                    "payment_id": payment["payment_id"],
+                    "provider_payment_id": "signed-provider-payment",
+                    "status": "paid",
+                    "signature": "wrong",
+                },
+            )
+            self.assertEqual(invalid.status_code, 400)
+
+            raw = f"test-secret:placeholder:{payment['payment_id']}:signed-provider-payment:paid"
+            signature = hashlib.sha256(raw.encode("utf-8")).hexdigest()
+            valid = self.client.post(
+                "/api/payments/webhook/placeholder",
+                json={
+                    "payment_id": payment["payment_id"],
+                    "provider_payment_id": "signed-provider-payment",
+                    "status": "paid",
+                    "signature": signature,
+                },
+            )
+            self.assertEqual(valid.status_code, 200)
+            self.assertEqual(valid.json()["runs_added"], 1)
+        finally:
+            settings.payment_webhook_secret = original_secret
+
+    def test_magic_link_attaches_temporary_work_to_account_and_project(self):
+        created = self.client.post(
+            "/api/module-runs",
+            json={
+                "module_slug": "support-letter",
+                "inputs": {
+                    "competition": "ПФКИ",
+                    "partner": "Музей города",
+                    "project_title": "Музейная смена",
+                    "target_value": "подростки получают практику",
+                    "region_value": "город Казань",
+                },
+            },
+        )
+        self.assertEqual(created.status_code, 200)
+        run_id = created.json()["run_id"]
+
+        temporary = self.client.get("/api/account/works")
+        self.assertEqual(temporary.status_code, 200)
+        self.assertEqual(temporary.json()["mode"], "temporary")
+        self.assertEqual(temporary.json()["items"][0]["project"], "Без проекта")
+
+        requested = self.client.post("/api/auth/magic-link/request", json={"email": "owner@example.com"})
+        self.assertEqual(requested.status_code, 200)
+        token = requested.json()["dev_token"]
+
+        consumed = self.client.post("/api/auth/magic-link/consume", json={"token": token})
+        self.assertEqual(consumed.status_code, 200)
+        self.assertEqual(consumed.json()["attached_works"], 1)
+
+        account_works = self.client.get("/api/account/works").json()
+        self.assertEqual(account_works["mode"], "account")
+        self.assertEqual(account_works["items"][0]["run_id"], run_id)
+        self.assertEqual(account_works["items"][0]["project"], "Без проекта")
+
+        project = self.client.post("/api/projects", json={"title": "Музейная заявка", "competition": "ПФКИ"})
+        self.assertEqual(project.status_code, 200)
+        attached = self.client.post(f"/api/projects/{project.json()['project_id']}/attach", json={"run_id": run_id})
+        self.assertEqual(attached.status_code, 200)
+        self.assertEqual(self.client.get("/api/account/works").json()["items"][0]["project"], "Музейная заявка")
 
     def test_ai_test_errors_are_user_friendly(self):
         original_credentials = settings.gigachat_credentials

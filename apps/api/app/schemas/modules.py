@@ -59,7 +59,6 @@ class ModuleRunResultResponse(BaseModel):
 
 class EmailFileRequest(BaseModel):
     email: str = Field(..., min_length=5)
-    password: str = Field(..., min_length=6)
 
 
 class EmailFileResponse(BaseModel):
@@ -101,3 +100,88 @@ class PaymentStatusResponse(BaseModel):
     payment_id: str
     status: str
     message: str
+
+
+class PaymentWebhookRequest(BaseModel):
+    payment_id: str = Field(..., min_length=2)
+    provider_payment_id: str = Field(..., min_length=2)
+    status: str = Field(..., pattern="^(created|pending|paid|failed|canceled|refunded)$")
+    signature: str | None = None
+
+
+class PaymentWebhookResponse(BaseModel):
+    payment_id: str
+    status: str
+    runs_added: int
+    message: str
+
+
+class UsageModuleState(BaseModel):
+    free_attempt_used: bool
+    free_attempt_available: bool
+
+
+class UsageResponse(BaseModel):
+    anon_session_id: str
+    mode: str
+    paid_runs: int
+    modules: dict[str, UsageModuleState]
+
+
+class MagicLinkRequest(BaseModel):
+    email: str = Field(..., min_length=5)
+
+
+class MagicLinkRequestResponse(BaseModel):
+    status: str
+    message: str
+    dev_token: str | None = None
+
+
+class MagicLinkConsumeRequest(BaseModel):
+    token: str = Field(..., min_length=10)
+
+
+class MagicLinkConsumeResponse(BaseModel):
+    status: str
+    attached_works: int
+    message: str
+
+
+class AccountWorkItem(BaseModel):
+    run_id: str
+    date: str
+    work: str
+    competition: str
+    project: str
+    status: str
+    file_format: str
+    download_path: str
+    actions: list[str]
+
+
+class AccountWorksResponse(BaseModel):
+    mode: str
+    items: list[AccountWorkItem]
+
+
+class ProjectCreateRequest(BaseModel):
+    title: str = Field(..., min_length=2)
+    competition: str = "ПФКИ"
+
+
+class ProjectCreateResponse(BaseModel):
+    project_id: str
+    title: str
+    competition: str
+
+
+class ProjectAttachRequest(BaseModel):
+    run_id: str = Field(..., min_length=2)
+
+
+class ProjectAttachResponse(BaseModel):
+    status: str
+    project_id: str
+    run_id: str
+    project: str

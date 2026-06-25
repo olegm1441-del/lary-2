@@ -165,9 +165,6 @@ export default async function LegalPage({ params }: { params: Promise<{ slug: st
               </div>
             </section>
           ))}
-          <InfoCallout tone="orange" title="Юридическая проверка">
-            Текст адаптирован под MVP Лари 2.0 и реквизиты lary.pro. Перед промышленной оплатой и доменом его нужно финально проверить с юристом.
-          </InfoCallout>
         </div>
       </Section>
     </PageShell>

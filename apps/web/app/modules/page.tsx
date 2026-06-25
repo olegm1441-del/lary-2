@@ -11,9 +11,9 @@ export default function ModulesPage() {
 
   return (
     <PageShell>
-      <Section eyebrow="Каталог" title="Модули Лари для подготовки заявки ПФКИ" className="bg-white">
+      <Section eyebrow="Каталог задач" title="Что нужно подготовить для заявки ПФКИ?" className="bg-white">
         <div className="max-w-3xl text-xl leading-9 text-slate-700">
-          Выберите задачу, которую нужно закрыть сейчас. ПФКИ выбран как основной конкурс, но структура уже готова к другим конкурсам.
+          Выберите задачу. Каждый запуск дает один рабочий файл или разбор.
         </div>
         <div className="mt-10 grid gap-5 md:grid-cols-2 xl:grid-cols-3">
           {activeModules.map((module) => (
