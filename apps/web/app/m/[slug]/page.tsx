@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ModuleRunner } from "../../components/module-runner";
+import { ModuleAttemptStatus } from "../../components/module-attempt-status";
 import { ApiStatePanel, InfoCallout, PageShell, PrimaryLink, SecondaryLink, WorkPanel } from "../../components/lary-ui";
 import { getModuleBySlug, getModuleSlugs } from "../../lib/lary-data";
 
@@ -39,7 +40,7 @@ export default async function ModulePage({ params }: { params: Promise<{ slug: s
             <div className="mt-6 flex flex-wrap gap-3 text-base">
               <span className="rounded-full bg-slate-100 px-4 py-2 font-semibold">{laryModule.duration}</span>
               <span className="rounded-full bg-slate-100 px-4 py-2 font-semibold">{laryModule.outputFormats.join(" + ")}</span>
-              <span className="rounded-full bg-green-50 px-4 py-2 font-semibold text-green-800">{laryModule.freeAttempt}</span>
+              {!isComingSoon ? <ModuleAttemptStatus moduleSlug={laryModule.slug} className="rounded-full px-4 py-2" /> : null}
             </div>
           </div>
           <WorkPanel module={laryModule} />

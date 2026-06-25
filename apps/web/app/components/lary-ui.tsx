@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ModuleAttemptStatus } from "./module-attempt-status";
 import type { LaryModule, ModuleField } from "../lib/lary-data";
 
 const navItems = [
@@ -133,7 +134,7 @@ export function ModuleCard({ module, compact = false }: { module: LaryModule; co
         <Badge>{module.outputFormats.join(" + ")}</Badge>
         <Badge>{module.competition}</Badge>
       </div>
-      {!compact ? <p className="mt-5 rounded-2xl bg-blue-50 p-4 text-base text-blue-950">{module.freeAttempt}</p> : null}
+      {!compact && module.status === "active" ? <ModuleAttemptStatus moduleSlug={module.slug} /> : null}
       <span className="mt-6 inline-flex min-h-12 items-center justify-center rounded-2xl bg-blue-800 px-5 py-3 text-base font-semibold text-white group-hover:bg-blue-900">
         {module.status === "active" ? "Начать" : "Посмотреть"}
       </span>
@@ -208,17 +209,10 @@ export function WorkPanel({ module }: { module: LaryModule }) {
           <p className="font-bold">{module.outputFormats.join(" + ")}</p>
         </div>
         <div>
-          <p className="text-slate-500">Попытка</p>
-          <p className="font-bold">{module.freeAttempt}</p>
-        </div>
-        <div>
           <p className="text-slate-500">Черновик</p>
           <p className="font-bold text-blue-800">сохраняется автоматически</p>
         </div>
       </div>
-      <Link href="/pay" className="mt-5 inline-flex min-h-12 w-full items-center justify-center rounded-2xl border border-blue-800 px-4 py-3 text-center font-semibold text-blue-800 hover:bg-blue-50">
-        Запуски и промокод
-      </Link>
     </aside>
   );
 }

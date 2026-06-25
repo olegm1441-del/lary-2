@@ -3,6 +3,9 @@ from urllib.parse import unquote
 import tempfile
 import unittest
 from types import SimpleNamespace
+from pathlib import Path
+from unittest.mock import patch
+from zipfile import ZipFile
 
 from fastapi.testclient import TestClient
 
@@ -12,6 +15,7 @@ os.environ.setdefault("FILE_STORAGE_DIR", tempfile.mkdtemp(prefix="lary-api-test
 from app.main import app  # noqa: E402
 from app.core.config import settings  # noqa: E402
 from app.services.ai_router import extract_gigachat_text  # noqa: E402
+from app.services.vosk_model_manager import ensure_vosk_model_available  # noqa: E402
 from app.services.vosk_speech import VoskSpeechError, transcribe_with_vosk  # noqa: E402
 from app.services.run_store import run_store  # noqa: E402
 
@@ -204,6 +208,101 @@ class LaryMvpContractsTest(unittest.TestCase):
         download = self.client.get(f"/api/module-runs/{payload['run_id']}/download/docx")
         content_disposition = unquote(download.headers["content-disposition"])
         self.assertIn("Анализ социальной значимости", content_disposition)
+
+    def test_module_sections_do_not_mix_advisory_copy_into_user_result(self):
+        response = self.client.post(
+            "/api/module-runs",
+            json={
+                "module_slug": "legal-acts",
+                "inputs": {
+                    "program_level": "Федеральные и региональные документы",
+                    "region": "Краснодарский край, Краснодар",
+                    "direction": "Музей",
+                    "target_group": "молодежь от 18 до 22 лет, не пользующиеся пушкинской картой",
+                },
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        result = self.client.get(f"/api/module-runs/{payload['run_id']}/result").json()
+        sections_by_title = {section["title"]: section["body"] for section in result["sections"]}
+
+        self.assertEqual(
+            sections_by_title["Целевая группа"],
+            "Основная аудитория: молодежь от 18 до 22 лет, не пользующиеся пушкинской картой.",
+        )
+        joined = "\n".join(section["body"] for section in result["sections"])
+        self.assertNotIn("Уточните возраст, статус и территорию", joined)
+        self.assertNotIn("Для финальной заявки нужны проверенные источники", joined)
+
+    def test_legal_acts_ai_result_is_structured_without_raw_markdown(self):
+        original_credentials = settings.gigachat_credentials
+        settings.gigachat_credentials = "test"
+        ai_text = """
+### 1. **Федеральный уровень**
+**Краткое описание:** Федеральный проект «Пушкинская карта» — проверить реквизиты на официальном портале.
+
+---
+
+### 2. **Региональный уровень**
+**Краткое описание:** Государственная программа Краснодарского края в сфере культуры — проверить актуальную редакцию.
+"""
+        try:
+            with patch("app.services.module_engine.generate_with_gigachat", return_value=ai_text):
+                response = self.client.post(
+                    "/api/module-runs",
+                    json={
+                        "module_slug": "legal-acts",
+                        "inputs": {
+                            "program_level": "Федеральные и региональные документы",
+                            "region": "Краснодарский край, Краснодар",
+                            "direction": "Пушкинская карта и музей",
+                            "target_group": "молодежь 18-22 лет",
+                        },
+                    },
+                )
+        finally:
+            settings.gigachat_credentials = original_credentials
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        result = self.client.get(f"/api/module-runs/{payload['run_id']}/result").json()
+        titles = [section["title"] for section in result["sections"]]
+        joined = "\n".join([section["title"] + "\n" + section["body"] for section in result["sections"]])
+
+        self.assertNotIn("AI-уточнение", titles)
+        self.assertIn("Федеральный уровень", titles)
+        self.assertIn("Региональный уровень", titles)
+        self.assertNotIn("**", joined)
+        self.assertNotIn("###", joined)
+        self.assertNotIn("Краткое описание", joined)
+
+    def test_vosk_model_can_be_downloaded_from_configured_archive(self):
+        temp_dir = Path(tempfile.mkdtemp(prefix="lary-vosk-model-test-"))
+        archive_path = temp_dir / "model.zip"
+        target_path = temp_dir / "mounted" / "vosk-model-small-ru-0.22"
+        with ZipFile(archive_path, "w") as archive:
+            archive.writestr("vosk-model-small-ru-0.22/conf/model.conf", "fake model for startup test")
+            archive.writestr("vosk-model-small-ru-0.22/graph/phones/word_boundary.int", "fake")
+
+        original_provider = settings.speech_provider
+        original_path = settings.vosk_model_path
+        original_url = settings.vosk_model_url
+        original_auto_download = settings.vosk_auto_download
+        settings.speech_provider = "vosk"
+        settings.vosk_model_path = str(target_path)
+        settings.vosk_model_url = archive_path.as_uri()
+        settings.vosk_auto_download = True
+        try:
+            ensure_vosk_model_available()
+        finally:
+            settings.speech_provider = original_provider
+            settings.vosk_model_path = original_path
+            settings.vosk_model_url = original_url
+            settings.vosk_auto_download = original_auto_download
+
+        self.assertTrue((target_path / "conf" / "model.conf").exists())
 
     def test_legacy_russian_field_keys_are_normalized(self):
         response = self.client.post(

@@ -21,6 +21,8 @@ class Settings:
     salute_speech_verify_ssl_certs: bool = os.getenv("SALUTE_SPEECH_VERIFY_SSL_CERTS", "false").lower() == "true"
     speech_provider: str = os.getenv("SPEECH_PROVIDER", "salute").lower()
     vosk_model_path: str | None = os.getenv("VOSK_MODEL_PATH")
+    vosk_model_url: str | None = os.getenv("VOSK_MODEL_URL")
+    vosk_auto_download: bool = os.getenv("VOSK_AUTO_DOWNLOAD", "false").lower() == "true"
     payment_provider_mode: str = os.getenv("PAYMENT_PROVIDER_MODE", "placeholder")
 
     def cors_list(self) -> list[str]:

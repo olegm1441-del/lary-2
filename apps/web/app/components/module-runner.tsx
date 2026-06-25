@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { FIELD_KEYS_BY_MODULE, getFieldKey, getFieldOptions, type LaryModule } from "../lib/lary-data";
 import { apiUrl, readApiError } from "../lib/api-client";
+import { isModuleAttemptUsed, markModuleAttemptUsed } from "../lib/module-attempts";
 
 type RunState = "idle" | "submitting" | "error";
 type VoiceState = "idle" | "recording" | "uploading";
@@ -20,6 +21,7 @@ export function ModuleRunner({ module }: { module: LaryModule }) {
   const [voiceTarget, setVoiceTarget] = useState<VoiceTarget | null>(null);
   const [validationHints, setValidationHints] = useState<ValidationHint[]>([]);
   const [isCheckingInputs, setIsCheckingInputs] = useState(false);
+  const [attemptUsed, setAttemptUsed] = useState(false);
 
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
@@ -37,6 +39,10 @@ export function ModuleRunner({ module }: { module: LaryModule }) {
 
   const hasAnyInput = useMemo(() => Object.values(values).some((value) => value.trim().length > 0), [values]);
   const fieldKeys = FIELD_KEYS_BY_MODULE[module.slug] || [];
+
+  useEffect(() => {
+    setAttemptUsed(isModuleAttemptUsed(module.slug));
+  }, [module.slug]);
 
   useEffect(() => {
     if (!hasAnyInput) {
@@ -72,6 +78,11 @@ export function ModuleRunner({ module }: { module: LaryModule }) {
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (attemptUsed) {
+      router.push("/pay");
+      return;
+    }
+
     setState("submitting");
     setMessage("Лари готовит результат. Данные сохранены.");
 
@@ -91,6 +102,8 @@ export function ModuleRunner({ module }: { module: LaryModule }) {
       }
 
       const payload = await response.json();
+      markModuleAttemptUsed(module.slug);
+      setAttemptUsed(true);
       router.push(`/run/${payload.run_id}/result`);
     } catch (error) {
       setState("error");
@@ -392,7 +405,7 @@ export function ModuleRunner({ module }: { module: LaryModule }) {
           disabled={state === "submitting"}
           className="mt-6 min-h-14 rounded-2xl bg-blue-800 px-6 py-4 text-lg font-semibold text-white shadow-sm hover:bg-blue-900 disabled:cursor-not-allowed disabled:bg-slate-400"
         >
-          {state === "submitting" ? "Готовим результат..." : "Запустить модуль бесплатно"}
+          {state === "submitting" ? "Готовим результат..." : attemptUsed ? "Купить запуск модуля" : "Запустить модуль бесплатно"}
         </button>
         {message ? (
           <p className={`mt-4 rounded-2xl p-4 text-base leading-7 ${state === "error" ? "bg-red-50 text-red-900" : "bg-green-50 text-green-900"}`}>

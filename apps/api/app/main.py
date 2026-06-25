@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import settings
 from app.routers import ai, health, module_runs, modules, payments, speech
+from app.services.vosk_model_manager import ensure_vosk_model_available
 
 app = FastAPI(title=settings.app_name)
 
@@ -20,3 +21,8 @@ app.include_router(modules.router)
 app.include_router(module_runs.router)
 app.include_router(payments.router)
 app.include_router(speech.router)
+
+
+@app.on_event("startup")
+def prepare_runtime_dependencies() -> None:
+    ensure_vosk_model_available()

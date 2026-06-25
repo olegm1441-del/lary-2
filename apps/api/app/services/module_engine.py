@@ -1,4 +1,5 @@
 from pathlib import Path
+import re
 from uuid import uuid4
 
 from app.core.config import settings
@@ -104,18 +105,22 @@ def _build_sections(module_slug: str, inputs: dict, presentation_variant: str | 
 
     base = [
         {"title": "Проект", "body": _project_body(project, direction, region)},
-        {"title": "Целевая группа", "body": f"Основная аудитория: {target_group}. Уточните возраст, статус и территорию перед подачей."},
-        {"title": "Актуальность", "body": f"Проблема или потребность: {problem}. Для финальной заявки нужны проверенные источники и свежие данные."},
+        {"title": "Целевая группа", "body": f"Основная аудитория: {_sentence(target_group)}"},
+        {"title": "Актуальность", "body": f"Проблема или потребность: {_sentence(problem)}"},
     ]
 
     specific: dict[str, list[dict[str, str]]] = {
         "social-research": [
             {"title": "Доказательная база", "body": f"Ищите данные по теме «{direction or project}» для территории «{region}»: официальная статистика, региональные данные, исследования, ВЦИОМ/ФОМ/Росстат или профильные источники."},
-            {"title": "Где использовать", "body": "Эти аргументы подходят для разделов актуальности, социальной значимости и описания проблемы."},
         ],
         "legal-acts": [
-            {"title": "Правовая основа", "body": "Приоритет: официальные правовые порталы, сайты органов власти и региональные стратегии. Справочные базы нужно проверить вручную."},
-            {"title": "Применение в заявке", "body": "К каждому документу добавьте короткое объяснение, почему он подтверждает необходимость проекта."},
+            {"title": "Запрос на подбор НПА", "body": "\n".join([
+                f"Тема поиска: {direction or project}.",
+                f"Территория: {region}.",
+                f"Целевая группа: {target_group}.",
+                f"Уровень поиска: {inputs.get('program_level') or 'федеральный, региональный и муниципальный уровень'}.",
+            ])},
+            {"title": "Что должно попасть в подборку", "body": "Федеральные акты и программы, региональные документы выбранного субъекта, муниципальные документы выбранного города или района, а также официальные программы в сфере культуры, молодежной политики и доступности культурных мероприятий."},
         ],
         "salary": [
             {"title": "Формула", "body": "Базовая ставка или средняя зарплата × занятость × срок × количество сотрудников."},
@@ -146,15 +151,18 @@ def _project_body(project: str, direction: str, region: str) -> str:
     return "\n".join(lines)
 
 
+def _sentence(value: str) -> str:
+    cleaned = str(value or "").strip()
+    if not cleaned:
+        return "не указано."
+    return cleaned if cleaned.endswith((".", "!", "?")) else f"{cleaned}."
+
+
 def _enrich_with_ai(module_slug: str, inputs: dict, sections: list[dict[str, str]]) -> list[dict[str, str]]:
     if not settings.gigachat_credentials:
         return sections
 
-    prompt = (
-        "Ты эксперт по заявкам ПФКИ. Улучши рабочий результат модуля "
-        f"{module_slug}. Не выдумывай источники и факты. Данные пользователя: {inputs}. "
-        "Верни 4-6 коротких разделов: название раздела и текст."
-    )
+    prompt = _build_ai_prompt(module_slug, inputs)
     try:
         text = generate_with_gigachat(prompt)
     except AiRouterError:
@@ -162,4 +170,126 @@ def _enrich_with_ai(module_slug: str, inputs: dict, sections: list[dict[str, str
     except Exception:
         return sections
 
-    return sections + [{"title": "AI-уточнение", "body": text[:2500]}]
+    return sections + _parse_ai_sections(module_slug, text)
+
+
+def _build_ai_prompt(module_slug: str, inputs: dict) -> str:
+    shared_rules = (
+        "Ты — эксперт по заявкам ПФКИ. Подготовь текстовые блоки результата для выбранного модуля.\n"
+        "Формат ответа строго такой, без Markdown и без дополнительных комментариев:\n"
+        "РАЗДЕЛ: Название раздела\n"
+        "ТЕКСТ: Готовый текст раздела для вставки в рабочий документ.\n\n"
+        "РАЗДЕЛ: Название следующего раздела\n"
+        "ТЕКСТ: Готовый текст следующего раздела.\n\n"
+        "Запрещено использовать символы **, ###, ---, слово «Краткое описание» и технический заголовок «AI-уточнение».\n"
+        "Не пиши воду и объяснения о том, что нужно сделать. Пиши готовый текст.\n"
+        "Не выдумывай точные номера, даты и реквизиты документов. Если реквизит не гарантирован, напиши «проверить реквизиты на официальном источнике».\n"
+        f"Данные пользователя: {inputs}.\n"
+    )
+    module_rules = {
+        "social-research": (
+            "Нужны разделы: Социальная проблема, Целевая группа, Доказательная база, Обоснование социальной значимости, Что проверить вручную. "
+            "В доказательной базе перечисли типы официальных источников и какие показатели искать по территории."
+        ),
+        "legal-acts": (
+            "Нужна подборка нормативных документов по теме проекта. Обязательно сделай разделы: Федеральный уровень, Региональный уровень, Муниципальный уровень, "
+            "Программы и стратегии, Как использовать в заявке. В каждом разделе давай названия актов, программ, постановлений или официальных порталов, "
+            "их уровень и связь с темой проекта/целевой группой/территорией. Для темы Пушкинской карты учитывай молодежь, культуру, посещение учреждений культуры и регион/город пользователя."
+        ),
+        "salary": (
+            "Нужны разделы: Расчет, Формула, Обоснование должности, Занятость и количество людей, Что проверить вручную. "
+            "Не добавляй предложения по оптимизации, если пользователь не просил."
+        ),
+        "support-letter": (
+            "Нужны разделы: Адресат и партнер, Текст поддержки, Вклад партнера, Значение для территории, Чек-лист оформления. "
+            "Пиши как рабочую заготовку письма поддержки."
+        ),
+        "presentation": (
+            "Нужны разделы: Структура презентации, Слайды 1-3, Слайды 4-7, Слайды 8-12, Визуальные акценты. "
+            "Пиши конкретное содержание слайдов без технических пояснений."
+        ),
+        "scenario-plan": (
+            "Нужны разделы: Логика события, Блоки сценария, Роли и переходы, Тайминг, Что проверить вручную. "
+            "Пиши рабочий сценарный план, а не общие рекомендации."
+        ),
+    }
+    return shared_rules + "\n" + module_rules.get(module_slug, "Сделай 4-6 смысловых разделов по модулю, готовых для вставки в документ.")
+
+
+def _parse_ai_sections(module_slug: str, text: str) -> list[dict[str, str]]:
+    cleaned = _clean_ai_text(text)
+    if not cleaned:
+        return []
+
+    sections: list[dict[str, str]] = []
+    current_title: str | None = None
+    current_body: list[str] = []
+
+    for raw_line in cleaned.splitlines():
+        line = raw_line.strip()
+        if not line:
+            continue
+
+        title = _extract_ai_title(line)
+        if title:
+            if current_title and current_body:
+                sections.append({"title": current_title, "body": _clean_ai_text("\n".join(current_body))[:2500]})
+            current_title = title
+            current_body = []
+            continue
+
+        if line.lower().startswith("текст:"):
+            line = line.split(":", 1)[1].strip()
+        if line:
+            current_body.append(line)
+
+    if current_title and current_body:
+        sections.append({"title": current_title, "body": _clean_ai_text("\n".join(current_body))[:2500]})
+
+    if not sections:
+        return [{"title": _fallback_ai_title(module_slug), "body": cleaned[:2500]}]
+    return [section for section in sections if section["title"] != "AI-уточнение"][:6]
+
+
+def _extract_ai_title(line: str) -> str | None:
+    normalized = _clean_ai_line(line).strip(": ")
+    lowered = normalized.lower()
+    if lowered.startswith("разделы заявки") or lowered.startswith("текст:"):
+        return None
+    if lowered.startswith("раздел:"):
+        return normalized.split(":", 1)[1].strip()
+    heading = re.match(r"^(?:#{1,6}\s*)?(?:\d+[.)]\s*)?(.+)$", normalized)
+    if heading and (line.lstrip().startswith("#") or re.match(r"^\d+[.)]\s+", normalized)):
+        title = heading.group(1).strip(": ")
+        if len(title) <= 80 and not title.endswith("."):
+            return title
+    return None
+
+
+def _clean_ai_text(text: str) -> str:
+    lines = []
+    for raw_line in str(text or "").replace("\r", "\n").split("\n"):
+        line = _clean_ai_line(raw_line)
+        if not line or line == "---":
+            continue
+        lines.append(line)
+    return "\n".join(lines).strip()
+
+
+def _clean_ai_line(line: str) -> str:
+    cleaned = str(line or "").strip()
+    cleaned = cleaned.replace("**", "").replace("###", "").replace("##", "").replace("#", "")
+    cleaned = cleaned.replace("Краткое описание:", "").replace("краткое описание:", "")
+    cleaned = re.sub(r"^\s*[-–—]\s*$", "", cleaned)
+    return cleaned.strip()
+
+
+def _fallback_ai_title(module_slug: str) -> str:
+    return {
+        "social-research": "Обоснование социальной значимости",
+        "legal-acts": "Нормативные акты и программы по теме",
+        "salary": "Расчет и обоснование",
+        "support-letter": "Рабочий текст письма поддержки",
+        "presentation": "Структура презентации",
+        "scenario-plan": "Сценарный план",
+    }.get(module_slug, "Дополнение к результату")

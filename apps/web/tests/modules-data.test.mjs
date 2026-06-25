@@ -122,6 +122,9 @@ test("frontend has API client and voice-enabled module runner", () => {
 
   const apiClient = readFileSync(join(root, "app/lib/api-client.ts"), "utf8");
   const runner = readFileSync(join(root, "app/components/module-runner.tsx"), "utf8");
+  const laryUi = readFileSync(join(root, "app/components/lary-ui.tsx"), "utf8");
+  const attemptStatus = readFileSync(join(root, "app/components/module-attempt-status.tsx"), "utf8");
+  const moduleAttempts = readFileSync(join(root, "app/lib/module-attempts.ts"), "utf8");
   const resultViewer = readFileSync(join(root, "app/components/result-viewer.tsx"), "utf8");
   const resultPage = readFileSync(join(root, "app/run/[id]/result/page.tsx"), "utf8");
 
@@ -139,6 +142,12 @@ test("frontend has API client and voice-enabled module runner", () => {
   assert.equal(runner.includes("/api/speech/transcribe"), true);
   assert.equal(runner.includes("audio/x-pcm;bit=16;rate=16000"), true);
   assert.equal(runner.includes("/api/module-runs"), true);
+  assert.equal(runner.includes("markModuleAttemptUsed"), true);
+  assert.equal(laryUi.includes("Запуски и промокод"), false);
+  assert.equal(laryUi.includes("Попытка"), false);
+  assert.equal(attemptStatus.includes("1 бесплатный запуск в этом модуле"), true);
+  assert.equal(attemptStatus.includes("необходимо купить запуск модуля"), true);
+  assert.equal(moduleAttempts.includes("localStorage"), true);
   assert.equal(resultViewer.includes("/result"), true);
   assert.equal(resultViewer.includes("Не получилось подготовить ответ"), true);
   assert.equal(resultPage.includes("Если результат еще готовится или произошла ошибка"), false);
