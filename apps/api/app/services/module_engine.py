@@ -249,8 +249,8 @@ def _parse_ai_sections(module_slug: str, text: str) -> list[dict[str, str]]:
         sections.append({"title": current_title, "body": _clean_ai_text("\n".join(current_body))[:2500]})
 
     if not sections:
-        return [{"title": _fallback_ai_title(module_slug), "body": cleaned[:2500]}]
-    return [section for section in sections if section["title"] != "AI-уточнение"][:6]
+        return [_postprocess_ai_section(module_slug, {"title": _fallback_ai_title(module_slug), "body": cleaned[:2500]})]
+    return [_postprocess_ai_section(module_slug, section) for section in sections if section["title"] != "AI-уточнение"][:6]
 
 
 def _extract_ai_title(line: str) -> str | None:
@@ -284,6 +284,18 @@ def _clean_ai_line(line: str) -> str:
     cleaned = cleaned.replace("Краткое описание:", "").replace("краткое описание:", "")
     cleaned = re.sub(r"^\s*[-–—]\s*$", "", cleaned)
     return cleaned.strip()
+
+
+def _postprocess_ai_section(module_slug: str, section: dict[str, str]) -> dict[str, str]:
+    if module_slug != "legal-acts":
+        return section
+
+    body = section["body"]
+    body = re.sub(r"\s*№\s*от\s*__\.___\.20__\s*г\.,?", " (реквизиты проверить на официальном источнике)", body)
+    body = re.sub(r"<[^>\n]+>", "официальный сайт органа власти", body)
+    body = re.sub(r"\s{2,}", " ", body)
+    body = body.replace("источник: официальный сайт органа власти", "источник: официальный сайт органа власти")
+    return {"title": section["title"], "body": body.strip()}
 
 
 def _fallback_ai_title(module_slug: str) -> str:

@@ -241,7 +241,7 @@ class LaryMvpContractsTest(unittest.TestCase):
         settings.gigachat_credentials = "test"
         ai_text = """
 ### 1. **Федеральный уровень**
-**Краткое описание:** Федеральный проект «Пушкинская карта» — проверить реквизиты на официальном портале.
+**Краткое описание:** Постановление Правительства РФ № от __.___.20__ г., официальный источник: <правительство.рф>.
 
 ---
 
@@ -277,6 +277,9 @@ class LaryMvpContractsTest(unittest.TestCase):
         self.assertNotIn("**", joined)
         self.assertNotIn("###", joined)
         self.assertNotIn("Краткое описание", joined)
+        self.assertNotIn("<", joined)
+        self.assertNotIn("__.__", joined)
+        self.assertNotIn("№ от", joined)
 
     def test_vosk_model_can_be_downloaded_from_configured_archive(self):
         temp_dir = Path(tempfile.mkdtemp(prefix="lary-vosk-model-test-"))
