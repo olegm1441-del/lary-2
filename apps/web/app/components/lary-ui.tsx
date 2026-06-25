@@ -115,11 +115,11 @@ export function ModuleCard({ module, compact = false }: { module: LaryModule; co
   const href = module.status === "active" ? `/m/${module.slug}` : `/m/${module.slug}`;
 
   return (
-    <article className="group flex h-full flex-col rounded-3xl border border-slate-200 bg-white p-6 shadow-sm transition hover:-translate-y-1 hover:border-blue-200 hover:shadow-lg">
+    <article className="group flex h-full min-w-0 flex-col rounded-3xl border border-slate-200 bg-white p-6 shadow-sm transition hover:-translate-y-1 hover:border-blue-200 hover:shadow-lg">
       <div className="flex items-start justify-between gap-4">
-        <div>
+        <div className="min-w-0">
           <p className="text-sm font-semibold uppercase tracking-wide text-blue-800">{module.stage}</p>
-          <h3 className="mt-2 text-2xl font-bold text-slate-950">{module.taskTitle}</h3>
+          <h3 className="mt-2 break-words text-2xl font-bold text-slate-950">{module.taskTitle}</h3>
         </div>
         <span className={`rounded-full px-3 py-1 text-sm font-semibold ${module.status === "active" ? "bg-green-50 text-green-800" : "bg-orange-50 text-orange-800"}`}>
           {module.status === "active" ? "MVP" : "Скоро"}
@@ -136,14 +136,14 @@ export function ModuleCard({ module, compact = false }: { module: LaryModule; co
       <div className="mt-6 grid gap-3 sm:grid-cols-2">
         <Link
           href={href}
-          className="inline-flex min-h-12 items-center justify-center rounded-2xl bg-blue-800 px-5 py-3 text-base font-semibold text-white group-hover:bg-blue-900 focus:outline-none focus:ring-2 focus:ring-blue-700 focus:ring-offset-2"
+          className="inline-flex min-h-12 items-center justify-center whitespace-normal rounded-2xl bg-blue-800 px-5 py-3 text-center text-base font-semibold text-white group-hover:bg-blue-900 focus:outline-none focus:ring-2 focus:ring-blue-700 focus:ring-offset-2"
         >
           {module.status === "active" ? "Начать" : "Сообщить, когда модуль будет готов"}
         </Link>
         {module.status === "active" ? (
           <Link
             href={`/m/${module.slug}?example=1`}
-            className="inline-flex min-h-12 items-center justify-center rounded-2xl border border-slate-300 bg-white px-5 py-3 text-base font-semibold text-slate-900 hover:border-blue-300 hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-blue-700 focus:ring-offset-2"
+            className="inline-flex min-h-12 items-center justify-center whitespace-normal rounded-2xl border border-slate-300 bg-white px-5 py-3 text-center text-base font-semibold text-slate-900 hover:border-blue-300 hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-blue-700 focus:ring-offset-2"
           >
             Посмотреть пример
           </Link>
