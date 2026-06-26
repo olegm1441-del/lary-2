@@ -807,6 +807,39 @@ def _ensure_legacy_columns(conn: Any) -> None:
             "paid_at": "text",
             "provider_payload": "text",
         },
+        "payment_events": {
+            "payment_id": "text",
+            "provider": "text",
+            "provider_payment_id": "text",
+            "status": "text",
+            "created_at": "text",
+        },
+        "credit_ledger": {
+            "owner_key": "text",
+            "source": "text",
+            "delta": "integer",
+            "module_slug": "text",
+            "run_id": "text",
+            "payment_id": "text",
+            "promo_code": "text",
+            "created_at": "text",
+        },
+        "promo_codes": {
+            "runs": "integer",
+            "status": "text",
+            "expires_at": "text",
+            "total_limit": "integer",
+            "per_owner_limit": "integer",
+            "module_scope": "text",
+            "campaign": "text",
+            "created_at": "text",
+        },
+        "promo_redemptions": {
+            "owner_key": "text",
+            "code": "text",
+            "added_runs": "integer",
+            "created_at": "text",
+        },
     }
     for table, columns in additions.items():
         for column, definition in columns.items():

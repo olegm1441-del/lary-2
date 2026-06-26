@@ -759,6 +759,7 @@ class LaryMvpContractsTest(unittest.TestCase):
                 )
                 """
             )
+            conn.execute("create table credit_ledger (id text primary key)")
             conn.commit()
         finally:
             conn.close()
