@@ -1,19 +1,22 @@
 import Link from "next/link";
+import { MobileMenu } from "./mobile-menu";
 import { ModuleAttemptStatus } from "./module-attempt-status";
 import type { LaryModule, ModuleField } from "../lib/lary-data";
 
 const navItems = [
-  ["Модули", "/modules"],
-  ["Как работает", "/#how-it-works"],
-  ["Цены", "/pay"],
-  ["Безопасность", "/security"],
-  ["Помощь", "/help"],
+  { label: "Модули", href: "/modules" },
+  { label: "Как работает", href: "/#how-it-works" },
+  { label: "Цены", href: "/pay" },
+  { label: "Безопасность", href: "/security" },
+  { label: "Помощь", href: "/help" },
 ];
+
+const mobileNavItems = [...navItems, { label: "Войти", href: "/account" }];
 
 export function Header() {
   return (
     <header className="sticky top-0 z-40 border-b border-slate-200 bg-white/95 backdrop-blur">
-      <div className="mx-auto flex min-h-20 w-full max-w-7xl items-center justify-between gap-3 overflow-hidden px-5 py-3 sm:gap-5 sm:px-8">
+      <div className="mx-auto flex min-h-20 w-full max-w-7xl items-center justify-between gap-3 px-5 py-3 sm:gap-5 sm:px-8">
         <Link href="/" className="flex min-w-0 items-center gap-3 text-slate-950" aria-label="Лари — на главную">
           <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-blue-800 text-xl font-bold text-white">
             L
@@ -25,7 +28,7 @@ export function Header() {
         </Link>
 
         <nav className="hidden items-center gap-5 text-base font-medium text-slate-700 lg:flex" aria-label="Основная навигация">
-          {navItems.map(([label, href]) => (
+          {navItems.map(({ label, href }) => (
             <Link key={href} href={href} className="rounded-xl px-2 py-2 hover:text-blue-800 focus:outline-none focus:ring-2 focus:ring-blue-700">
               {label}
             </Link>
@@ -33,21 +36,7 @@ export function Header() {
         </nav>
 
         <div className="flex shrink-0 items-center gap-3">
-          <details className="relative lg:hidden">
-            <summary className="flex min-h-11 cursor-pointer list-none items-center rounded-2xl border border-slate-300 px-4 py-2 text-base font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-700">
-              Меню
-            </summary>
-            <div className="absolute right-0 top-14 z-50 grid min-w-64 gap-2 rounded-3xl border border-slate-200 bg-white p-3 shadow-xl">
-              {navItems.map(([label, href]) => (
-                <Link key={href} href={href} className="min-h-11 rounded-2xl px-4 py-3 text-base font-semibold text-slate-800 hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-blue-700">
-                  {label}
-                </Link>
-              ))}
-              <Link href="/account" className="min-h-11 rounded-2xl px-4 py-3 text-base font-semibold text-blue-800 hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-blue-700">
-                Войти
-              </Link>
-            </div>
-          </details>
+          <MobileMenu items={mobileNavItems} />
           <Link href="/account" className="hidden rounded-2xl px-4 py-3 text-base font-semibold text-blue-800 hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-blue-700 sm:inline-flex">
             Войти
           </Link>

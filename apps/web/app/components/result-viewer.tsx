@@ -54,7 +54,7 @@ export function ResultViewer({ runId }: { runId: string }) {
     return (
       <div className="rounded-3xl border border-blue-200 bg-blue-50 p-6 text-blue-950">
         <p className="text-2xl font-bold">Лари готовит результат</p>
-        <p className="mt-3 text-lg leading-8">Данные сохранены. Обычно это занимает меньше минуты.</p>
+        <p className="mt-3 text-lg leading-8">Данные сохранены. Обычно это занимает меньше минуты. Не закрывайте страницу.</p>
         <div className="mt-5 h-4 w-full animate-pulse rounded-full bg-blue-100" aria-hidden="true" />
       </div>
     );
@@ -67,7 +67,7 @@ export function ResultViewer({ runId }: { runId: string }) {
         <p className="mt-3 text-lg leading-8">
           {result.status === "failed"
             ? "Данные сохранены. Попробуйте еще раз через минуту или напишите в поддержку."
-            : "Данные сохранены. Обычно это занимает меньше минуты."}
+            : "Данные сохранены. Обычно это занимает меньше минуты. Не закрывайте страницу."}
         </p>
         {result.status === "failed" ? <FailedActions runId={runId} /> : <div className="mt-5 h-4 w-full animate-pulse rounded-full bg-blue-100" aria-hidden="true" />}
       </div>
@@ -83,7 +83,10 @@ export function ResultViewer({ runId }: { runId: string }) {
         </div>
         <span className="rounded-full bg-green-50 px-4 py-2 text-base font-semibold text-green-800">Готово</span>
       </div>
-      <ResultActions result={result} onResult={setResult} />
+      <div className="mt-6 rounded-3xl border border-blue-100 bg-blue-50 p-5">
+        <h3 className="text-xl font-bold text-blue-950">Скачать файл</h3>
+        <ResultActions result={result} onResult={setResult} />
+      </div>
       <p className="mt-5 text-lg leading-8 text-slate-700">{result.summary}</p>
       <div className="mt-6 grid gap-4">
         {result.sections.map((section) => (
@@ -146,6 +149,12 @@ function ResultActions({ result, onResult }: { result: ResultPayload; onResult: 
       <button id="improve" type="button" onClick={() => void improveResult()} className="min-h-14 rounded-2xl border border-slate-300 px-6 py-4 text-lg font-semibold text-slate-900 hover:bg-slate-50">
         Улучшить
       </button>
+      <a href="#email-result" className="inline-flex min-h-14 items-center justify-center rounded-2xl border border-slate-300 px-6 py-4 text-lg font-semibold text-slate-900 hover:bg-white">
+        Отправить на email
+      </a>
+      <a href="/account#projects" className="inline-flex min-h-14 items-center justify-center rounded-2xl border border-slate-300 px-6 py-4 text-lg font-semibold text-slate-900 hover:bg-white">
+        Прикрепить к проекту
+      </a>
     </div>
   );
 }

@@ -29,6 +29,7 @@ export function AccountWorkspace() {
   const [projects, setProjects] = useState<ProjectItem[]>([]);
   const [mode, setMode] = useState("temporary");
   const [message, setMessage] = useState("");
+  const [projectMessage, setProjectMessage] = useState("");
   const [error, setError] = useState("");
 
   async function loadWorks() {
@@ -59,6 +60,12 @@ export function AccountWorkspace() {
     void loadWorks();
     void loadProjects();
   }, []);
+
+  useEffect(() => {
+    if (!projectMessage) return;
+    const timer = window.setTimeout(() => setProjectMessage(""), 6000);
+    return () => window.clearTimeout(timer);
+  }, [projectMessage]);
 
   async function requestMagicLink(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -115,7 +122,8 @@ export function AccountWorkspace() {
       return;
     }
 
-    setMessage("Создаем проект...");
+    setProjectMessage("");
+    setMessage("");
     setError("");
     try {
       const projectResponse = await fetch(apiUrl("/api/projects"), {
@@ -125,7 +133,7 @@ export function AccountWorkspace() {
         body: JSON.stringify({ title, competition: "ПФКИ" }),
       });
       if (!projectResponse.ok) throw new Error(await readApiError(projectResponse));
-      setMessage("Проект создан. Его можно использовать для новых работ.");
+      setProjectMessage("Проект создан. Его можно использовать для новых работ.");
       setProjectTitle("");
       await loadWorks();
       await loadProjects();
@@ -155,42 +163,44 @@ export function AccountWorkspace() {
   }
 
   return (
-    <div className="mt-8 grid gap-5 lg:grid-cols-[240px_1fr]">
-      <nav className="grid content-start gap-2 rounded-3xl border border-slate-200 bg-slate-50 p-4 text-base font-semibold">
-        <a className="rounded-2xl bg-blue-800 px-4 py-3 text-white" href="#works">Мои работы</a>
-        <a className="rounded-2xl px-4 py-3 hover:bg-white" href="#projects">Проекты</a>
-        <a className="rounded-2xl px-4 py-3 hover:bg-white" href="#files">Файлы</a>
-        <a className="rounded-2xl px-4 py-3 hover:bg-white" href="#runs">Запуски</a>
-        <a className="rounded-2xl px-4 py-3 hover:bg-white" href="#settings">Настройки</a>
-        <a className="rounded-2xl px-4 py-3 hover:bg-white" href="#security">Безопасность</a>
-      </nav>
+    <div className="mt-8 grid gap-5">
+      <section className="rounded-3xl border border-slate-200 bg-white p-5">
+        <h2 className="text-2xl font-bold">Вход без пароля</h2>
+        <p className="mt-2 text-lg leading-8 text-slate-700">Укажите email, чтобы получить ссылку для входа. Пароль не нужен.</p>
+        <form onSubmit={requestMagicLink} className="mt-5 grid gap-3 sm:grid-cols-[1fr_auto]">
+          <label className="grid gap-2">
+            <span className="text-base font-semibold">Ваш email</span>
+            <input
+              type="email"
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+              required
+              placeholder="name@example.ru"
+              className="min-h-14 rounded-2xl border border-slate-300 bg-slate-50 px-4 text-lg outline-none focus:border-blue-700 focus:ring-2 focus:ring-blue-100"
+            />
+          </label>
+          <button type="submit" className="self-end min-h-14 rounded-2xl bg-blue-800 px-6 py-4 text-lg font-semibold text-white">
+            Получить ссылку для входа
+          </button>
+        </form>
+        <p className="mt-3 text-base leading-7 text-slate-600">Если вы уже сделали работу без email, она временно доступна в этом браузере 24 часа.</p>
+      </section>
 
-      <div className="grid gap-5">
-        <section className="rounded-3xl border border-slate-200 bg-white p-5">
-          <h2 className="text-2xl font-bold">Войти в личный кабинет</h2>
-          <p className="mt-2 text-lg leading-8 text-slate-700">Укажите email, чтобы получить ссылку для входа. Пароль не нужен.</p>
-          <form onSubmit={requestMagicLink} className="mt-5 grid gap-3 sm:grid-cols-[1fr_auto]">
-            <label className="grid gap-2">
-              <span className="text-base font-semibold">Ваш email</span>
-              <input
-                type="email"
-                value={email}
-                onChange={(event) => setEmail(event.target.value)}
-                required
-                className="min-h-14 rounded-2xl border border-slate-300 bg-slate-50 px-4 text-lg outline-none focus:border-blue-700 focus:ring-2 focus:ring-blue-100"
-              />
-            </label>
-            <button type="submit" className="self-end min-h-14 rounded-2xl bg-blue-800 px-6 py-4 text-lg font-semibold text-white">
-              Получить ссылку для входа
-            </button>
-          </form>
-          <p className="mt-3 text-base leading-7 text-slate-600">Если вы уже сделали работу без email, она временно доступна в этом браузере 24 часа.</p>
-        </section>
+      {message ? <p className="rounded-2xl bg-green-50 p-4 text-base leading-7 text-green-900">{message}</p> : null}
+      {error ? <p className="rounded-2xl bg-red-50 p-4 text-base leading-7 text-red-900">{error}</p> : null}
 
-        {message ? <p className="rounded-2xl bg-green-50 p-4 text-base leading-7 text-green-900">{message}</p> : null}
-        {error ? <p className="rounded-2xl bg-red-50 p-4 text-base leading-7 text-red-900">{error}</p> : null}
+      <div className="grid gap-5 lg:grid-cols-[240px_1fr]">
+        <nav className="grid content-start gap-2 rounded-3xl border border-slate-200 bg-slate-50 p-4 text-base font-semibold">
+          <a className="rounded-2xl bg-blue-800 px-4 py-3 text-white" href="#works">Мои работы</a>
+          <a className="rounded-2xl px-4 py-3 hover:bg-white" href="#projects">Проекты</a>
+          <a className="rounded-2xl px-4 py-3 hover:bg-white" href="#files">Файлы</a>
+          <a className="rounded-2xl px-4 py-3 hover:bg-white" href="#runs">Запуски</a>
+          <a className="rounded-2xl px-4 py-3 hover:bg-white" href="#settings">Настройки</a>
+          <a className="rounded-2xl px-4 py-3 hover:bg-white" href="#security">Безопасность</a>
+        </nav>
 
-        <section id="works" className="rounded-3xl border border-slate-200 bg-white p-5">
+        <div className="grid gap-5">
+          <section id="works" className="rounded-3xl border border-slate-200 bg-white p-5">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <h2 className="text-2xl font-bold">Мои работы</h2>
@@ -293,6 +303,7 @@ export function AccountWorkspace() {
               </button>
             ) : null}
           </div>
+          {projectMessage ? <p className="mt-4 rounded-2xl bg-green-50 p-4 text-base leading-7 text-green-900">{projectMessage}</p> : null}
           <div className="mt-5 grid gap-3">
             {projects.map((project) => (
               <article key={project.project_id} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
@@ -307,6 +318,7 @@ export function AccountWorkspace() {
             </p>
           ) : null}
         </section>
+        </div>
       </div>
     </div>
   );

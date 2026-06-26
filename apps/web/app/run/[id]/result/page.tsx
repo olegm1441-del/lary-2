@@ -29,7 +29,7 @@ export default async function ResultPage({ params }: { params: Promise<{ id: str
 
         <aside className="grid content-start gap-5">
           <InfoCallout title="Не потерять результат">
-            Без email работа доступна во временном кабинете 24 часа. Чтобы сохранить надолго, отправьте ссылку на результат себе на почту.
+            Без email работа доступна во временном кабинете 24 часа. Чтобы сохранить надолго, отправьте файл на почту.
           </InfoCallout>
           <EmailResultForm runId={id} />
         </aside>

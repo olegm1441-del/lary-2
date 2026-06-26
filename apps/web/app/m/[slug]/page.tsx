@@ -64,10 +64,10 @@ export default async function ModulePage({ params, searchParams }: { params: Pro
           <section className="mx-auto grid max-w-7xl gap-8 px-5 py-12 sm:px-8 lg:grid-cols-[1fr_320px]">
             <div>
               <div className="rounded-3xl border border-slate-200 bg-white p-6">
-                <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">Форма модуля</p>
-                <h2 className="mt-2 text-3xl font-bold">Ответьте на несколько вопросов</h2>
+                <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">Ответьте на вопросы</p>
+                <h2 className="mt-2 text-3xl font-bold">Заполните то, что уже известно</h2>
                 <p className="mt-3 text-lg leading-8 text-slate-700">
-                  Лари проверит ответы и подготовит результат для скачивания.
+                  При запуске нейросеть проанализирует задачу и подготовит файл для скачивания.
                 </p>
               </div>
               {showExample ? <ExampleResult slug={laryModule.slug} title={laryModule.taskTitle} /> : null}

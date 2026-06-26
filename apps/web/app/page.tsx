@@ -11,16 +11,19 @@ export default function Home() {
       <section className="bg-white">
         <div className="mx-auto grid max-w-7xl gap-10 px-5 py-16 sm:px-8 lg:grid-cols-[1.05fr_0.95fr] lg:items-center lg:py-20">
           <div>
-            <p className="text-base font-semibold uppercase tracking-wide text-blue-800">Модульный помощник для заявки ПФКИ</p>
-            <h1 className="mt-4 max-w-4xl text-4xl font-bold tracking-tight text-slate-950 sm:text-5xl lg:text-6xl">
+            <p className="text-base font-semibold uppercase tracking-wide text-blue-800">Помощник для документов заявки ПФКИ</p>
+            <h1 className="mt-4 max-w-4xl text-[44px] font-bold leading-[1.08] tracking-tight text-slate-950 sm:text-5xl lg:text-6xl">
               Соберите рабочие документы для заявки ПФКИ быстрее и без лишних ошибок
             </h1>
             <p className="mt-6 max-w-3xl text-xl leading-9 text-slate-700">
-              Выберите задачу, ответьте на несколько вопросов и скачайте редактируемый DOCX или PPTX. По одному бесплатному запуску в каждом модуле.
+              Выберите задачу, ответьте на несколько вопросов и скачайте редактируемый DOCX или PPTX. По одному бесплатному запуску для каждой задачи.
             </p>
             <div className="mt-8 flex flex-col gap-4 sm:flex-row">
               <PrimaryLink href="/modules">Выбрать задачу</PrimaryLink>
               <SecondaryLink href="/#how-it-works">Как работает Лари</SecondaryLink>
+            </div>
+            <div className="mt-8 lg:hidden">
+              <QuickStartCard modules={activeModules} />
             </div>
             <div className="mt-8 grid gap-3 text-base text-slate-700 sm:grid-cols-3">
               <div className="rounded-2xl bg-blue-50 p-4">Без регистрации до первого результата</div>
@@ -29,22 +32,8 @@ export default function Home() {
             </div>
           </div>
 
-          <div className="rounded-[2rem] border border-slate-200 bg-slate-50 p-5 shadow-sm">
-            <div className="rounded-[1.5rem] bg-white p-5 shadow-sm">
-              <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">Быстрый старт</p>
-              <h2 className="mt-2 text-2xl font-bold">Что нужно сделать сегодня?</h2>
-              <div className="mt-5 grid gap-3">
-                {activeModules.slice(0, 4).map((module) => (
-                  <Link key={module.slug} href={`/m/${module.slug}`} className="rounded-2xl border border-slate-200 p-4 text-left hover:border-blue-300 hover:bg-blue-50">
-                    <span className="block text-lg font-bold text-slate-950">{module.taskTitle}</span>
-                    <span className="mt-1 block text-sm text-slate-600">{module.outputFormats.join(" + ")} · {module.duration}</span>
-                  </Link>
-                ))}
-              </div>
-              <Link href="/modules" className="mt-5 inline-flex min-h-12 items-center justify-center rounded-2xl border border-blue-800 px-5 py-3 text-base font-semibold text-blue-900 hover:bg-blue-50">
-                Показать все задачи
-              </Link>
-            </div>
+          <div className="hidden rounded-[2rem] border border-slate-200 bg-slate-50 p-5 shadow-sm lg:block">
+            <QuickStartCard modules={activeModules} />
           </div>
         </div>
       </section>
@@ -115,5 +104,25 @@ export default function Home() {
         </div>
       </Section>
     </PageShell>
+  );
+}
+
+function QuickStartCard({ modules }: { modules: ReturnType<typeof getActiveModules> }) {
+  return (
+    <div className="rounded-[1.5rem] bg-white p-5 shadow-sm">
+      <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">Быстрый старт</p>
+      <h2 className="mt-2 text-2xl font-bold">Что нужно сделать сегодня?</h2>
+      <div className="mt-5 grid gap-3">
+        {modules.slice(0, 4).map((module) => (
+          <Link key={module.slug} href={`/m/${module.slug}`} className="rounded-2xl border border-slate-200 p-4 text-left hover:border-blue-300 hover:bg-blue-50">
+            <span className="block text-lg font-bold text-slate-950">{module.taskTitle}</span>
+            <span className="mt-1 block text-sm text-slate-600">{module.outputFormats.join(" + ")} · {module.duration}</span>
+          </Link>
+        ))}
+      </div>
+      <Link href="/modules" className="mt-5 inline-flex min-h-12 items-center justify-center rounded-2xl border border-blue-800 px-5 py-3 text-base font-semibold text-blue-900 hover:bg-blue-50">
+        Показать все задачи
+      </Link>
+    </div>
   );
 }

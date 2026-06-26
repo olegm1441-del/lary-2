@@ -435,6 +435,80 @@ class LaryMvpContractsTest(unittest.TestCase):
         self.assertNotIn("Уточните возраст, статус и территорию", joined)
         self.assertNotIn("Для финальной заявки нужны проверенные источники", joined)
 
+    def test_field_assistant_uses_deterministic_blocking_rules(self):
+        social = self.client.post(
+            "/api/field-assistant/analyze",
+            json={
+                "module_slug": "social-research",
+                "field_key": "target_group",
+                "field_label": "Целевая группа",
+                "value": "молодежь",
+                "form_context": {"region": "Республика Татарстан"},
+            },
+        )
+        self.assertEqual(social.status_code, 200)
+        self.assertEqual(social.json()["status"], "warning")
+        self.assertFalse(social.json()["should_block"])
+        self.assertIn("возраст", social.json()["message"])
+        self.assertLessEqual(len(social.json()["message"]), 140)
+
+        legal = self.client.post(
+            "/api/field-assistant/analyze",
+            json={
+                "module_slug": "legal-acts",
+                "field_key": "region",
+                "field_label": "Регион",
+                "value": "",
+                "form_context": {"program_level": "Федеральные и региональные документы"},
+            },
+        )
+        self.assertEqual(legal.status_code, 200)
+        self.assertEqual(legal.json()["status"], "error")
+        self.assertTrue(legal.json()["should_block"])
+        self.assertEqual(legal.json()["message"], "Для региональных документов нужен регион.")
+
+        salary = self.client.post(
+            "/api/field-assistant/analyze",
+            json={
+                "module_slug": "salary",
+                "field_key": "employment_percent",
+                "field_label": "Занятость одного сотрудника, %",
+                "value": "120",
+                "form_context": {},
+            },
+        )
+        self.assertEqual(salary.status_code, 200)
+        self.assertEqual(salary.json()["status"], "error")
+        self.assertTrue(salary.json()["should_block"])
+
+        support_empty = self.client.post(
+            "/api/field-assistant/analyze",
+            json={
+                "module_slug": "support-letter",
+                "field_key": "contribution_amount",
+                "field_label": "Вклад в рублях",
+                "value": "",
+                "form_context": {},
+            },
+        )
+        self.assertEqual(support_empty.status_code, 200)
+        self.assertEqual(support_empty.json()["status"], "warning")
+        self.assertFalse(support_empty.json()["should_block"])
+
+        support_letters = self.client.post(
+            "/api/field-assistant/analyze",
+            json={
+                "module_slug": "support-letter",
+                "field_key": "contribution_amount",
+                "field_label": "Вклад в рублях",
+                "value": "пятьдесят тысяч рублей",
+                "form_context": {},
+            },
+        )
+        self.assertEqual(support_letters.status_code, 200)
+        self.assertEqual(support_letters.json()["status"], "error")
+        self.assertTrue(support_letters.json()["should_block"])
+
     def test_legal_acts_ai_result_is_structured_without_raw_markdown(self):
         original_credentials = settings.gigachat_credentials
         settings.gigachat_credentials = "test"

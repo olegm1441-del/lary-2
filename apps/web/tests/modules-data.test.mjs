@@ -123,6 +123,8 @@ test("frontend has API client and voice-enabled module runner", () => {
   const apiClient = readFileSync(join(root, "app/lib/api-client.ts"), "utf8");
   const runner = readFileSync(join(root, "app/components/module-runner.tsx"), "utf8");
   const laryUi = readFileSync(join(root, "app/components/lary-ui.tsx"), "utf8");
+  const mobileMenuPath = join(root, "app/components/mobile-menu.tsx");
+  const mobileMenu = existsSync(mobileMenuPath) ? readFileSync(mobileMenuPath, "utf8") : "";
   const attemptStatus = readFileSync(join(root, "app/components/module-attempt-status.tsx"), "utf8");
   const moduleAttempts = readFileSync(join(root, "app/lib/module-attempts.ts"), "utf8");
   const resultViewer = readFileSync(join(root, "app/components/result-viewer.tsx"), "utf8");
@@ -138,12 +140,17 @@ test("frontend has API client and voice-enabled module runner", () => {
   assert.equal(apiClient.includes("https://"), true);
   assert.equal(runner.includes("FIELD_KEYS_BY_MODULE"), false);
   assert.equal(runner.includes("getFieldKey"), true);
-  assert.equal(runner.includes("/api/modules/"), true);
-  assert.equal(runner.includes("/validate-inputs"), true);
+  assert.equal(runner.includes("FieldAssistantHint"), true);
+  assert.equal(runner.includes("getFieldQualityHint"), true);
+  assert.equal(runner.includes("setTimeout"), true);
+  assert.equal(runner.includes("1000"), true);
+  assert.equal(runner.includes("/api/field-assistant/analyze"), true);
   assert.equal(runner.includes("Сделать бесплатный запуск"), false);
-  assert.equal(runner.includes("Запустить модуль"), true);
+  assert.equal(runner.includes("Запустить бесплатно"), true);
+  assert.equal(runner.includes("Запустить модуль"), false);
   assert.equal(runner.includes("за 320 руб / бесплатно"), false);
-  assert.equal(runner.includes("Наговорить"), true);
+  assert.equal(runner.includes("Наговорить ответ"), true);
+  assert.equal(runner.includes("Наговорить описание"), true);
   assert.equal(runner.includes("Записать заново"), false);
   assert.equal(runner.includes("/api/speech/transcribe"), true);
   assert.equal(runner.includes("audio/x-pcm;bit=16;rate=16000"), true);
@@ -153,11 +160,20 @@ test("frontend has API client and voice-enabled module runner", () => {
   assert.equal(runner.includes("Проверить данные"), false);
   assert.equal(runner.includes("Проверка перед запуском"), false);
   assert.equal(runner.includes("Проверьте основные данные"), false);
-  assert.equal(runner.includes("Запустить модуль"), true);
   assert.equal(runner.includes("Не знаю"), true);
   assert.equal(runner.includes("fillUnknownField"), true);
+  assert.equal(runner.includes("Все обязательные поля заполнены."), true);
+  assert.equal(runner.includes("Можно запускать. Есть подсказки, которые улучшат результат."), true);
+  assert.equal(runner.includes("Заполните обязательные поля, чтобы запустить."), true);
   assert.equal(runner.includes("{key}:"), false);
   assert.equal(runner.includes("Использовать 1 запуск"), true);
+  assert.equal(laryUi.includes("<details"), false);
+  assert.equal(laryUi.includes("MobileMenu"), true);
+  assert.equal(mobileMenu.includes("fixed"), true);
+  assert.equal(mobileMenu.includes("z-[100]"), true);
+  assert.equal(mobileMenu.includes("overflow = \"hidden\""), true);
+  assert.equal(mobileMenu.includes("Escape"), true);
+  assert.equal(mobileMenu.includes("Начать"), true);
   assert.equal(laryUi.includes("Запуски и промокод"), false);
   assert.equal(laryUi.includes("Попытка"), false);
   assert.equal(attemptStatus.includes("1 бесплатный запуск в этом модуле"), true);
@@ -167,6 +183,10 @@ test("frontend has API client and voice-enabled module runner", () => {
   assert.equal(resultViewer.includes("/result"), true);
   assert.equal(resultViewer.includes("Не получилось подготовить результат"), true);
   assert.equal(resultViewer.includes("Результат готов"), true);
+  assert.equal(resultViewer.includes("Скачать файл"), true);
+  assert.equal(resultViewer.includes("Отправить на email"), true);
+  assert.equal(resultViewer.includes("Прикрепить к проекту"), true);
+  assert.equal(resultViewer.includes("Не закрывайте страницу."), true);
   assert.equal(resultViewer.includes("Скопировать"), true);
   assert.equal(resultViewer.includes("Улучшить"), true);
   assert.equal(resultViewer.includes("Попробовать еще раз"), true);
@@ -177,9 +197,10 @@ test("frontend has API client and voice-enabled module runner", () => {
   assert.equal(resultPage.includes("Результат готов к скачиванию"), false);
   assert.equal(resultPage.includes("Действия"), false);
   assert.equal(resultPage.includes("Сохранить в мои работы"), false);
-  assert.equal(resultPage.includes("Чтобы сохранить надолго, отправьте файл на почту."), false);
+  assert.equal(resultPage.includes("Чтобы сохранить надолго, отправьте файл на почту."), true);
   assert.equal(emailResultForm.includes("Сохранить и отправить ссылку на результат"), true);
   assert.equal(emailResultForm.includes("Лари сохранит работу в личном кабинете и отправит ссылку для входа. Пароль не нужен."), true);
+  assert.equal(emailResultForm.includes("id=\"email-result\""), true);
   assert.equal(emailResultForm.includes("type=\"email\""), true);
   assert.equal(emailResultForm.includes("type=\"password\""), false);
   assert.equal(emailResultForm.includes("/api/auth/magic-link/request"), true);
@@ -192,7 +213,9 @@ test("frontend has API client and voice-enabled module runner", () => {
   assert.equal(accountWorkspace.includes("Прикрепить к проекту"), true);
   assert.equal(accountWorkspace.includes("Удалить"), true);
   assert.equal(modulePage.includes("Поля собраны по ТЗ"), false);
-  assert.equal(modulePage.includes("Лари проверит ответы и подготовит результат для скачивания."), true);
+  assert.equal(modulePage.includes("Форма модуля"), false);
+  assert.equal(modulePage.includes("Ответьте на вопросы"), true);
+  assert.equal(modulePage.includes("При запуске нейросеть проанализирует задачу и подготовит файл для скачивания."), true);
   assert.equal(homePage.includes("DOCX/PDF"), false);
   assert.equal(homePage.includes("DOCX/PDF/PPTX"), false);
   assert.equal(homePage.includes("рабочий редактируемый файл"), true);
@@ -242,18 +265,22 @@ test("P0 public copy and account gate match revision spec", () => {
   const payPage = readFileSync(join(root, "app/pay/page.tsx"), "utf8");
   const paymentPanel = readFileSync(join(root, "app/components/payment-panel.tsx"), "utf8");
   const laryUi = readFileSync(join(root, "app/components/lary-ui.tsx"), "utf8");
+  const mobileMenu = readFileSync(join(root, "app/components/mobile-menu.tsx"), "utf8");
   const docsPage = readFileSync(join(root, "app/docs/[slug]/page.tsx"), "utf8");
   const securityPage = readFileSync(join(root, "app/security/page.tsx"), "utf8");
   const helpPage = readFileSync(join(root, "app/help/page.tsx"), "utf8");
 
-  assert.equal(homePage.includes("Модульный помощник для заявки ПФКИ"), true);
+  assert.equal(homePage.includes("Помощник для документов заявки ПФКИ"), true);
+  assert.equal(homePage.includes("Модульный помощник для заявки ПФКИ"), false);
   assert.equal(homePage.includes("Лари 2.0 MVP 0.1"), false);
   assert.equal(homePage.includes("Соберите рабочие документы для заявки ПФКИ быстрее и без лишних ошибок"), true);
   assert.equal(homePage.includes("Выберите задачу"), true);
-  assert.equal(homePage.includes("По одному бесплатному запуску в каждом модуле"), true);
+  assert.equal(homePage.includes("По одному бесплатному запуску для каждой задачи"), true);
+  assert.equal(homePage.includes("По одному бесплатному запуску в каждом модуле"), false);
   assert.equal(homePage.includes("Показать все задачи"), true);
   assert.equal(homePage.includes("Выбрать модуль"), false);
-  assert.equal(homePage.includes("готовый файл"), false);
+  assert.equal(homePage.includes("Что нужно сделать сегодня?"), true);
+  assert.equal(homePage.includes("text-[44px]"), true);
 
   assert.equal(modulesPage.includes("Что нужно подготовить для заявки ПФКИ?"), true);
   assert.equal(modulesPage.includes("Выберите задачу. Каждый запуск дает один рабочий файл или разбор."), true);
@@ -264,13 +291,19 @@ test("P0 public copy and account gate match revision spec", () => {
   assert.equal(laryUi.includes("Закройте одну задачу по заявке"), true);
   assert.equal(laryUi.includes("MVP"), false);
   assert.equal(laryUi.includes("Доступно"), true);
-  assert.equal(laryUi.includes("Меню"), true);
+  assert.equal(laryUi.includes("MobileMenu"), true);
   for (const navLabel of ["Модули", "Как работает", "Цены", "Безопасность", "Помощь", "Войти"]) {
-    assert.equal(laryUi.includes(navLabel), true, `mobile menu should include ${navLabel}`);
+    assert.equal(`${laryUi}\n${mobileMenu}`.includes(navLabel), true, `mobile menu should include ${navLabel}`);
   }
 
   assert.equal(accountPage.includes("Войти в личный кабинет"), true);
+  assert.equal(accountPage.includes("Вход без пароля"), false);
+  assert.equal(accountWorkspace.includes("Вход без пароля"), true);
+  assert.equal(accountWorkspace.includes("Войти в личный кабинет"), false);
   assert.equal(accountWorkspace.includes("Укажите email, чтобы получить ссылку для входа. Пароль не нужен."), true);
+  assert.equal(accountWorkspace.includes("placeholder=\"name@example.ru\""), true);
+  assert.equal(accountWorkspace.includes("projectMessage"), true);
+  assert.equal(accountWorkspace.includes("Проект создан. Его можно использовать для новых работ."), true);
   assert.equal(accountWorkspace.includes("type=\"email\""), true);
   assert.equal(accountWorkspace.includes("Социальная значимость"), false);
   assert.equal(accountWorkspace.includes("Сегодня"), false);
