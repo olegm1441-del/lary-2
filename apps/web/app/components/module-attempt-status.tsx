@@ -36,7 +36,7 @@ export function ModuleAttemptStatus({ moduleSlug, className = "" }: { moduleSlug
 
   const freeAvailable = usage?.modules?.[moduleSlug]?.free_attempt_available ?? true;
   const paidRuns = usage?.paid_runs ?? 0;
-  const text = freeAvailable ? "1 бесплатный запуск в этом модуле" : paidRuns > 0 ? `доступно платных запусков: ${paidRuns}` : "необходимо купить запуск модуля";
+  const text = freeAvailable ? "1 бесплатный запуск для этой задачи" : paidRuns > 0 ? `доступно платных запусков: ${paidRuns}` : "необходимо купить запуск модуля";
   const tone = freeAvailable || paidRuns > 0 ? "bg-green-50 text-green-800" : "bg-red-50 text-red-800";
 
   return <p className={`${className || "mt-5"} rounded-2xl p-4 text-base font-semibold leading-7 break-words ${tone}`}>{text}</p>;

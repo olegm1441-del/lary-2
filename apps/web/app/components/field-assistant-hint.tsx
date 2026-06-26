@@ -27,8 +27,8 @@ export function FieldAssistantHint({
   if (!hint?.message || hint.status === "success") return null;
 
   return (
-    <div className={`mt-3 rounded-2xl border p-3 text-base leading-7 ${toneClasses[hint.status]}`}>
-      <p>{hint.message}</p>
+    <div className={`mt-3 max-w-full rounded-2xl border p-3 text-base leading-7 break-words [overflow-wrap:anywhere] ${toneClasses[hint.status]}`}>
+      <p className="max-w-full break-words [overflow-wrap:anywhere]">{hint.message}</p>
       {hint.chips?.length ? (
         <div className="mt-2 flex flex-wrap gap-2">
           {hint.chips.slice(0, 3).map((chip) => (
@@ -36,7 +36,7 @@ export function FieldAssistantHint({
               key={chip}
               type="button"
               onClick={() => onChip?.(chip)}
-              className="min-h-10 rounded-xl border border-current/20 bg-white/70 px-3 py-2 text-sm font-semibold hover:bg-white"
+              className="min-h-10 max-w-full whitespace-normal break-words rounded-xl border border-current/20 bg-white/70 px-3 py-2 text-left text-sm font-semibold [overflow-wrap:anywhere] hover:bg-white"
             >
               {chip}
             </button>

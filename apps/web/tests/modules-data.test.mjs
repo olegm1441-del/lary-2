@@ -125,6 +125,7 @@ test("frontend has API client and voice-enabled module runner", () => {
   const laryUi = readFileSync(join(root, "app/components/lary-ui.tsx"), "utf8");
   const mobileMenuPath = join(root, "app/components/mobile-menu.tsx");
   const mobileMenu = existsSync(mobileMenuPath) ? readFileSync(mobileMenuPath, "utf8") : "";
+  const fieldAssistantHint = readFileSync(join(root, "app/components/field-assistant-hint.tsx"), "utf8");
   const attemptStatus = readFileSync(join(root, "app/components/module-attempt-status.tsx"), "utf8");
   const moduleAttempts = readFileSync(join(root, "app/lib/module-attempts.ts"), "utf8");
   const resultViewer = readFileSync(join(root, "app/components/result-viewer.tsx"), "utf8");
@@ -174,9 +175,13 @@ test("frontend has API client and voice-enabled module runner", () => {
   assert.equal(mobileMenu.includes("overflow = \"hidden\""), true);
   assert.equal(mobileMenu.includes("Escape"), true);
   assert.equal(mobileMenu.includes("Начать"), true);
+  assert.equal(fieldAssistantHint.includes("max-w-full"), true);
+  assert.equal(fieldAssistantHint.includes("overflow-wrap:anywhere"), true);
+  assert.equal(fieldAssistantHint.includes("flex-wrap"), true);
   assert.equal(laryUi.includes("Запуски и промокод"), false);
   assert.equal(laryUi.includes("Попытка"), false);
-  assert.equal(attemptStatus.includes("1 бесплатный запуск в этом модуле"), true);
+  assert.equal(attemptStatus.includes("1 бесплатный запуск для этой задачи"), true);
+  assert.equal(attemptStatus.includes("1 бесплатный запуск в этом модуле"), false);
   assert.equal(attemptStatus.includes("необходимо купить запуск модуля"), true);
   assert.equal(attemptStatus.includes("/api/usage"), true);
   assert.equal(moduleAttempts.includes("localStorage"), true);
@@ -215,7 +220,10 @@ test("frontend has API client and voice-enabled module runner", () => {
   assert.equal(modulePage.includes("Поля собраны по ТЗ"), false);
   assert.equal(modulePage.includes("Форма модуля"), false);
   assert.equal(modulePage.includes("Ответьте на вопросы"), true);
-  assert.equal(modulePage.includes("При запуске нейросеть проанализирует задачу и подготовит файл для скачивания."), true);
+  assert.equal(modulePage.includes("Лари обработает ответы и подготовит рабочий файл для скачивания."), true);
+  assert.equal(modulePage.includes("При запуске нейросеть проанализирует задачу и подготовит файл для скачивания."), false);
+  assert.equal(modulePage.includes("ApiStatePanel"), false);
+  assert.equal(modulePage.includes("Если что-то идет не так"), false);
   assert.equal(homePage.includes("DOCX/PDF"), false);
   assert.equal(homePage.includes("DOCX/PDF/PPTX"), false);
   assert.equal(homePage.includes("рабочий редактируемый файл"), true);
@@ -288,7 +296,8 @@ test("P0 public copy and account gate match revision spec", () => {
 
   assert.equal(laryUi.includes("Посмотреть пример"), true);
   assert.equal(laryUi.includes("Сообщить, когда модуль будет готов"), true);
-  assert.equal(laryUi.includes("Закройте одну задачу по заявке"), true);
+  assert.equal(laryUi.includes("Результат можно скачать и доработать вручную."), true);
+  assert.equal(laryUi.includes("Закройте одну задачу по заявке."), false);
   assert.equal(laryUi.includes("MVP"), false);
   assert.equal(laryUi.includes("Доступно"), true);
   assert.equal(laryUi.includes("MobileMenu"), true);

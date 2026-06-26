@@ -130,7 +130,7 @@ export function ModuleCard({ module, compact = false }: { module: LaryModule; co
         </span>
       </div>
       <p className="mt-4 break-words text-lg leading-8 text-slate-700">{module.promise}</p>
-      <p className="mt-3 text-base font-semibold text-slate-600">Закройте одну задачу по заявке.</p>
+      <p className="mt-3 text-base font-semibold text-slate-600">Результат можно скачать и доработать вручную.</p>
       <div className="mt-5 flex flex-wrap gap-2">
         <Badge>{module.duration}</Badge>
         <Badge>{module.outputFormats.join(" + ")}</Badge>

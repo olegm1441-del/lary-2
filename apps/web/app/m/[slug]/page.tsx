@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ModuleRunner } from "../../components/module-runner";
 import { ModuleAttemptStatus } from "../../components/module-attempt-status";
-import { ApiStatePanel, InfoCallout, PageShell, PrimaryLink, SecondaryLink, WorkPanel } from "../../components/lary-ui";
+import { InfoCallout, PageShell, PrimaryLink, SecondaryLink, WorkPanel } from "../../components/lary-ui";
 import { getModuleBySlug, getModuleSlugs } from "../../lib/lary-data";
 
 export function generateStaticParams() {
@@ -67,7 +67,7 @@ export default async function ModulePage({ params, searchParams }: { params: Pro
                 <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">Ответьте на вопросы</p>
                 <h2 className="mt-2 text-3xl font-bold">Заполните то, что уже известно</h2>
                 <p className="mt-3 text-lg leading-8 text-slate-700">
-                  При запуске нейросеть проанализирует задачу и подготовит файл для скачивания.
+                  Лари обработает ответы и подготовит рабочий файл для скачивания.
                 </p>
               </div>
               {showExample ? <ExampleResult slug={laryModule.slug} title={laryModule.taskTitle} /> : null}
@@ -87,12 +87,6 @@ export default async function ModulePage({ params, searchParams }: { params: Pro
             </div>
           </section>
 
-          <section className="mx-auto max-w-7xl px-5 pb-14 sm:px-8">
-            <h2 className="text-3xl font-bold">Если что-то идет не так</h2>
-            <div className="mt-6">
-              <ApiStatePanel />
-            </div>
-          </section>
         </>
       )}
     </PageShell>
