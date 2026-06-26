@@ -17,7 +17,7 @@ export default async function ResultPage({ params }: { params: Promise<{ id: str
       <section className="bg-white">
         <div className="mx-auto max-w-7xl px-5 py-12 sm:px-8 lg:py-16">
           <p className="text-base font-semibold uppercase tracking-wide text-green-800">Работа сохранена</p>
-          <h1 className="mt-3 max-w-4xl text-4xl font-bold tracking-tight text-slate-950 sm:text-5xl">Результат готов к скачиванию</h1>
+          <h1 className="mt-3 max-w-4xl text-4xl font-bold tracking-tight text-slate-950 sm:text-5xl">Результат работы</h1>
           <p className="mt-5 max-w-3xl text-xl leading-9 text-slate-700">
             Проверьте текст, скачайте файл и при необходимости запустите следующий модуль для той же заявки.
           </p>
@@ -29,7 +29,7 @@ export default async function ResultPage({ params }: { params: Promise<{ id: str
 
         <aside className="grid content-start gap-5">
           <InfoCallout title="Не потерять результат">
-            Без email работа доступна во временном кабинете 24 часа. Чтобы сохранить надолго, отправьте файл на почту.
+            Без email работа доступна во временном кабинете 24 часа. Чтобы сохранить надолго, отправьте ссылку на результат себе на почту.
           </InfoCallout>
           <EmailResultForm runId={id} />
         </aside>

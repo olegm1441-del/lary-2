@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
-import { FIELD_KEYS_BY_MODULE, getFieldKey, getFieldOptions, type LaryModule } from "../lib/lary-data";
+import { getFieldKey, getFieldOptions, type LaryModule } from "../lib/lary-data";
 import { apiUrl, readApiError } from "../lib/api-client";
 import { USAGE_UPDATED_EVENT } from "./module-attempt-status";
 
@@ -26,7 +26,6 @@ export function ModuleRunner({ module }: { module: LaryModule }) {
   const [validationHints, setValidationHints] = useState<ValidationHint[]>([]);
   const [isCheckingInputs, setIsCheckingInputs] = useState(false);
   const [usage, setUsage] = useState<UsagePayload | null>(null);
-  const [showSummary, setShowSummary] = useState(false);
 
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
@@ -43,7 +42,6 @@ export function ModuleRunner({ module }: { module: LaryModule }) {
   }, [module.slug, values.presentation_variant]);
 
   const hasAnyInput = useMemo(() => Object.values(values).some((value) => value.trim().length > 0), [values]);
-  const fieldKeys = FIELD_KEYS_BY_MODULE[module.slug] || [];
 
   useEffect(() => {
     try {
@@ -117,8 +115,15 @@ export function ModuleRunner({ module }: { module: LaryModule }) {
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!showSummary) {
-      setShowSummary(true);
+
+    const missingField = module.fields.find((field, fieldIndex) => {
+      if (!field.required) return false;
+      const key = getFieldKey(module.slug, fieldIndex, field.label);
+      return !String(values[key] || "").trim();
+    });
+    if (missingField) {
+      setState("error");
+      setMessage(`Заполните поле «${missingField.label}» или нажмите «Не знаю».`);
       return;
     }
 
@@ -165,7 +170,6 @@ export function ModuleRunner({ module }: { module: LaryModule }) {
 
   function updateValue(key: string, value: string) {
     setValues((current) => ({ ...current, [key]: value }));
-    setShowSummary(false);
   }
 
   function appendValue(key: string, value: string) {
@@ -173,6 +177,14 @@ export function ModuleRunner({ module }: { module: LaryModule }) {
       ...current,
       [key]: current[key] ? `${current[key]}\n${value}` : value,
     }));
+  }
+
+  function fillUnknownField(key: string) {
+    const value =
+      key === "scenario_type"
+        ? "Не знаю — помогите выбрать подходящий тип сценарного плана."
+        : "Не знаю — оставьте место для ручной вставки.";
+    updateValue(key, value);
   }
 
   async function startVoice(key: string, label: string) {
@@ -306,7 +318,7 @@ export function ModuleRunner({ module }: { module: LaryModule }) {
       {module.slug === "presentation" ? (
         <div className="rounded-3xl border border-slate-200 bg-white p-5">
           <p className="text-lg font-bold text-slate-950">Тип презентации</p>
-          <p className="mt-2 text-base text-slate-600">Выберите один из двух MVP-подвариантов.</p>
+          <p className="mt-2 text-base text-slate-600">Выберите один из двух вариантов результата.</p>
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
             {[
               ["grant_defense", "Презентация проекта"],
@@ -331,6 +343,7 @@ export function ModuleRunner({ module }: { module: LaryModule }) {
         const key = getFieldKey(module.slug, fieldIndex, field.label);
         const isLongText = field.type === "textarea";
         const options = getFieldOptions(key);
+        const fixedChoiceOnly = ["visual_style", "slide_count", "competition", "cofunding", "style"].includes(key);
         const fieldHints = validationHints.filter((hint) => hint.field_key === key || (key === "description" && hint.field_key === "problem"));
 
         return (
@@ -368,17 +381,22 @@ export function ModuleRunner({ module }: { module: LaryModule }) {
                     ))}
                   </div>
                 ) : null}
-                <input
-                  className="min-h-14 w-full rounded-2xl border border-slate-300 bg-slate-50 p-4 text-lg outline-none focus:border-blue-700 focus:ring-2 focus:ring-blue-100"
-                  placeholder={`Например: ${field.example}`}
-                  value={values[key] || ""}
-                  onChange={(event) => updateValue(key, event.target.value)}
-                  required={field.required}
-                />
+                {!fixedChoiceOnly ? (
+                  <input
+                    className="min-h-14 w-full rounded-2xl border border-slate-300 bg-slate-50 p-4 text-lg outline-none focus:border-blue-700 focus:ring-2 focus:ring-blue-100"
+                    placeholder={`Например: ${field.example}`}
+                    value={values[key] || ""}
+                    onChange={(event) => updateValue(key, event.target.value)}
+                    required={field.required}
+                  />
+                ) : null}
               </div>
             ) : (
               <>
                 <input
+                  type={field.type === "number" ? "number" : field.type === "email" ? "email" : "text"}
+                  min={field.type === "number" ? 1 : undefined}
+                  max={key === "employment_percent" ? 100 : undefined}
                   list={options.length ? `${module.slug}-${key}-options` : undefined}
                   className="mt-4 min-h-14 w-full rounded-2xl border border-slate-300 bg-slate-50 p-4 text-lg outline-none focus:border-blue-700 focus:ring-2 focus:ring-blue-100"
                   placeholder={`Например: ${field.example}`}
@@ -429,6 +447,15 @@ export function ModuleRunner({ module }: { module: LaryModule }) {
                 ) : null}
               </div>
             ) : null}
+            {field.type !== "file" && field.type !== "email" ? (
+              <button
+                type="button"
+                onClick={() => fillUnknownField(key)}
+                className="mt-3 min-h-11 rounded-2xl border border-slate-300 px-4 py-2 text-base font-semibold text-slate-700 hover:bg-slate-50"
+              >
+                {key === "scenario_type" ? "Не знаю — помогите выбрать" : "Не знаю"}
+              </button>
+            ) : null}
           </label>
         );
       })}
@@ -436,53 +463,14 @@ export function ModuleRunner({ module }: { module: LaryModule }) {
       {voiceMessage ? <div className="rounded-2xl bg-blue-50 p-4 text-base leading-7 text-blue-950">{voiceMessage}</div> : null}
 
       <div className="rounded-3xl border border-slate-200 bg-white p-6">
-        {hasAnyInput ? (
-          <div className="mb-6">
-            <h2 className="text-3xl font-bold">Проверка перед запуском</h2>
-            <div className="mt-5 grid gap-3">
-              {isCheckingInputs ? (
-                <div className="rounded-2xl bg-blue-50 p-4 text-base leading-7 text-blue-950">Лари проверяет, достаточно ли данных для первого черновика...</div>
-              ) : validationHints.length ? (
-                validationHints.map((hint) => (
-                  <div key={`${hint.field_key}-${hint.message}`} className="rounded-2xl bg-orange-50 p-4 text-base leading-7 text-orange-950">
-                    {hint.message}
-                  </div>
-                ))
-              ) : (
-                <div className="rounded-2xl bg-green-50 p-4 text-base leading-7 text-green-950">Данных достаточно для первого черновика. Перед подачей результат все равно нужно проверить вручную.</div>
-              )}
-            </div>
-          </div>
-        ) : null}
-        {showSummary ? (
-          <div className="mb-6 rounded-3xl border border-blue-100 bg-blue-50 p-5 text-blue-950">
-            <h2 className="text-2xl font-bold">Сводка перед запуском</h2>
-            <p className="mt-2 text-base leading-7">
-              Проверьте данные. После подтверждения будет использован бесплатный запуск этого модуля или 1 оплаченный запуск.
-            </p>
-            <div className="mt-4 grid gap-2 text-base">
-              {Object.entries(values)
-                .filter(([, value]) => value.trim())
-                .slice(0, 8)
-                .map(([key, value]) => (
-                  <p key={key} className="rounded-2xl bg-white/80 p-3">
-                    <span className="font-semibold">{key}:</span> {value.slice(0, 220)}
-                  </p>
-                ))}
-            </div>
-            <button type="button" onClick={() => setShowSummary(false)} className="mt-4 min-h-11 rounded-2xl border border-blue-800 px-4 py-2 text-base font-semibold text-blue-900">
-              Исправить данные
-            </button>
-          </div>
-        ) : null}
         <button
           type="submit"
           disabled={state === "submitting"}
           className="mt-6 min-h-14 rounded-2xl bg-blue-800 px-6 py-4 text-lg font-semibold text-white shadow-sm hover:bg-blue-900 disabled:cursor-not-allowed disabled:bg-slate-400"
         >
-          {state === "submitting" ? "Готовим результат..." : showSummary ? launchButtonLabel(module.slug, usage) : "Проверить данные"}
+          {state === "submitting" ? "Готовим результат..." : launchButtonLabel(module.slug, usage)}
         </button>
-        {showSummary && !(usage?.modules?.[module.slug]?.free_attempt_available ?? true) && (usage?.paid_runs ?? 0) <= 0 ? (
+        {!(usage?.modules?.[module.slug]?.free_attempt_available ?? true) && (usage?.paid_runs ?? 0) <= 0 ? (
           <button
             type="button"
             onClick={() => router.push(`/pay?return=/m/${module.slug}`)}
@@ -532,7 +520,7 @@ function downsampleTo16Khz(chunks: Float32Array[], inputSampleRate: number) {
 
 function launchButtonLabel(moduleSlug: string, usage: UsagePayload | null) {
   const freeAvailable = usage?.modules?.[moduleSlug]?.free_attempt_available ?? true;
-  if (freeAvailable) return "Сделать бесплатный запуск";
+  if (freeAvailable) return "Запустить модуль";
   if ((usage?.paid_runs ?? 0) > 0) return "Использовать 1 запуск";
   return "Купить запуск модуля";
 }

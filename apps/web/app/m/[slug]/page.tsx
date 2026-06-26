@@ -18,13 +18,15 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   };
 }
 
-export default async function ModulePage({ params }: { params: Promise<{ slug: string }> }) {
+export default async function ModulePage({ params, searchParams }: { params: Promise<{ slug: string }>; searchParams: Promise<{ example?: string }> }) {
   const { slug } = await params;
+  const query = await searchParams;
   const laryModule = getModuleBySlug(slug);
 
   if (!laryModule) notFound();
 
   const isComingSoon = laryModule.status === "coming_soon";
+  const showExample = query.example === "1";
 
   return (
     <PageShell>
@@ -50,7 +52,7 @@ export default async function ModulePage({ params }: { params: Promise<{ slug: s
       {isComingSoon ? (
         <section className="mx-auto max-w-7xl px-5 py-12 sm:px-8">
           <InfoCallout tone="orange" title="Этот модуль предусмотрен в архитектуре, но еще не включен в первый запуск">
-            Сейчас можно посмотреть будущий сценарий и оставить email на странице контактов. Для текущего MVP используйте шесть активных модулей.
+            Сейчас можно посмотреть будущий сценарий и оставить email на странице контактов. Для текущей версии используйте шесть активных модулей.
           </InfoCallout>
           <div className="mt-8 flex flex-col gap-4 sm:flex-row">
             <PrimaryLink href="/contacts">Оставить заявку</PrimaryLink>
@@ -68,6 +70,7 @@ export default async function ModulePage({ params }: { params: Promise<{ slug: s
                   Лари проверит ответы и подготовит результат для скачивания.
                 </p>
               </div>
+              {showExample ? <ExampleResult slug={laryModule.slug} title={laryModule.taskTitle} /> : null}
               <ModuleRunner module={laryModule} />
             </div>
             <div className="grid content-start gap-5">
@@ -85,7 +88,7 @@ export default async function ModulePage({ params }: { params: Promise<{ slug: s
           </section>
 
           <section className="mx-auto max-w-7xl px-5 pb-14 sm:px-8">
-            <h2 className="text-3xl font-bold">Состояния API для этого экрана</h2>
+            <h2 className="text-3xl font-bold">Если что-то идет не так</h2>
             <div className="mt-6">
               <ApiStatePanel />
             </div>
@@ -95,3 +98,50 @@ export default async function ModulePage({ params }: { params: Promise<{ slug: s
     </PageShell>
   );
 }
+
+function ExampleResult({ slug, title }: { slug: string; title: string }) {
+  const sample = EXAMPLE_RESULTS[slug] || EXAMPLE_RESULTS["social-research"];
+
+  return (
+    <div className="mt-6 rounded-3xl border border-blue-200 bg-blue-50 p-6 text-blue-950">
+      <p className="text-sm font-semibold uppercase tracking-wide">Пример результата</p>
+      <h2 className="mt-2 text-2xl font-bold">{title}</h2>
+      <p className="mt-2 text-base leading-7">Это пример, не настоящая заявка. Он показывает формат результата, который можно будет скачать после запуска модуля.</p>
+      <div className="mt-4 grid gap-3">
+        {sample.map((item) => (
+          <section key={item.title} className="rounded-2xl bg-white p-4">
+            <h3 className="text-lg font-bold">{item.title}</h3>
+            <p className="mt-2 text-base leading-7 text-slate-700">{item.body}</p>
+          </section>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+const EXAMPLE_RESULTS: Record<string, Array<{ title: string; body: string }>> = {
+  "social-research": [
+    { title: "Ситуация", body: "Краткое описание проблемы на выбранной территории и группы, которой она касается." },
+    { title: "Источники", body: "Официальный источник, исследование/статистика, справочный источник — с пометками для ручной проверки." },
+  ],
+  "legal-acts": [
+    { title: "Федеральный уровень", body: "Название программы или акта, официальный источник проверки и связь с темой проекта." },
+    { title: "Региональный уровень", body: "Документы субъекта РФ и предупреждение проверить актуальную редакцию." },
+  ],
+  salary: [
+    { title: "Расчет", body: "Формула, количество сотрудников, занятость одного сотрудника, срок работы и заметка по календарному плану." },
+    { title: "Обоснование", body: "Связь должности с мероприятиями и результатами проекта." },
+  ],
+  "support-letter": [
+    { title: "Текст письма", body: "Рабочая заготовка письма партнера с ролью, вкладом и значимостью проекта." },
+    { title: "Чек-лист", body: "Подпись, печать, дата, исходящий номер и подтверждение вклада." },
+  ],
+  presentation: [
+    { title: "Структура", body: "Обложка, идея, актуальность, аудитория, механика, календарный план, команда, результаты." },
+    { title: "Файл", body: "Редактируемая PPTX-презентация в выбранном стиле." },
+  ],
+  "scenario-plan": [
+    { title: "Блоки события", body: "Подготовка, вход участника, основная часть, финал, переходы и роли команды." },
+    { title: "Тайминг", body: "Поминутный или дневной план с точками ручной проверки." },
+  ],
+};

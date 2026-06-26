@@ -11,7 +11,7 @@ export default function Home() {
       <section className="bg-white">
         <div className="mx-auto grid max-w-7xl gap-10 px-5 py-16 sm:px-8 lg:grid-cols-[1.05fr_0.95fr] lg:items-center lg:py-20">
           <div>
-            <p className="text-base font-semibold uppercase tracking-wide text-blue-800">Лари 2.0 MVP 0.1</p>
+            <p className="text-base font-semibold uppercase tracking-wide text-blue-800">Модульный помощник для заявки ПФКИ</p>
             <h1 className="mt-4 max-w-4xl text-4xl font-bold tracking-tight text-slate-950 sm:text-5xl lg:text-6xl">
               Соберите рабочие документы для заявки ПФКИ быстрее и без лишних ошибок
             </h1>
@@ -41,6 +41,9 @@ export default function Home() {
                   </Link>
                 ))}
               </div>
+              <Link href="/modules" className="mt-5 inline-flex min-h-12 items-center justify-center rounded-2xl border border-blue-800 px-5 py-3 text-base font-semibold text-blue-900 hover:bg-blue-50">
+                Показать все задачи
+              </Link>
             </div>
           </div>
         </div>

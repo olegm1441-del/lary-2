@@ -36,9 +36,9 @@ export function EmailResultForm({ runId }: { runId: string }) {
 
   return (
     <form onSubmit={submit} className="rounded-3xl border border-slate-200 bg-white p-5">
-      <h2 className="text-2xl font-bold text-slate-950">Отправить файл на почту</h2>
+      <h2 className="text-2xl font-bold text-slate-950">Сохранить и отправить ссылку на результат</h2>
       <p className="mt-3 text-base leading-7 text-slate-700">
-        Укажите email. Лари отправит ссылку для входа, а работа после входа будет храниться в личном кабинете.
+        Укажите email. Лари сохранит работу в личном кабинете и отправит ссылку для входа. Пароль не нужен.
       </p>
       <label className="mt-5 block">
         <span className="text-base font-semibold text-slate-800">Email</span>

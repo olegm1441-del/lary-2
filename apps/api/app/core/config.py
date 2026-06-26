@@ -2,7 +2,7 @@ import os
 
 
 class Settings:
-    app_name: str = os.getenv("APP_NAME", "Lary 2 MVP 0.1")
+    app_name: str = os.getenv("APP_NAME", "Лари")
     app_env: str = os.getenv("APP_ENV", "development")
 
     cors_origins: str = os.getenv(
@@ -10,6 +10,7 @@ class Settings:
         "https://web-production-532a8.up.railway.app,http://localhost:3000,http://127.0.0.1:3000",
     )
     database_url: str | None = os.getenv("DATABASE_URL")
+    state_sqlite_path: str = os.getenv("LARY_STATE_SQLITE_PATH", "/tmp/lary-state.sqlite3")
     file_storage_dir: str = os.getenv("FILE_STORAGE_DIR", "/tmp/lary-generated")
 
     gigachat_credentials: str | None = os.getenv("GIGACHAT_CREDENTIALS")

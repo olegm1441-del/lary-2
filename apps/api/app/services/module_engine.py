@@ -16,6 +16,7 @@ def create_module_run(module_slug: str, inputs: dict, presentation_variant: str 
         raise ValueError("Такой модуль пока недоступен.")
 
     inputs = normalize_inputs(module_slug, inputs)
+    _validate_module_create_inputs(module_slug, inputs)
     run_id = str(uuid4())
     title = _result_title(module, inputs)
     sections = _build_sections(module_slug, inputs, presentation_variant)
@@ -60,6 +61,41 @@ def create_module_run(module_slug: str, inputs: dict, presentation_variant: str 
     )
 
 
+def _validate_module_create_inputs(module_slug: str, inputs: dict[str, str]) -> None:
+    if module_slug != "salary":
+        return
+
+    if not str(inputs.get("role") or "").strip():
+        raise ValueError("Укажите должность или нажмите «Не знаю».")
+
+    months = _to_positive_float(inputs.get("months"))
+    if months is None:
+        raise ValueError("Срок работы должен быть больше нуля.")
+
+    employee_count = _to_positive_float(inputs.get("employee_count"))
+    if employee_count is None and "workload" not in inputs:
+        raise ValueError("Укажите количество сотрудников в этой роли.")
+
+    employment_percent = _to_positive_float(inputs.get("employment_percent"))
+    if employment_percent is None and "workload" not in inputs:
+        raise ValueError("Укажите занятость одного сотрудника в процентах.")
+    if employment_percent is not None and employment_percent > 100:
+        raise ValueError("Занятость одного сотрудника не может быть больше 100%.")
+
+
+def _to_positive_float(value: str | None) -> float | None:
+    if value is None:
+        return None
+    cleaned = str(value).replace(",", ".").strip()
+    if not cleaned:
+        return None
+    try:
+        number = float(cleaned)
+    except ValueError:
+        return None
+    return number if number > 0 else None
+
+
 def improve_run(run_id: str, instruction: str) -> StoredRun:
     run = run_store.get(run_id)
     if not run:
@@ -102,6 +138,8 @@ def _build_sections(module_slug: str, inputs: dict, presentation_variant: str | 
     region = str(inputs.get("region") or "территория проекта").strip()
     target_group = str(inputs.get("target_group") or "целевая группа").strip()
     problem = str(inputs.get("problem") or inputs.get("project_description") or inputs.get("description") or "описание нужно уточнить").strip()
+    calendar_items = str(inputs.get("calendar_items") or "").strip()
+    calendar_note = calendar_items or "ВСТАВЬТЕ НОМЕРА МЕРОПРИЯТИЙ КАЛЕНДАРНОГО ПЛАНА"
 
     base = [
         {"title": "Проект", "body": _project_body(project, direction, region)},
@@ -123,17 +161,35 @@ def _build_sections(module_slug: str, inputs: dict, presentation_variant: str | 
             {"title": "Что должно попасть в подборку", "body": "Федеральные акты и программы, региональные документы выбранного субъекта, муниципальные документы выбранного города или района, а также официальные программы в сфере культуры, молодежной политики и доступности культурных мероприятий."},
         ],
         "salary": [
-            {"title": "Формула", "body": "Базовая ставка или средняя зарплата × занятость × срок × количество сотрудников."},
-            {"title": "Проверка", "body": "Занятость одного человека не может быть больше 100%. Номера мероприятий календарного плана нужно вставить вручную, если они неизвестны."},
+            {"title": "Расчет", "body": "\n".join([
+                f"Должность: {inputs.get('role') or project}.",
+                f"Срок работы: {inputs.get('months') or 'уточнить'} мес.",
+                f"Количество сотрудников в этой роли: {inputs.get('employee_count') or 'уточнить'}.",
+                f"Занятость одного сотрудника: {inputs.get('employment_percent') or 'уточнить'}%.",
+                f"Занятость в часах: {inputs.get('employment_hours') or 'не указана'}.",
+                f"Мероприятия календарного плана: {calendar_note}.",
+            ])},
+            {"title": "Формула", "body": "Средняя месячная ставка по должности × занятость одного сотрудника в процентах × срок работы в месяцах × количество сотрудников."},
+            {"title": "Обоснование должности", "body": str(inputs.get("functionality") or "Опишите функционал сотрудника и связь с мероприятиями календарного плана.")},
+            {"title": "Что проверить вручную", "body": "Источник средней зарплаты по региону, корректность процента занятости, номера мероприятий календарного плана и соответствие суммы бюджету заявки."},
         ],
         "support-letter": [
             {"title": "Значимость для целевой группы", "body": str(inputs.get("target_value") or "Опишите, что меняется для целевой группы и почему партнер поддерживает проект.")},
-            {"title": "Вклад партнера", "body": str(inputs.get("contribution") or "Если сумма неизвестна, оставьте формулировку без оценки вклада и проверьте ее с партнером.")},
+            {"title": "Значимость для региона", "body": str(inputs.get("region_value") or "Опишите, почему проект важен для территории и как партнер связан с этой задачей.")},
+            {"title": "Вклад партнера", "body": "\n".join([
+                f"Тип поддержки: {inputs.get('support_type') or inputs.get('partner_role') or 'уточнить'}",
+                f"Вклад в рублях: {inputs.get('contribution_amount') or inputs.get('contribution') or 'ВСТАВЬТЕ СУММУ ИЛИ ФОРМУЛИРОВКУ БЕЗ ОЦЕНКИ ВКЛАДА'}",
+                f"Дополнительные сведения: {inputs.get('details') or 'не указаны'}",
+            ])},
             {"title": "Чек-лист оформления", "body": "Проверьте подпись, печать, дату, исходящий номер, реквизиты и корректного адресата конкурса."},
         ],
         "presentation": [
             {"title": "Решение", "body": "Презентация собирает идею, актуальность, аудиторию, механику, календарь, команду, результаты и бюджетную логику."},
-            {"title": "Формат презентации", "body": "Вариант: демонстрация календарного плана." if presentation_variant == "calendar_plan" else "Вариант: защита заявки и демонстрация ценности проекта."},
+            {"title": "Формат презентации", "body": "\n".join([
+                "Вариант: демонстрация календарного плана." if presentation_variant == "calendar_plan" else "Вариант: защита заявки и демонстрация ценности проекта.",
+                f"Шаблон: {inputs.get('visual_style') or 'официальный'}.",
+                f"Количество слайдов: {inputs.get('slide_count') or 'Лари выберет'}.",
+            ])},
         ],
         "scenario-plan": [
             {"title": "Сценарная структура", "body": "Разбейте событие на блоки: подготовка, вход участника, основная часть, финал, контрольные точки."},

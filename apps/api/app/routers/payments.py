@@ -26,7 +26,7 @@ def create_payment(payload: PaymentCreateRequest, request: Request, response: Re
         status="created",
         amount_rub=amount,
         runs=runs,
-        payment_url=f"/pay?payment_id={payment_id}&status=placeholder",
+        payment_url=f"/pay?payment_id={payment_id}&status=created",
         message="Платежный слой подготовлен. Провайдера подключим перед приемом реальных оплат.",
     )
 

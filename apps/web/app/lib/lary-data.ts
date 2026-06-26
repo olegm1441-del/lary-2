@@ -13,9 +13,20 @@ export type ModuleField = {
 export const FIELD_KEYS_BY_MODULE: Record<string, string[]> = {
   "social-research": ["region", "direction", "target_group", "problem", "details"],
   "legal-acts": ["program_level", "region", "direction", "target_group", "details"],
-  salary: ["role", "region", "functionality", "months", "workload", "calendar_items", "cofunding"],
-  "support-letter": ["competition", "partner_role", "partner", "project_title", "target_value", "region_value", "contribution"],
-  presentation: ["project_description", "visual_style", "calendar_plan", "details"],
+  salary: ["role", "region", "functionality", "months", "employee_count", "employment_percent", "employment_hours", "calendar_items", "cofunding"],
+  "support-letter": [
+    "competition",
+    "partner_role",
+    "partner",
+    "project_title",
+    "target_value",
+    "region_value",
+    "support_type",
+    "contribution_amount",
+    "details",
+    "style",
+  ],
+  presentation: ["project_description", "visual_style", "slide_count", "calendar_plan", "details"],
   "scenario-plan": ["scenario_type", "description", "duration", "preparation", "participants", "details"],
   "check-application": ["file", "competition", "focus_sections", "email"],
 };
@@ -27,9 +38,23 @@ export const FIELD_OPTIONS_BY_KEY: Record<string, string[]> = {
   role: ["Координатор проекта", "Организатор", "Куратор", "Режиссер", "Методист", "SMM-специалист"],
   cofunding: ["Собственные средства", "Письмо поддержки", "Имущественный вклад", "Без софинансирования"],
   partner_role: ["Информационная поддержка", "Организационная поддержка", "Консультационная поддержка", "Материальная поддержка", "Финансовая поддержка"],
+  support_type: ["Информационная поддержка", "Организационная поддержка", "Экспертная поддержка", "Помещение", "Оборудование", "Финансовый вклад"],
+  style: ["Официальный", "Теплый", "Краткий", "Подробный"],
   competition: ["ПФКИ", "Фонд президентских грантов", "Движение Первых", "Региональный конкурс"],
-  scenario_type: ["Фестиваль", "Постановка", "Видеоролик", "Концерт", "Мастер-класс", "Выставка"],
+  scenario_type: [
+    "Фестиваль",
+    "Концерт",
+    "Постановка/спектакль",
+    "Видео/ролик",
+    "Документальный фильм",
+    "Выставка",
+    "Форум/конференция",
+    "Мастер-класс/лаборатория",
+    "Конкурс/премия",
+    "Спортивно-культурное событие",
+  ],
   visual_style: ["Официальный", "Минималистичный"],
+  slide_count: ["6–8", "10–12 рекомендуется", "13–15", "Лари выберет"],
 };
 
 export type LaryModule = {

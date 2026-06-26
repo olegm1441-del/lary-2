@@ -20,6 +20,23 @@ export default function ModulesPage() {
             <ModuleCard key={module.slug} module={module} />
           ))}
         </div>
+        <div className="mt-10 rounded-3xl border border-blue-100 bg-blue-50 p-6 text-blue-950">
+          <h2 className="text-2xl font-bold">Не знаете, что выбрать?</h2>
+          <div className="mt-4 grid gap-3 md:grid-cols-2">
+            {[
+              ["Нужно доказать проблему", "/m/social-research", "Доказательства актуальности"],
+              ["Нужны законы и программы", "/m/legal-acts", "Нормативные акты"],
+              ["Нужно обосновать расходы на команду", "/m/salary", "Зарплата"],
+              ["Нужен документ от партнера", "/m/support-letter", "Письмо поддержки"],
+              ["Нужно визуально показать проект", "/m/presentation", "Презентация"],
+              ["Нужно описать мероприятие/постановку/ролик", "/m/scenario-plan", "Сценарный план"],
+            ].map(([question, href, label]) => (
+              <a key={href} href={href} className="min-h-11 rounded-2xl bg-white px-4 py-3 text-base font-semibold text-blue-900 hover:bg-blue-100">
+                {question} → {label}
+              </a>
+            ))}
+          </div>
+        </div>
       </Section>
 
       <Section eyebrow="Дальше" title="Будущий модуль проверки заявки">

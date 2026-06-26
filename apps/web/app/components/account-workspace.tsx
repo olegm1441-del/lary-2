@@ -15,10 +15,18 @@ type WorkItem = {
   actions: string[];
 };
 
+type ProjectItem = {
+  project_id: string;
+  title: string;
+  competition: string;
+  works_count: number;
+};
+
 export function AccountWorkspace() {
   const [email, setEmail] = useState("");
   const [projectTitle, setProjectTitle] = useState("");
   const [works, setWorks] = useState<WorkItem[]>([]);
+  const [projects, setProjects] = useState<ProjectItem[]>([]);
   const [mode, setMode] = useState("temporary");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
@@ -36,8 +44,20 @@ export function AccountWorkspace() {
     }
   }
 
+  async function loadProjects() {
+    try {
+      const response = await fetch(apiUrl("/api/projects"), { credentials: "include" });
+      if (!response.ok) throw new Error(await readApiError(response));
+      const payload = await response.json();
+      setProjects(Array.isArray(payload.items) ? payload.items : []);
+    } catch {
+      setProjects([]);
+    }
+  }
+
   useEffect(() => {
     void loadWorks();
+    void loadProjects();
   }, []);
 
   async function requestMagicLink(event: FormEvent<HTMLFormElement>) {
@@ -82,8 +102,55 @@ export function AccountWorkspace() {
       setMessage("Работа прикреплена к проекту.");
       setProjectTitle("");
       await loadWorks();
+      await loadProjects();
     } catch (projectError) {
       setError(projectError instanceof Error ? projectError.message : "Не получилось прикрепить работу к проекту.");
+    }
+  }
+
+  async function createProjectOnly() {
+    const title = projectTitle.trim();
+    if (!title) {
+      setError("Укажите название проекта.");
+      return;
+    }
+
+    setMessage("Создаем проект...");
+    setError("");
+    try {
+      const projectResponse = await fetch(apiUrl("/api/projects"), {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title, competition: "ПФКИ" }),
+      });
+      if (!projectResponse.ok) throw new Error(await readApiError(projectResponse));
+      setMessage("Проект создан. Его можно использовать для новых работ.");
+      setProjectTitle("");
+      await loadWorks();
+      await loadProjects();
+    } catch (projectError) {
+      setError(projectError instanceof Error ? projectError.message : "Не получилось создать проект.");
+    }
+  }
+
+  async function deleteWork(runId: string) {
+    const approved = window.confirm("Удалить работу? После удаления старая ссылка на результат и файл перестанет работать.");
+    if (!approved) return;
+
+    setMessage("Удаляем работу...");
+    setError("");
+    try {
+      const response = await fetch(apiUrl(`/api/account/works/${runId}`), {
+        method: "DELETE",
+        credentials: "include",
+      });
+      if (!response.ok) throw new Error(await readApiError(response));
+      setMessage("Работа удалена.");
+      await loadWorks();
+      await loadProjects();
+    } catch (deleteError) {
+      setError(deleteError instanceof Error ? deleteError.message : "Не получилось удалить работу.");
     }
   }
 
@@ -134,7 +201,34 @@ export function AccountWorkspace() {
             </button>
           </div>
 
-          <div className="mt-5 overflow-x-auto">
+          {works.length ? (
+            <div className="mt-5 grid gap-3 md:hidden">
+              {works.map((work) => (
+                <article key={work.run_id} className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
+                  <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">{work.date}</p>
+                  <h3 className="mt-2 text-xl font-bold text-slate-950">{work.work}</h3>
+                  <div className="mt-3 grid gap-1 text-base text-slate-700">
+                    <p>Конкурс: {work.competition}</p>
+                    <p>Проект: {work.project}</p>
+                    <p>Статус: {work.status}</p>
+                  </div>
+                  <div className="mt-4 grid gap-2">
+                    <a href={`/run/${work.run_id}/result`} className="min-h-11 rounded-2xl bg-blue-800 px-4 py-3 text-center font-semibold text-white">Открыть</a>
+                    <a href={apiUrl(work.download_path)} className="min-h-11 rounded-2xl border border-slate-300 px-4 py-3 text-center font-semibold">Скачать {work.file_format.toUpperCase()}</a>
+                    <a href={`/run/${work.run_id}/result#improve`} className="min-h-11 rounded-2xl border border-slate-300 px-4 py-3 text-center font-semibold">Улучшить</a>
+                    <button type="button" onClick={() => void createAndAttachProject(work.run_id)} className="min-h-11 rounded-2xl border border-slate-300 px-4 py-3 font-semibold">
+                      Прикрепить к проекту
+                    </button>
+                    <button type="button" onClick={() => void deleteWork(work.run_id)} className="min-h-11 rounded-2xl border border-slate-300 px-4 py-3 font-semibold text-slate-700">
+                      Удалить
+                    </button>
+                  </div>
+                </article>
+              ))}
+            </div>
+          ) : null}
+
+          <div className="mt-5 hidden overflow-x-auto md:block">
             <table className="w-full min-w-[760px] text-left text-base">
               <thead>
                 <tr className="border-b border-slate-200 text-slate-500">
@@ -158,27 +252,59 @@ export function AccountWorkspace() {
                       <div className="flex flex-wrap gap-2">
                         <a href={`/run/${work.run_id}/result`} className="rounded-2xl bg-blue-800 px-4 py-2 font-semibold text-white">Открыть</a>
                         <a href={apiUrl(work.download_path)} className="rounded-2xl border border-slate-300 px-4 py-2 font-semibold">Скачать {work.file_format.toUpperCase()}</a>
+                        <a href={`/run/${work.run_id}/result#improve`} className="rounded-2xl border border-slate-300 px-4 py-2 font-semibold">Улучшить</a>
+                        <button type="button" onClick={() => void createAndAttachProject(work.run_id)} className="rounded-2xl border border-slate-300 px-4 py-2 font-semibold">
+                          Прикрепить к проекту
+                        </button>
+                        <button type="button" onClick={() => void deleteWork(work.run_id)} className="rounded-2xl border border-slate-300 px-4 py-2 font-semibold text-slate-700">
+                          Удалить
+                        </button>
                       </div>
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
-            {!works.length ? <p className="py-8 text-lg text-slate-600">Пока нет работ. Запустите любой модуль и вернитесь сюда.</p> : null}
           </div>
+          {!works.length ? (
+            <div className="mt-5 rounded-3xl bg-slate-50 p-5">
+              <p className="text-lg leading-8 text-slate-700">Пока нет работ. Выберите задачу и запустите любой модуль — результат появится здесь.</p>
+              <a href="/modules" className="mt-4 inline-flex min-h-11 items-center rounded-2xl bg-blue-800 px-5 py-3 text-base font-semibold text-white">
+                Выбрать задачу
+              </a>
+            </div>
+          ) : null}
         </section>
 
         <section id="projects" className="rounded-3xl border border-slate-200 bg-white p-5">
           <h2 className="text-2xl font-bold">Проекты</h2>
-          <p className="mt-2 text-base leading-7 text-slate-700">Проект — необязательная папка для работ и файлов. Его можно создать после первого результата.</p>
+          <p className="mt-2 text-base leading-7 text-slate-700">Проект — необязательная папка для работ и файлов. Создайте его после первого результата или сейчас.</p>
           <label className="mt-4 grid gap-2">
             <span className="text-base font-semibold">Название проекта</span>
             <input value={projectTitle} onChange={(event) => setProjectTitle(event.target.value)} placeholder="Например: Музейная заявка" className="min-h-14 rounded-2xl border border-slate-300 bg-slate-50 px-4 text-lg" />
           </label>
-          {works[0] ? (
-            <button type="button" onClick={() => void createAndAttachProject(works[0].run_id)} className="mt-4 min-h-14 rounded-2xl bg-blue-800 px-6 py-4 text-lg font-semibold text-white">
-              Создать проект и прикрепить последнюю работу
+          <div className="mt-4 flex flex-wrap gap-3">
+            <button type="button" onClick={() => void createProjectOnly()} className="min-h-14 rounded-2xl bg-blue-800 px-6 py-4 text-lg font-semibold text-white">
+              Создать проект
             </button>
+            {works[0] ? (
+              <button type="button" onClick={() => void createAndAttachProject(works[0].run_id)} className="min-h-14 rounded-2xl border border-blue-800 px-6 py-4 text-lg font-semibold text-blue-800">
+                Создать проект и прикрепить последнюю работу
+              </button>
+            ) : null}
+          </div>
+          <div className="mt-5 grid gap-3">
+            {projects.map((project) => (
+              <article key={project.project_id} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <h3 className="text-lg font-bold">{project.title}</h3>
+                <p className="mt-1 text-base text-slate-700">{project.competition} · работ: {project.works_count}</p>
+              </article>
+            ))}
+          </div>
+          {!projects.length ? (
+            <p className="mt-4 rounded-2xl bg-slate-50 p-4 text-base leading-7 text-slate-700">
+              Проектов пока нет. Проект можно создать без работ, но прикреплять будет нечего до первого результата.
+            </p>
           ) : null}
         </section>
       </div>

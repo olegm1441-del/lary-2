@@ -27,7 +27,7 @@ MODULES = [
         "duration": "5-8 минут",
         "competition": "ПФКИ",
         "output_formats": ["docx"],
-        "fields": ["role", "region", "functionality", "months", "workload", "calendar_items", "cofunding"],
+        "fields": ["role", "region", "functionality", "months", "employee_count", "employment_percent", "employment_hours", "calendar_items", "cofunding"],
     },
     {
         "slug": "support-letter",
@@ -37,7 +37,18 @@ MODULES = [
         "duration": "4-7 минут",
         "competition": "ПФКИ",
         "output_formats": ["docx"],
-        "fields": ["competition", "partner_role", "partner", "project_title", "target_value", "region_value", "contribution"],
+        "fields": [
+            "competition",
+            "partner_role",
+            "partner",
+            "project_title",
+            "target_value",
+            "region_value",
+            "support_type",
+            "contribution_amount",
+            "details",
+            "style",
+        ],
     },
     {
         "slug": "presentation",
@@ -47,7 +58,7 @@ MODULES = [
         "duration": "10-12 минут",
         "competition": "ПФКИ",
         "output_formats": ["pptx"],
-        "fields": ["presentation_variant", "project_description", "visual_style", "calendar_plan", "details"],
+        "fields": ["presentation_variant", "project_description", "visual_style", "slide_count", "calendar_plan", "details"],
     },
     {
         "slug": "scenario-plan",

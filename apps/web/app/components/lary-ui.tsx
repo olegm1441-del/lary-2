@@ -33,6 +33,21 @@ export function Header() {
         </nav>
 
         <div className="flex shrink-0 items-center gap-3">
+          <details className="relative lg:hidden">
+            <summary className="flex min-h-11 cursor-pointer list-none items-center rounded-2xl border border-slate-300 px-4 py-2 text-base font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-700">
+              Меню
+            </summary>
+            <div className="absolute right-0 top-14 z-50 grid min-w-64 gap-2 rounded-3xl border border-slate-200 bg-white p-3 shadow-xl">
+              {navItems.map(([label, href]) => (
+                <Link key={href} href={href} className="min-h-11 rounded-2xl px-4 py-3 text-base font-semibold text-slate-800 hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-blue-700">
+                  {label}
+                </Link>
+              ))}
+              <Link href="/account" className="min-h-11 rounded-2xl px-4 py-3 text-base font-semibold text-blue-800 hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-blue-700">
+                Войти
+              </Link>
+            </div>
+          </details>
           <Link href="/account" className="hidden rounded-2xl px-4 py-3 text-base font-semibold text-blue-800 hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-blue-700 sm:inline-flex">
             Войти
           </Link>
@@ -122,7 +137,7 @@ export function ModuleCard({ module, compact = false }: { module: LaryModule; co
           <h3 className="mt-2 break-words text-2xl font-bold text-slate-950">{module.taskTitle}</h3>
         </div>
         <span className={`rounded-full px-3 py-1 text-sm font-semibold ${module.status === "active" ? "bg-green-50 text-green-800" : "bg-orange-50 text-orange-800"}`}>
-          {module.status === "active" ? "MVP" : "Скоро"}
+          {module.status === "active" ? "Доступно" : "Скоро"}
         </span>
       </div>
       <p className="mt-4 break-words text-lg leading-8 text-slate-700">{module.promise}</p>

@@ -1,9 +1,15 @@
 from fastapi import APIRouter, HTTPException, Request, Response
 
-from app.schemas.modules import ProjectAttachRequest, ProjectAttachResponse, ProjectCreateRequest, ProjectCreateResponse
-from app.services.account_store import attach_work_to_project, create_project, get_request_context
+from app.schemas.modules import ProjectAttachRequest, ProjectAttachResponse, ProjectCreateRequest, ProjectCreateResponse, ProjectsResponse
+from app.services.account_store import attach_work_to_project, create_project, get_projects, get_request_context
 
 router = APIRouter(prefix="/api/projects", tags=["Projects"])
+
+
+@router.get("", response_model=ProjectsResponse)
+def list_projects(request: Request, response: Response):
+    context = get_request_context(request, response)
+    return ProjectsResponse(**get_projects(context))
 
 
 @router.post("", response_model=ProjectCreateResponse)

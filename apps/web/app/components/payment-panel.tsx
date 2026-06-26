@@ -61,7 +61,7 @@ export function PaymentPanel() {
       </div>
       <div className="rounded-3xl border-2 border-blue-800 p-6">
         <p className="text-3xl font-bold">6 запусков</p>
-        <p className="mt-4 text-lg leading-8 text-slate-700">1920 ₽. Пакет под все шесть MVP-модулей или несколько попыток в нужном модуле.</p>
+        <p className="mt-4 text-lg leading-8 text-slate-700">1920 ₽. Пакет под все шесть модулей или несколько попыток в нужном модуле.</p>
         <button type="button" onClick={() => void buyPackage("six")} className="mt-6 min-h-14 w-full rounded-2xl bg-blue-800 px-5 py-4 text-lg font-semibold text-white">
           Купить пакет
         </button>

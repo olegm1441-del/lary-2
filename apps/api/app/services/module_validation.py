@@ -42,9 +42,15 @@ def _common_hints(inputs: dict[str, str]) -> list[dict[str, str]]:
 
 def _salary_hints(inputs: dict[str, str]) -> list[dict[str, str]]:
     hints: list[dict[str, str]] = []
-    workload = inputs.get("workload", "")
-    if "100" in workload and any(marker in workload for marker in ("больше", ">", "120", "150", "200")):
-        hints.append(_hint("workload", "Занятость одного человека не может быть больше 100%. Если людей несколько, укажите количество сотрудников."))
+    employment_percent = _to_float(inputs.get("employment_percent"))
+    if employment_percent is not None and employment_percent > 100:
+        hints.append(_hint("employment_percent", "Занятость одного человека не может быть больше 100%. Если людей несколько, укажите количество сотрудников отдельно."))
+    employee_count = _to_float(inputs.get("employee_count"))
+    if employee_count is not None and employee_count <= 0:
+        hints.append(_hint("employee_count", "Количество сотрудников должно быть больше нуля."))
+    months = _to_float(inputs.get("months"))
+    if months is not None and months <= 0:
+        hints.append(_hint("months", "Срок работы должен быть больше нуля."))
     if not inputs.get("calendar_items"):
         hints.append(_hint("calendar_items", "Если номера мероприятий пока неизвестны, Лари оставит место для ручной вставки."))
     return hints
@@ -65,3 +71,15 @@ def _is_too_broad_target_group(value: str) -> bool:
 
 def _hint(field_key: str, message: str, tone: str = "attention") -> dict[str, str]:
     return {"field_key": field_key, "message": message, "tone": tone}
+
+
+def _to_float(value: str | None) -> float | None:
+    if value is None:
+        return None
+    cleaned = str(value).replace(",", ".").strip()
+    if not cleaned:
+        return None
+    try:
+        return float(cleaned)
+    except ValueError:
+        return None

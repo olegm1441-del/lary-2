@@ -12,6 +12,7 @@ from fastapi.testclient import TestClient
 
 os.environ.setdefault("APP_ENV", "test")
 os.environ.setdefault("FILE_STORAGE_DIR", tempfile.mkdtemp(prefix="lary-api-test-"))
+os.environ.setdefault("LARY_STATE_SQLITE_PATH", str(Path(tempfile.mkdtemp(prefix="lary-state-test-")) / "state.sqlite3"))
 
 from app.main import app  # noqa: E402
 from app.core.config import settings  # noqa: E402
@@ -19,7 +20,7 @@ from app.services.ai_router import extract_gigachat_text  # noqa: E402
 from app.services.vosk_model_manager import ensure_vosk_model_available  # noqa: E402
 from app.services.vosk_speech import VoskSpeechError, transcribe_with_vosk  # noqa: E402
 from app.services.run_store import run_store  # noqa: E402
-from app.services.account_store import clear_account_store_for_tests  # noqa: E402
+from app.services.account_store import clear_account_store_for_tests, simulate_account_store_restart_for_tests  # noqa: E402
 
 
 class LaryMvpContractsTest(unittest.TestCase):
@@ -183,7 +184,7 @@ class LaryMvpContractsTest(unittest.TestCase):
 
         duplicate = self.client.post("/api/promos/apply", json={"code": "LARY-START"})
         self.assertEqual(duplicate.status_code, 409)
-        self.assertIn("уже был применен", duplicate.json()["detail"]["message"])
+        self.assertIn("Промокод уже применен", duplicate.json()["detail"]["message"])
 
         first = self.client.post(
             "/api/module-runs",
@@ -311,6 +312,9 @@ class LaryMvpContractsTest(unittest.TestCase):
         attached = self.client.post(f"/api/projects/{project.json()['project_id']}/attach", json={"run_id": run_id})
         self.assertEqual(attached.status_code, 200)
         self.assertEqual(self.client.get("/api/account/works").json()["items"][0]["project"], "Музейная заявка")
+        projects = self.client.get("/api/projects")
+        self.assertEqual(projects.status_code, 200)
+        self.assertEqual(projects.json()["items"][0]["works_count"], 1)
 
     def test_ai_test_errors_are_user_friendly(self):
         original_credentials = settings.gigachat_credentials
@@ -529,7 +533,7 @@ class LaryMvpContractsTest(unittest.TestCase):
         self.assertEqual(payload["status"], "saved")
         self.assertEqual(payload["email"], "test@example.com")
         self.assertIn("docx", payload["file_format"])
-        self.assertIn("аккаунт", payload["message"])
+        self.assertIn("личном кабинете", payload["message"])
 
     def test_legacy_russian_field_keys_are_normalized(self):
         response = self.client.post(
@@ -569,6 +573,156 @@ class LaryMvpContractsTest(unittest.TestCase):
         messages = [item["message"] for item in payload["hints"]]
         self.assertTrue(any("город" in message or "район" in message for message in messages))
         self.assertTrue(any("возраст" in message for message in messages))
+
+    def test_salary_split_fields_are_validated_before_generation(self):
+        invalid = self.client.post(
+            "/api/module-runs",
+            json={
+                "module_slug": "salary",
+                "inputs": {
+                    "role": "Координатор",
+                    "region": "Республика Татарстан",
+                    "functionality": "Координация команды и календарного плана",
+                    "months": "0",
+                    "employee_count": "1",
+                    "employment_percent": "120",
+                    "cofunding": "Собственные средства",
+                },
+            },
+        )
+        self.assertEqual(invalid.status_code, 400)
+        self.assertIn("Срок работы должен быть больше нуля", invalid.json()["detail"]["message"])
+
+        valid = self.client.post(
+            "/api/module-runs",
+            json={
+                "module_slug": "salary",
+                "inputs": {
+                    "role": "Координатор",
+                    "region": "Республика Татарстан",
+                    "functionality": "Координация команды и календарного плана",
+                    "months": "4",
+                    "employee_count": "2",
+                    "employment_percent": "40",
+                    "employment_hours": "16 часов в неделю",
+                    "cofunding": "Собственные средства",
+                },
+            },
+        )
+        self.assertEqual(valid.status_code, 200)
+        result = self.client.get(f"/api/module-runs/{valid.json()['run_id']}/result").json()
+        joined = "\n".join(section["body"] for section in result["sections"])
+        self.assertIn("Количество сотрудников в этой роли: 2", joined)
+        self.assertIn("Занятость одного сотрудника: 40%", joined)
+        self.assertIn("ВСТАВЬТЕ НОМЕРА МЕРОПРИЯТИЙ КАЛЕНДАРНОГО ПЛАНА", joined)
+
+    def test_sql_state_survives_restart_for_usage_magic_link_payment_and_project(self):
+        created = self.client.post(
+            "/api/module-runs",
+            json={
+                "module_slug": "social-research",
+                "inputs": {
+                    "region": "Республика Татарстан",
+                    "direction": "музейная память",
+                    "target_group": "молодежь 18-34 года",
+                    "problem": "молодежь редко вовлечена в музейные проекты",
+                },
+            },
+        )
+        self.assertEqual(created.status_code, 200)
+        run_id = created.json()["run_id"]
+
+        project = self.client.post("/api/projects", json={"title": "Музейная заявка", "competition": "ПФКИ"})
+        self.assertEqual(project.status_code, 200)
+        project_id = project.json()["project_id"]
+        attached = self.client.post(f"/api/projects/{project_id}/attach", json={"run_id": run_id})
+        self.assertEqual(attached.status_code, 200)
+
+        promo = self.client.post("/api/promos/apply", json={"code": "LARY-START"})
+        self.assertEqual(promo.status_code, 200)
+
+        payment = self.client.post("/api/payments/create", json={"package": "single"}).json()
+        webhook = self.client.post(
+            "/api/payments/webhook/placeholder",
+            json={"payment_id": payment["payment_id"], "provider_payment_id": "restart-payment-1", "status": "paid"},
+        )
+        self.assertEqual(webhook.status_code, 200)
+
+        magic = self.client.post("/api/auth/magic-link/request", json={"email": "restart@example.com"})
+        self.assertEqual(magic.status_code, 200)
+        token = magic.json()["dev_token"]
+
+        run_store.clear()
+        simulate_account_store_restart_for_tests()
+
+        usage = self.client.get("/api/usage").json()
+        self.assertFalse(usage["modules"]["social-research"]["free_attempt_available"])
+        self.assertEqual(usage["paid_runs"], 4)
+
+        works = self.client.get("/api/account/works").json()
+        self.assertEqual(works["items"][0]["run_id"], run_id)
+        self.assertEqual(works["items"][0]["project"], "Музейная заявка")
+
+        consumed = self.client.post("/api/auth/magic-link/consume", json={"token": token})
+        self.assertEqual(consumed.status_code, 200)
+        self.assertEqual(consumed.json()["attached_works"], 1)
+
+        repeated = self.client.post("/api/auth/magic-link/consume", json={"token": token})
+        self.assertEqual(repeated.status_code, 400)
+
+    def test_module_result_and_download_survive_run_store_restart(self):
+        created = self.client.post(
+            "/api/module-runs",
+            json={
+                "module_slug": "legal-acts",
+                "inputs": {
+                    "program_level": "Федеральные и региональные документы",
+                    "region": "Республика Татарстан",
+                    "direction": "музейная память",
+                    "target_group": "молодежь 18-34 года",
+                },
+            },
+        )
+        self.assertEqual(created.status_code, 200)
+        run_id = created.json()["run_id"]
+        docx_path = Path(settings.file_storage_dir) / run_id / "legal-acts.docx"
+        self.assertTrue(docx_path.exists())
+        docx_path.unlink()
+
+        run_store.clear()
+        simulate_account_store_restart_for_tests()
+
+        result = self.client.get(f"/api/module-runs/{run_id}/result")
+        self.assertEqual(result.status_code, 200)
+        self.assertEqual(result.json()["run_id"], run_id)
+        self.assertIn("docx", result.json()["downloads"])
+
+        download = self.client.get(f"/api/module-runs/{run_id}/download/docx")
+        self.assertEqual(download.status_code, 200)
+        self.assertGreater(len(download.content), 500)
+
+    def test_deleted_work_is_removed_from_account_and_old_links(self):
+        created = self.client.post(
+            "/api/module-runs",
+            json={
+                "module_slug": "support-letter",
+                "inputs": {
+                    "project_title": "Музейная смена",
+                    "partner": "Музей города",
+                    "target_value": "молодежь получает практику",
+                },
+            },
+        )
+        self.assertEqual(created.status_code, 200)
+        run_id = created.json()["run_id"]
+
+        deleted = self.client.delete(f"/api/account/works/{run_id}")
+        self.assertEqual(deleted.status_code, 200)
+
+        works = self.client.get("/api/account/works").json()
+        self.assertEqual(works["items"], [])
+        self.assertEqual(self.client.get(f"/api/module-runs/{run_id}/result").status_code, 404)
+        self.assertEqual(self.client.get(f"/api/module-runs/{run_id}/download/docx").status_code, 404)
 
 
 if __name__ == "__main__":

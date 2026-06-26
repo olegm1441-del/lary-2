@@ -165,6 +165,12 @@ class AccountWorksResponse(BaseModel):
     items: list[AccountWorkItem]
 
 
+class DeleteWorkResponse(BaseModel):
+    status: str
+    run_id: str
+    message: str
+
+
 class ProjectCreateRequest(BaseModel):
     title: str = Field(..., min_length=2)
     competition: str = "ПФКИ"
@@ -174,6 +180,17 @@ class ProjectCreateResponse(BaseModel):
     project_id: str
     title: str
     competition: str
+
+
+class ProjectItem(BaseModel):
+    project_id: str
+    title: str
+    competition: str
+    works_count: int
+
+
+class ProjectsResponse(BaseModel):
+    items: list[ProjectItem]
 
 
 class ProjectAttachRequest(BaseModel):

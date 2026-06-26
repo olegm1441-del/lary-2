@@ -5,7 +5,7 @@ import test from "node:test";
 
 const root = process.cwd();
 const modulesPath = join(root, "app", "data", "modules.json");
-const prohibitedTerms = ["FAQ", "Dashboard", "dashboard", "prompt", "Prompt", "tokens", "Tokens", "credits", "Credits", "кредиты", "токены", "промпт"];
+const prohibitedTerms = ["FAQ", "Dashboard", "dashboard", "prompt", "Prompt", "tokens", "Tokens", "credits", "Credits", "кредиты", "токены", "промпт", "MVP", "P0/P1", "in-memory", "runtime", "demo"];
 const requiredActiveSlugs = [
   "social-research",
   "legal-acts",
@@ -136,11 +136,12 @@ test("frontend has API client and voice-enabled module runner", () => {
   assert.equal(apiClient.includes("NEXT_PUBLIC_API_URL"), true);
   assert.equal(apiClient.includes("startsWith(\"http://\")"), true);
   assert.equal(apiClient.includes("https://"), true);
-  assert.equal(runner.includes("FIELD_KEYS_BY_MODULE"), true);
+  assert.equal(runner.includes("FIELD_KEYS_BY_MODULE"), false);
   assert.equal(runner.includes("getFieldKey"), true);
   assert.equal(runner.includes("/api/modules/"), true);
   assert.equal(runner.includes("/validate-inputs"), true);
-  assert.equal(runner.includes("Сделать бесплатный запуск"), true);
+  assert.equal(runner.includes("Сделать бесплатный запуск"), false);
+  assert.equal(runner.includes("Запустить модуль"), true);
   assert.equal(runner.includes("за 320 руб / бесплатно"), false);
   assert.equal(runner.includes("Наговорить"), true);
   assert.equal(runner.includes("Записать заново"), false);
@@ -149,7 +150,13 @@ test("frontend has API client and voice-enabled module runner", () => {
   assert.equal(runner.includes("/api/module-runs"), true);
   assert.equal(runner.includes("/api/usage"), true);
   assert.equal(runner.includes("credentials: \"include\""), true);
-  assert.equal(runner.includes("Проверить данные"), true);
+  assert.equal(runner.includes("Проверить данные"), false);
+  assert.equal(runner.includes("Проверка перед запуском"), false);
+  assert.equal(runner.includes("Проверьте основные данные"), false);
+  assert.equal(runner.includes("Запустить модуль"), true);
+  assert.equal(runner.includes("Не знаю"), true);
+  assert.equal(runner.includes("fillUnknownField"), true);
+  assert.equal(runner.includes("{key}:"), false);
   assert.equal(runner.includes("Использовать 1 запуск"), true);
   assert.equal(laryUi.includes("Запуски и промокод"), false);
   assert.equal(laryUi.includes("Попытка"), false);
@@ -158,17 +165,32 @@ test("frontend has API client and voice-enabled module runner", () => {
   assert.equal(attemptStatus.includes("/api/usage"), true);
   assert.equal(moduleAttempts.includes("localStorage"), true);
   assert.equal(resultViewer.includes("/result"), true);
-  assert.equal(resultViewer.includes("Не получилось подготовить ответ"), true);
+  assert.equal(resultViewer.includes("Не получилось подготовить результат"), true);
+  assert.equal(resultViewer.includes("Результат готов"), true);
+  assert.equal(resultViewer.includes("Скопировать"), true);
+  assert.equal(resultViewer.includes("Улучшить"), true);
+  assert.equal(resultViewer.includes("Попробовать еще раз"), true);
+  assert.equal(resultViewer.includes("Вернуться к форме"), true);
+  assert.equal(resultViewer.includes("Написать в поддержку"), true);
+  assert.equal(resultViewer.includes("Лари готовит результат"), true);
   assert.equal(resultPage.includes("Если результат еще готовится или произошла ошибка"), false);
+  assert.equal(resultPage.includes("Результат готов к скачиванию"), false);
   assert.equal(resultPage.includes("Действия"), false);
   assert.equal(resultPage.includes("Сохранить в мои работы"), false);
-  assert.equal(resultPage.includes("Чтобы сохранить надолго, отправьте файл на почту."), true);
+  assert.equal(resultPage.includes("Чтобы сохранить надолго, отправьте файл на почту."), false);
+  assert.equal(emailResultForm.includes("Сохранить и отправить ссылку на результат"), true);
+  assert.equal(emailResultForm.includes("Лари сохранит работу в личном кабинете и отправит ссылку для входа. Пароль не нужен."), true);
   assert.equal(emailResultForm.includes("type=\"email\""), true);
   assert.equal(emailResultForm.includes("type=\"password\""), false);
   assert.equal(emailResultForm.includes("/api/auth/magic-link/request"), true);
   assert.equal(paymentPanel.includes("credentials: \"include\""), true);
   assert.equal(accountWorkspace.includes("/api/account/works"), true);
+  assert.equal(accountWorkspace.includes("/api/projects"), true);
   assert.equal(accountWorkspace.includes("/api/auth/magic-link/request"), true);
+  assert.equal(accountWorkspace.includes("/api/account/works/${runId}"), true);
+  assert.equal(accountWorkspace.includes("Пока нет работ. Выберите задачу и запустите любой модуль"), true);
+  assert.equal(accountWorkspace.includes("Прикрепить к проекту"), true);
+  assert.equal(accountWorkspace.includes("Удалить"), true);
   assert.equal(modulePage.includes("Поля собраны по ТЗ"), false);
   assert.equal(modulePage.includes("Лари проверит ответы и подготовит результат для скачивания."), true);
   assert.equal(homePage.includes("DOCX/PDF"), false);
@@ -183,10 +205,33 @@ test("presentation form avoids duplicated type and manual slide count", () => {
   const laryData = readFileSync(join(root, "app/lib/lary-data.ts"), "utf8");
 
   assert.equal(fieldLabels.includes("Тип презентации"), false);
-  assert.equal(fieldLabels.includes("Количество слайдов"), false);
+  assert.equal(fieldLabels.includes("Количество слайдов"), true);
   assert.equal(fieldLabels.includes("Шаблон"), true);
   assert.equal(laryData.includes("Официальный"), true);
   assert.equal(laryData.includes("Минималистичный"), true);
+  assert.equal(laryData.includes("10–12 рекомендуется"), true);
+});
+
+test("P1 module forms include split salary fields and scenario helper choices", () => {
+  const modules = readModules();
+  const salary = modules.find((module) => module.slug === "salary");
+  const supportLetter = modules.find((module) => module.slug === "support-letter");
+  const scenario = modules.find((module) => module.slug === "scenario-plan");
+  const laryData = readFileSync(join(root, "app/lib/lary-data.ts"), "utf8");
+
+  const salaryLabels = salary.fields.map((field) => field.label);
+  assert.equal(salaryLabels.includes("Количество сотрудников в этой роли"), true);
+  assert.equal(salaryLabels.includes("Занятость одного сотрудника, %"), true);
+  assert.equal(salaryLabels.includes("Занятость и количество людей"), false);
+
+  const supportLabels = supportLetter.fields.map((field) => field.label);
+  assert.equal(supportLabels.includes("Тип поддержки"), true);
+  assert.equal(supportLabels.includes("Вклад в рублях"), true);
+  assert.equal(supportLabels.includes("Стиль письма"), true);
+
+  assert.equal(scenario.fields[0].type, "chips");
+  assert.equal(laryData.includes("Документальный фильм"), true);
+  assert.equal(laryData.includes("Спортивно-культурное событие"), true);
 });
 
 test("P0 public copy and account gate match revision spec", () => {
@@ -201,9 +246,12 @@ test("P0 public copy and account gate match revision spec", () => {
   const securityPage = readFileSync(join(root, "app/security/page.tsx"), "utf8");
   const helpPage = readFileSync(join(root, "app/help/page.tsx"), "utf8");
 
+  assert.equal(homePage.includes("Модульный помощник для заявки ПФКИ"), true);
+  assert.equal(homePage.includes("Лари 2.0 MVP 0.1"), false);
   assert.equal(homePage.includes("Соберите рабочие документы для заявки ПФКИ быстрее и без лишних ошибок"), true);
   assert.equal(homePage.includes("Выберите задачу"), true);
   assert.equal(homePage.includes("По одному бесплатному запуску в каждом модуле"), true);
+  assert.equal(homePage.includes("Показать все задачи"), true);
   assert.equal(homePage.includes("Выбрать модуль"), false);
   assert.equal(homePage.includes("готовый файл"), false);
 
@@ -214,6 +262,12 @@ test("P0 public copy and account gate match revision spec", () => {
   assert.equal(laryUi.includes("Посмотреть пример"), true);
   assert.equal(laryUi.includes("Сообщить, когда модуль будет готов"), true);
   assert.equal(laryUi.includes("Закройте одну задачу по заявке"), true);
+  assert.equal(laryUi.includes("MVP"), false);
+  assert.equal(laryUi.includes("Доступно"), true);
+  assert.equal(laryUi.includes("Меню"), true);
+  for (const navLabel of ["Модули", "Как работает", "Цены", "Безопасность", "Помощь", "Войти"]) {
+    assert.equal(laryUi.includes(navLabel), true, `mobile menu should include ${navLabel}`);
+  }
 
   assert.equal(accountPage.includes("Войти в личный кабинет"), true);
   assert.equal(accountWorkspace.includes("Укажите email, чтобы получить ссылку для входа. Пароль не нужен."), true);
@@ -234,6 +288,44 @@ test("P0 public copy and account gate match revision spec", () => {
   assert.equal(securityPage.toLowerCase().includes("что собираем"), true);
   assert.equal(helpPage.includes("Что хотите узнать?"), true);
   assert.equal(helpPage.includes("Оплата и промокоды"), true);
+});
+
+test("P2 public screens do not expose internal development markers", () => {
+  const publicFiles = [
+    "app/page.tsx",
+    "app/modules/page.tsx",
+    "app/m/[slug]/page.tsx",
+    "app/run/[id]/result/page.tsx",
+    "app/pay/page.tsx",
+    "app/account/page.tsx",
+    "app/help/page.tsx",
+    "app/security/page.tsx",
+    "app/docs/[slug]/page.tsx",
+    "app/components/lary-ui.tsx",
+    "app/components/payment-panel.tsx",
+    "app/components/email-result-form.tsx",
+    "app/components/account-workspace.tsx",
+    "app/data/modules.json",
+  ];
+  const banned = ["MVP", "P0/P1", "in-memory", "runtime", "AI endpoint"];
+
+  for (const file of publicFiles) {
+    const source = readFileSync(join(root, file), "utf8");
+    for (const term of banned) {
+      assert.equal(source.includes(term), false, `${file} exposes ${term}`);
+    }
+  }
+});
+
+test("P2 example result links render a non-real-application warning", () => {
+  const modulePage = readFileSync(join(root, "app/m/[slug]/page.tsx"), "utf8");
+  const laryUi = readFileSync(join(root, "app/components/lary-ui.tsx"), "utf8");
+
+  assert.equal(laryUi.includes("?example=1"), true);
+  assert.equal(modulePage.includes("пример, не настоящая заявка"), true);
+  for (const slug of requiredActiveSlugs) {
+    assert.equal(modulePage.includes(`"${slug}"`) || modulePage.includes(`${slug}:`), true, `example should include ${slug}`);
+  }
 });
 
 test("web railway workspace file is valid for pnpm auto-detection", () => {
