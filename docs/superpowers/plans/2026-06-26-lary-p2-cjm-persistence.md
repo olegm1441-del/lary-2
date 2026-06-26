@@ -97,4 +97,4 @@
 - [x] Add frontend static tests for examples and public banned terms.
 - [x] Add/verify example routes or existing result example behavior for each module.
 - [x] Run full backend/frontend tests, build, py_compile.
-- [ ] Deploy API/web, run production smoke and screenshots at 390/768/1024/1440.
+- [x] Deploy API/web, run production smoke and screenshots at 390/768/1024/1440.
