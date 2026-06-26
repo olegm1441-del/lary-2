@@ -241,6 +241,28 @@ class LaryMvpContractsTest(unittest.TestCase):
         self.assertEqual(duplicate.json()["runs_added"], 0)
         self.assertEqual(self.client.get("/api/usage").json()["paid_runs"], 1)
 
+    def test_six_run_payment_package_amount_and_webhook_crediting(self):
+        payment = self.client.post("/api/payments/create", json={"package": "six", "amount_rub": 1, "runs": 99})
+        self.assertEqual(payment.status_code, 200)
+        payload = payment.json()
+        self.assertEqual(payload["amount_rub"], 1920)
+        self.assertEqual(payload["runs"], 6)
+
+        webhook_payload = {
+            "payment_id": payload["payment_id"],
+            "provider_payment_id": "provider-payment-six",
+            "status": "paid",
+            "signature": "placeholder-signature",
+        }
+        webhook = self.client.post("/api/payments/webhook/placeholder", json=webhook_payload)
+        self.assertEqual(webhook.status_code, 200)
+        self.assertEqual(webhook.json()["runs_added"], 6)
+
+        duplicate = self.client.post("/api/payments/webhook/placeholder", json=webhook_payload)
+        self.assertEqual(duplicate.status_code, 200)
+        self.assertEqual(duplicate.json()["runs_added"], 0)
+        self.assertEqual(self.client.get("/api/usage").json()["paid_runs"], 6)
+
     def test_payment_webhook_signature_is_checked_when_secret_is_configured(self):
         original_secret = settings.payment_webhook_secret
         settings.payment_webhook_secret = "test-secret"

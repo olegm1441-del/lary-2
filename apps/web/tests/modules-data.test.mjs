@@ -322,6 +322,9 @@ test("P0 public copy and account gate match revision spec", () => {
   assert.equal(paymentPanel.includes("Введите код, если он у вас есть."), true);
   assert.equal(paymentPanel.includes("Например: LARY-START"), true);
   assert.equal(paymentPanel.includes("Применить"), true);
+  assert.equal(paymentPanel.includes("320 ₽"), true);
+  assert.equal(paymentPanel.includes("1920 ₽"), true);
+  assert.equal(paymentPanel.toLowerCase().includes("выгод"), false);
 
   assert.equal(docsPage.includes("Юридическая проверка"), false);
   assert.equal(docsPage.includes("Текст адаптирован под MVP"), false);
@@ -368,6 +371,67 @@ test("P2 example result links render a non-real-application warning", () => {
   for (const slug of requiredActiveSlugs) {
     assert.equal(modulePage.includes(`"${slug}"`) || modulePage.includes(`${slug}:`), true, `example should include ${slug}`);
   }
+});
+
+test("account page keeps a single page title and passwordless card title", () => {
+  const accountPage = readFileSync(join(root, "app/account/page.tsx"), "utf8");
+  const accountWorkspace = readFileSync(join(root, "app/components/account-workspace.tsx"), "utf8");
+
+  assert.equal(accountPage.includes("title=\"Войти в личный кабинет\""), true);
+  assert.equal(accountWorkspace.includes("Вход без пароля"), true);
+  assert.equal(accountWorkspace.includes("Войти в личный кабинет"), false);
+});
+
+test("legal documents use current 26.06.2026 public texts and safe mobile wrapping", () => {
+  const legalDataPath = join(root, "app/data/legal-documents.ts");
+  assert.equal(existsSync(legalDataPath), true, "legal document content should live in app/data/legal-documents.ts");
+
+  const legalData = readFileSync(legalDataPath, "utf8");
+  const legalPage = readFileSync(join(root, "app/docs/[slug]/page.tsx"), "utf8");
+  const laryData = readFileSync(join(root, "app/lib/lary-data.ts"), "utf8");
+  const laryUi = readFileSync(join(root, "app/components/lary-ui.tsx"), "utf8");
+
+  assert.equal(laryData.includes("Политика конфиденциальности и обработки персональных данных"), true);
+  assert.equal(laryData.includes("Лари / Lary.pro · редакция от 26.06.2026"), true);
+  assert.equal(laryUi.includes("href=\"/docs/offer\""), true);
+  assert.equal(laryUi.includes("Публичная оферта"), true);
+
+  for (const required of [
+    "Публичная оферта",
+    "Политика конфиденциальности и обработки персональных данных",
+    "Пользовательское соглашение",
+    "Лари / Lary.pro",
+    "Редакция от 26.06.2026",
+    "Расчетный счет 40802810500000666910",
+    "legacyinfo@yandex.ru",
+    "Администрация обязуется предоставить Пользователю за вознаграждение право на использование Сервиса",
+    "Настоящая Политика конфиденциальности и обработки персональных данных",
+    "Настоящее Пользовательское соглашение",
+  ]) {
+    assert.equal(legalData.includes(required), true, `Missing legal text fragment: ${required}`);
+  }
+
+  for (const forbidden of [
+    "25.06.2025",
+    "проверить с юристом",
+    "Соглашение составлено в двух одинаковых экземплярах",
+    "Администратор________________________",
+    "Банк ООО",
+    "реквизиты документа, удостоверяющего личность",
+    "адрес доставки",
+    "пароль доступа к Сервису",
+    "MVP",
+    "P0",
+    "P1",
+    "internal",
+    "API для этого экрана",
+  ]) {
+    assert.equal(legalData.includes(forbidden), false, `Found forbidden legal text fragment: ${forbidden}`);
+  }
+
+  assert.equal(legalPage.includes("break-words"), true);
+  assert.equal(legalPage.includes("overflow-wrap:anywhere"), true);
+  assert.equal(legalPage.includes("whitespace-pre-wrap"), true);
 });
 
 test("web railway workspace file is valid for pnpm auto-detection", () => {

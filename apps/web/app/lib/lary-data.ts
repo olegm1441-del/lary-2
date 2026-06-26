@@ -105,13 +105,13 @@ export function getFieldOptions(fieldKey: string) {
 export const legalDocuments = [
   {
     slug: "privacy",
-    title: "Политика обработки персональных данных",
-    description: "Что собираем, зачем, сколько храним и как удалить данные.",
+    title: "Политика конфиденциальности и обработки персональных данных",
+    description: "Лари / Lary.pro · редакция от 26.06.2026",
   },
   {
     slug: "agreement",
     title: "Пользовательское соглашение",
-    description: "Правила использования Лари, модулей, результатов и личного кабинета.",
+    description: "Лари / Lary.pro · редакция от 26.06.2026",
   },
   {
     slug: "cookies",
@@ -121,7 +121,7 @@ export const legalDocuments = [
   {
     slug: "offer",
     title: "Публичная оферта",
-    description: "Покупка запусков модулей, промокоды, возвраты и ограничения ответственности.",
+    description: "Лари / Lary.pro · редакция от 26.06.2026",
   },
   {
     slug: "conditions",

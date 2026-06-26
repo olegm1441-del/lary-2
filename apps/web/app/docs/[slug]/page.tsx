@@ -1,96 +1,9 @@
 import { notFound } from "next/navigation";
-import { InfoCallout, PageShell, Section } from "../../components/lary-ui";
+import { PageShell } from "../../components/lary-ui";
 import { getLegalDocument, legalDocuments } from "../../lib/lary-data";
+import { getLegalDocumentContent } from "../../data/legal-documents";
 
-const legalTexts: Record<string, Array<{ title: string; body: string[] }>> = {
-  privacy: [
-    {
-      title: "1. Общие положения",
-      body: [
-        "Политика описывает, какие данные обрабатывает Лари при подготовке рабочих материалов к заявке ПФКИ.",
-        "Администратор: ИП Сумин Александр Николаевич, ОГРНИП 315665800076101, ИНН 667005585512.",
-      ],
-    },
-    {
-      title: "2. Какие данные обрабатываются",
-      body: [
-        "Тексты, которые пользователь вводит в формы модулей: регион, целевая группа, описание проблемы, данные партнера, календарный план и иные сведения, нужные для результата.",
-        "Email, если пользователь хочет сохранить работу, отправить результат себе или войти в личный кабинет.",
-        "Аудио голосового ввода используется для преобразования речи в текст. После распознавания пользователь видит текст в поле и может исправить его перед запуском модуля.",
-        "Технические данные: cookie временной сессии, статус запуска, тип файла, размер файла, код ошибки, время обработки.",
-      ],
-    },
-    {
-      title: "3. Цели обработки",
-      body: [
-        "Подготовка DOCX, PDF и PPTX по выбранному модулю.",
-        "Сохранение временной работы на срок до 24 часов без регистрации.",
-        "Учет бесплатных и оплаченных запусков модулей, применение промокодов, обработка платежей.",
-        "Диагностика ошибок без записи полных текстов заявки, аудио, ключей и токенов в технические логи.",
-      ],
-    },
-    {
-      title: "4. Удаление и поддержка",
-      body: [
-        "Пользователь может обратиться по email legacyinfo@yandex.ru, чтобы запросить удаление данных или уточнить порядок обработки.",
-        "Без email временные результаты могут быть удалены автоматически по истечении срока хранения.",
-      ],
-    },
-  ],
-  agreement: [
-    {
-      title: "1. Назначение сервиса",
-      body: [
-        "Лари — модульный веб-сервис для подготовки рабочих материалов к заявке ПФКИ: аналитики, писем, расчетов, презентаций и сценарных планов.",
-        "Сервис не гарантирует победу в конкурсе и не заменяет ручную проверку заявки пользователем.",
-      ],
-    },
-    {
-      title: "2. Правила использования",
-      body: [
-        "Пользователь отвечает за достоверность введенных данных и обязан проверить результат перед подачей.",
-        "Нельзя использовать сервис для загрузки незаконных материалов, автоматизированного злоупотребления бесплатными попытками или нарушения прав третьих лиц.",
-      ],
-    },
-    {
-      title: "3. Результаты и файлы",
-      body: [
-        "Сформированные файлы предоставляются как редактируемые рабочие версии.",
-        "Источники, даты, суммы, реквизиты, должности и календарные параметры необходимо проверить вручную.",
-      ],
-    },
-  ],
-  offer: [
-    {
-      title: "1. Предмет оферты",
-      body: [
-        "Администратор предоставляет пользователю доступ к функциональности Лари: запуску модулей, получению результатов и скачиванию файлов.",
-        "Коммерческая единица сервиса — запуск модуля. Один запуск дает одну генерацию, расчет или сборку результата в доступном модуле.",
-      ],
-    },
-    {
-      title: "2. Стоимость и оплата",
-      body: [
-        "Стоимость одного запуска — 320 рублей, если на странице оплаты не указано иное.",
-        "Первая попытка в модуле может предоставляться бесплатно. Промокоды могут добавлять дополнительные запуски.",
-        "Оплата считается подтвержденной после получения статуса от платежного провайдера.",
-      ],
-    },
-    {
-      title: "3. Возвраты и технические ошибки",
-      body: [
-        "Если техническая ошибка сервиса помешала подготовить результат, запуск может быть возвращен или пользователь получает возможность повторить запуск.",
-        "Если результат был сформирован и доступен для скачивания, услуга считается оказанной, за исключением случаев, предусмотренных законом.",
-      ],
-    },
-    {
-      title: "4. Реквизиты",
-      body: [
-        "ИП Сумин Александр Николаевич. Адрес регистрации: 620072, Екатеринбург, ул. Сыромолотова 14, оф. 600.",
-        "ОГРНИП 315665800076101, ИНН 667005585512. E-mail: legacyinfo@yandex.ru.",
-      ],
-    },
-  ],
+const fallbackLegalTexts: Record<string, Array<{ title: string; body: string[] }>> = {
   cookies: [
     {
       title: "1. Зачем нужны cookie",
@@ -131,6 +44,10 @@ const legalTexts: Record<string, Array<{ title: string; body: string[] }>> = {
   ],
 };
 
+type LegalBlock =
+  | { kind: "heading"; text: string }
+  | { kind: "paragraph"; text: string };
+
 export function generateStaticParams() {
   return legalDocuments.map((document) => ({ slug: document.slug }));
 }
@@ -150,23 +67,79 @@ export default async function LegalPage({ params }: { params: Promise<{ slug: st
 
   if (!document) notFound();
 
+  const rawContent = getLegalDocumentContent(slug);
+  const blocks = rawContent ? legalBlocksFromRawText(rawContent) : null;
+
   return (
     <PageShell>
-      <Section eyebrow="Юридический раздел" title={document.title} className="bg-white">
-        <p className="max-w-3xl text-xl leading-9 text-slate-700">{document.description}</p>
-        <div className="mt-8 grid gap-5">
-          {(legalTexts[slug] || []).map((section) => (
-            <section key={section.title} className="rounded-3xl border border-slate-200 bg-white p-6">
-              <h2 className="text-2xl font-bold text-slate-950">{section.title}</h2>
-              <div className="mt-4 grid gap-3 text-lg leading-8 text-slate-700">
-                {section.body.map((paragraph) => (
-                  <p key={paragraph}>{paragraph}</p>
-                ))}
-              </div>
-            </section>
-          ))}
-        </div>
-      </Section>
+      <section className="mx-auto w-full max-w-5xl overflow-hidden bg-white px-5 py-14 sm:px-8 lg:py-18">
+        <p className="mb-3 text-base font-semibold uppercase tracking-wide text-blue-800">Юридический раздел</p>
+        <h1 className="max-w-4xl break-words text-3xl font-bold tracking-tight text-slate-950 hyphens-auto [overflow-wrap:anywhere] sm:text-5xl">
+          {document.title}
+        </h1>
+        <p className="mt-5 max-w-4xl break-words text-xl leading-9 text-slate-700 [overflow-wrap:anywhere]">{document.description}</p>
+
+        {blocks ? (
+          <article className="mt-10 grid max-w-4xl gap-6 break-words text-lg leading-8 text-slate-800 [overflow-wrap:anywhere]">
+            {blocks.map((block, index) =>
+              block.kind === "heading" ? (
+                <h2 key={`${block.text}-${index}`} className="mt-4 break-words text-2xl font-bold leading-tight text-slate-950 [overflow-wrap:anywhere] sm:text-3xl">
+                  {block.text}
+                </h2>
+              ) : (
+                <p key={`${block.text}-${index}`} className="whitespace-pre-wrap break-words [overflow-wrap:anywhere]">
+                  {block.text}
+                </p>
+              ),
+            )}
+          </article>
+        ) : (
+          <div className="mt-8 grid max-w-4xl gap-8">
+            {(fallbackLegalTexts[slug] || []).map((section) => (
+              <section key={section.title} className="grid gap-4">
+                <h2 className="break-words text-2xl font-bold text-slate-950 [overflow-wrap:anywhere]">{section.title}</h2>
+                <div className="grid gap-3 break-words text-lg leading-8 text-slate-700 [overflow-wrap:anywhere]">
+                  {section.body.map((paragraph) => (
+                    <p key={paragraph} className="break-words [overflow-wrap:anywhere]">
+                      {paragraph}
+                    </p>
+                  ))}
+                </div>
+              </section>
+            ))}
+          </div>
+        )}
+      </section>
     </PageShell>
   );
+}
+
+function legalBlocksFromRawText(rawText: string): LegalBlock[] {
+  const paragraphs = rawText
+    .trim()
+    .split(/\n{2,}/)
+    .map((paragraph) => paragraph.trim())
+    .filter(Boolean);
+
+  const contentParagraphs = stripDocumentHeader(paragraphs);
+
+  return contentParagraphs.map((paragraph) => ({
+    kind: isTopLevelHeading(paragraph) ? "heading" : "paragraph",
+    text: paragraph,
+  }));
+}
+
+function stripDocumentHeader(paragraphs: string[]) {
+  if (paragraphs.length >= 3 && paragraphs[1] === "Лари / Lary.pro" && paragraphs[2].startsWith("Редакция от ")) {
+    return paragraphs.slice(3);
+  }
+  if (paragraphs.length >= 2 && paragraphs[1].startsWith("Лари / Lary.pro\nРедакция от ")) {
+    return paragraphs.slice(2);
+  }
+  return paragraphs;
+}
+
+function isTopLevelHeading(paragraph: string) {
+  if (paragraph === "Реквизиты Администрации" || paragraph === "Реквизиты Администратора") return true;
+  return /^\d+\.\s+\D/.test(paragraph);
 }
