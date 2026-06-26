@@ -642,8 +642,8 @@ def get_account_works(context: RequestContext) -> dict:
             )
     items = [
         {
-            "run_id": row["run_id"],
-            "date": row["created_at"][:10],
+            "run_id": str(row["run_id"]),
+            "date": str(row["created_at"])[:10],
             "work": _display_work_title(row["module_slug"], row["title"]),
             "competition": "ПФКИ",
             "project": row["project_title"] or "Без проекта",
@@ -701,7 +701,7 @@ def get_projects(context: RequestContext) -> dict:
     return {
         "items": [
             {
-                "project_id": row["id"],
+                "project_id": str(row["id"]),
                 "title": row["title"],
                 "competition": row["competition"],
                 "works_count": int(row["works_count"] or 0),
