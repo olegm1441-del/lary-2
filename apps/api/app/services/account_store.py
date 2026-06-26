@@ -266,6 +266,7 @@ def ensure_account_schema() -> dict:
     with _connect() as conn:
         for statement in statements:
             _execute(conn, statement)
+        _ensure_legacy_columns(conn)
         _execute(
             conn,
             "insert into schema_migrations(version, applied_at) values(?, ?) on conflict(version) do nothing",
@@ -294,12 +295,8 @@ def get_request_context(request: Request, response: Response) -> RequestContext:
         )
         _execute(
             conn,
-            """
-            insert into devices(id, anon_session_id, user_id, first_seen_at, last_seen_at)
-            values(?, ?, null, ?, ?)
-            on conflict(id) do update set last_seen_at = excluded.last_seen_at
-            """,
-            (anon_session_id, anon_session_id, now, now),
+            _device_upsert_sql(conn),
+            _device_upsert_params(conn, anon_session_id, now),
         )
         account_session_id = request.cookies.get(ACCOUNT_COOKIE)
         user_id = None
@@ -391,11 +388,29 @@ def record_module_run_success(run: StoredRun, decision: ModuleAccessDecision, in
             """,
             (run.run_id, _dumps(run.sections), now),
         )
+        _upsert_work(conn, run, decision, file_format, now, expires_at)
+        conn.commit()
+
+
+def _upsert_work(conn: Any, run: StoredRun, decision: ModuleAccessDecision, file_format: str, now: str, expires_at: str | None) -> None:
+    params = (
+        run.run_id,
+        decision.anon_session_id,
+        decision.user_id,
+        run.module_slug,
+        run.title,
+        run.status,
+        file_format,
+        run.downloads[file_format],
+        now,
+        expires_at,
+    )
+    if _column_exists(conn, "works", "id"):
         _execute(
             conn,
             """
-            insert into works(run_id, anon_session_id, user_id, project_id, module_slug, title, status, file_format, download_path, created_at, expires_at, deleted_at)
-            values(?, ?, ?, null, ?, ?, ?, ?, ?, ?, ?, null)
+            insert into works(id, run_id, anon_session_id, user_id, project_id, module_slug, title, status, file_format, download_path, created_at, expires_at, deleted_at)
+            values(?, ?, ?, ?, null, ?, ?, ?, ?, ?, ?, ?, null)
             on conflict(run_id) do update set
               anon_session_id = excluded.anon_session_id,
               user_id = excluded.user_id,
@@ -407,20 +422,28 @@ def record_module_run_success(run: StoredRun, decision: ModuleAccessDecision, in
               expires_at = excluded.expires_at,
               deleted_at = null
             """,
-            (
-                run.run_id,
-                decision.anon_session_id,
-                decision.user_id,
-                run.module_slug,
-                run.title,
-                run.status,
-                file_format,
-                run.downloads[file_format],
-                now,
-                expires_at,
-            ),
+            (str(uuid4()), *params),
         )
-        conn.commit()
+        return
+
+    _execute(
+        conn,
+        """
+        insert into works(run_id, anon_session_id, user_id, project_id, module_slug, title, status, file_format, download_path, created_at, expires_at, deleted_at)
+        values(?, ?, ?, null, ?, ?, ?, ?, ?, ?, ?, null)
+        on conflict(run_id) do update set
+          anon_session_id = excluded.anon_session_id,
+          user_id = excluded.user_id,
+          module_slug = excluded.module_slug,
+          title = excluded.title,
+          status = excluded.status,
+          file_format = excluded.file_format,
+          download_path = excluded.download_path,
+          expires_at = excluded.expires_at,
+          deleted_at = null
+        """,
+        params,
+    )
 
 
 def load_persisted_run(run_id: str) -> StoredRun | None:
@@ -759,6 +782,60 @@ def _seed_promo_codes() -> None:
         conn.commit()
 
 
+def _ensure_legacy_columns(conn: Any) -> None:
+    additions = {
+        "devices": {
+            "anon_session_id": "text",
+            "user_id": "text",
+            "first_seen_at": "text",
+            "last_seen_at": "text",
+        },
+        "works": {
+            "deleted_at": "text",
+            "project_id": "text",
+            "file_format": "text",
+            "download_path": "text",
+            "expires_at": "text",
+        },
+        "projects": {
+            "updated_at": "text",
+        },
+        "payments": {
+            "owner_key": "text",
+            "provider": "text",
+            "provider_payment_id": "text",
+            "paid_at": "text",
+            "provider_payload": "text",
+        },
+    }
+    for table, columns in additions.items():
+        for column, definition in columns.items():
+            if not _column_exists(conn, table, column):
+                _execute(conn, f"alter table {table} add column {column} {definition}")
+
+
+def _device_upsert_sql(conn: Any) -> str:
+    if _column_exists(conn, "devices", "fingerprint"):
+        return """
+            insert into devices(id, anon_session_id, user_id, fingerprint, first_seen_at, last_seen_at)
+            values(?, ?, null, ?, ?, ?)
+            on conflict(id) do update set
+              anon_session_id = excluded.anon_session_id,
+              last_seen_at = excluded.last_seen_at
+            """
+    return """
+        insert into devices(id, anon_session_id, user_id, first_seen_at, last_seen_at)
+        values(?, ?, null, ?, ?)
+        on conflict(id) do update set last_seen_at = excluded.last_seen_at
+        """
+
+
+def _device_upsert_params(conn: Any, anon_session_id: str, now: str) -> tuple[Any, ...]:
+    if _column_exists(conn, "devices", "fingerprint"):
+        return (anon_session_id, anon_session_id, anon_session_id, now, now)
+    return (anon_session_id, anon_session_id, now, now)
+
+
 def _transfer_owner_state(conn: Any, old_owner: str, new_owner: str, anon_session_id: str, user_id: str) -> None:
     for row in _fetchall(conn, "select module_slug, created_at from free_attempts where owner_key = ?", (old_owner,)):
         _execute(
@@ -860,6 +937,23 @@ def _fetchone(conn: Any, sql: str, params: tuple[Any, ...] = ()) -> dict[str, An
 def _fetchall(conn: Any, sql: str, params: tuple[Any, ...] = ()) -> list[dict[str, Any]]:
     cur = _execute(conn, sql, params)
     return [_row_to_dict(row) for row in cur.fetchall()]
+
+
+def _column_exists(conn: Any, table: str, column: str) -> bool:
+    if settings.database_url:
+        row = _fetchone(
+            conn,
+            """
+            select column_name
+            from information_schema.columns
+            where table_schema = current_schema() and table_name = ? and column_name = ?
+            """,
+            (table, column),
+        )
+        return row is not None
+
+    cur = conn.execute(f"pragma table_info({table})")
+    return any(row["name"] == column for row in cur.fetchall())
 
 
 def _row_to_dict(row: Any) -> dict[str, Any]:

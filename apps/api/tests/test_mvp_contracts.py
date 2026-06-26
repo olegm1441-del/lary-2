@@ -1,5 +1,6 @@
 import os
 import hashlib
+import sqlite3
 from urllib.parse import unquote
 import tempfile
 import unittest
@@ -20,7 +21,7 @@ from app.services.ai_router import extract_gigachat_text  # noqa: E402
 from app.services.vosk_model_manager import ensure_vosk_model_available  # noqa: E402
 from app.services.vosk_speech import VoskSpeechError, transcribe_with_vosk  # noqa: E402
 from app.services.run_store import run_store  # noqa: E402
-from app.services.account_store import clear_account_store_for_tests, simulate_account_store_restart_for_tests  # noqa: E402
+from app.services.account_store import clear_account_store_for_tests, ensure_account_schema, simulate_account_store_restart_for_tests  # noqa: E402
 
 
 class LaryMvpContractsTest(unittest.TestCase):
@@ -723,6 +724,68 @@ class LaryMvpContractsTest(unittest.TestCase):
         self.assertEqual(works["items"], [])
         self.assertEqual(self.client.get(f"/api/module-runs/{run_id}/result").status_code, 404)
         self.assertEqual(self.client.get(f"/api/module-runs/{run_id}/download/docx").status_code, 404)
+
+    def test_sql_bootstrap_migrates_legacy_devices_and_works_tables(self):
+        original_path = settings.state_sqlite_path
+        legacy_db = Path(tempfile.mkdtemp(prefix="lary-legacy-state-")) / "state.sqlite3"
+        conn = sqlite3.connect(legacy_db)
+        try:
+            conn.execute(
+                """
+                create table devices (
+                    id text primary key,
+                    user_id text,
+                    fingerprint text not null unique,
+                    first_seen_at text,
+                    last_seen_at text
+                )
+                """
+            )
+            conn.execute(
+                """
+                create table works (
+                    id text primary key,
+                    run_id text not null unique,
+                    anon_session_id text,
+                    user_id text,
+                    project_id text,
+                    module_slug text not null,
+                    title text not null,
+                    status text not null,
+                    file_format text not null,
+                    download_path text not null,
+                    created_at text,
+                    expires_at text
+                )
+                """
+            )
+            conn.commit()
+        finally:
+            conn.close()
+
+        settings.state_sqlite_path = str(legacy_db)
+        run_store.clear()
+        try:
+            ensure_account_schema()
+            legacy_client = TestClient(app)
+            usage = legacy_client.get("/api/usage")
+            self.assertEqual(usage.status_code, 200)
+            created = legacy_client.post(
+                "/api/module-runs",
+                json={
+                    "module_slug": "social-research",
+                    "inputs": {
+                        "region": "Республика Татарстан",
+                        "direction": "музей",
+                        "target_group": "молодежь 18-34 года",
+                        "problem": "молодежь редко участвует в музейных проектах",
+                    },
+                },
+            )
+            self.assertEqual(created.status_code, 200)
+            self.assertEqual(legacy_client.get("/api/account/works").status_code, 200)
+        finally:
+            settings.state_sqlite_path = original_path
 
 
 if __name__ == "__main__":
