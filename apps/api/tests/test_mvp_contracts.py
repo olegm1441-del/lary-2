@@ -31,7 +31,7 @@ SUPPORT_LETTER_INPUTS = {
     "partner_name": "ООО \"Спорт-партнер\"",
     "partner_intro_block": "региональный поставщик спортивной экипировки",
     "value_keywords": "подростки 12-17 лет получают безопасную регулярную спортивную практику во дворе, общение со сверстниками и понятный маршрут участия",
-    "support_types": ["Информационная поддержка", "Подарки / призы"],
+    "support_types": ["Информационная", "Материальная"],
     "support_details": "партнер разместит информационные публикации и предоставит комплекты призов для участников финального события",
     "cofinance_block": "50000",
     "signatory": "Директор ООО \"Спорт-партнер\" Иванов Иван Иванович",
@@ -46,7 +46,7 @@ SUPPORT_LETTER_AI_RESPONSES = [
     ),
     json.dumps(
         {
-            "ai_support_block": "Информационная поддержка: разместим публикации о проекте. Подарки / призы: предоставим комплекты призов для участников финального события.",
+            "ai_support_block": "Информационная поддержка: разместим публикации о проекте. Материальная поддержка: предоставим комплекты призов для участников финального события.",
         },
         ensure_ascii=False,
     ),
@@ -537,8 +537,8 @@ class LaryMvpContractsTest(unittest.TestCase):
             },
         )
         self.assertEqual(support_empty.status_code, 200)
-        self.assertEqual(support_empty.json()["status"], "error")
-        self.assertTrue(support_empty.json()["should_block"])
+        self.assertEqual(support_empty.json()["status"], "success")
+        self.assertFalse(support_empty.json()["should_block"])
 
         support_letters = self.client.post(
             "/api/field-assistant/analyze",

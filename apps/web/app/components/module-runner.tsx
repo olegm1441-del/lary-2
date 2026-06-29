@@ -366,7 +366,7 @@ export function ModuleRunner({ module }: { module: LaryModule }) {
       }
 
       appendValue(target.key, text);
-      setVoiceMessage(`Голос распознан и добавлен в поле «${target.label}». Проверьте текст перед запуском.`);
+      setVoiceMessage("");
     } catch (error) {
       setVoiceMessage(error instanceof Error ? error.message : "Не получилось распознать голос. Можно заполнить поле текстом.");
     } finally {
@@ -684,17 +684,10 @@ function getFieldQualityHint(
   }
 
   if (moduleSlug === "support-letter") {
+    const officialHint = getOfficialLanguageHint(fieldKey, trimmed);
+    if (officialHint) return officialHint;
     if (fieldKey === "cofinance_block" && (!hasDigits(trimmed) || hasLetters(trimmed) || /[₽.,;:]/.test(trimmed))) {
       return errorHint("Введите оценку вклада только числом, без слова “рублей”.");
-    }
-    if (fieldKey === "project_title" && hasOuterQuotes(trimmed)) {
-      return warningHint("Лари уберет внешние кавычки в названии проекта и оставит корректные внутренние кавычки.", ["Оставить так"]);
-    }
-    if (fieldKey === "partner_name" && hasStraightQuotes(trimmed)) {
-      return warningHint("Лари заменит обычные кавычки в названии партнера на «...».", ["Оставить так"]);
-    }
-    if (fieldKey === "partner_intro_block" && trimmed.endsWith(".")) {
-      return warningHint("Точку в конце можно не ставить: Лари вставит описание партнера в готовую фразу.", ["Оставить так"]);
     }
     if (["value_keywords", "support_details"].includes(fieldKey) && countWords(trimmed) < 8) {
       return warningHint("Добавьте 1–2 факта: для кого проект, что делает партнер и где это произойдет.", ["Оставить так"]);
@@ -777,14 +770,9 @@ function selectedMultiValues(value: string | undefined) {
 function getSupportLetterMissingHint(fieldKey: string, force: boolean) {
   if (!force) return successHint();
   const messages: Record<string, string> = {
-    project_title: "Название проекта нужно заполнить.",
-    partner_name: "Введите название партнера.",
-    partner_intro_block: "Опишите, кто партнер и чем занимается.",
     value_keywords: "Добавьте ключевые смыслы проекта: для кого, где и почему проект важен.",
     support_types: "Выберите хотя бы один вид поддержки.",
     support_details: "Опишите, что именно делает партнер.",
-    cofinance_block: "Введите оценку вклада только числом, без слова “рублей”.",
-    signatory: "Введите строку подписанта для блока “С уважением”.",
   };
   return messages[fieldKey] ? errorHint(messages[fieldKey]) : successHint();
 }
@@ -864,13 +852,31 @@ function hasDigits(value: string) {
   return /\d/.test(value);
 }
 
-function hasOuterQuotes(value: string) {
-  const trimmed = value.trim();
-  return (trimmed.startsWith("«") && trimmed.endsWith("»")) || (trimmed.startsWith("\"") && trimmed.endsWith("\""));
+function getOfficialLanguageHint(fieldKey: string, value: string): FieldAssistantHintData | null {
+  if (!["partner_name", "partner_intro_block", "project_title", "support_details", "signatory"].includes(fieldKey)) return null;
+  const scan = normalizeForScan(value);
+  const offensive = ["негр", "хач", "чурк", "пидор", "пида", "хуй", "хуе", "пизд", "еба", "ебл", "бля", "сука"];
+  if (offensive.some((item) => scan.includes(item))) {
+    return errorHint("Исправьте формулировку: письмо поддержки должно быть официальным и корректным.");
+  }
+
+  const testish = ["кринж", "кринжульки", "asdf", "ыва"];
+  const informalSignatory = ["адмирал", "генералиссимус", "повелитель", "магистр", "рыбаков олегинс"];
+  if (testish.some((item) => scan.includes(item)) || /^(тест|test)(\s+\d+)?$/.test(scan) || (fieldKey === "signatory" && informalSignatory.some((item) => scan.includes(item)))) {
+    return warningHint("Проверьте официальность формулировок: письмо поддержки будет загружаться в заявку ПФКИ.");
+  }
+
+  return null;
 }
 
-function hasStraightQuotes(value: string) {
-  return value.includes("\"");
+function normalizeForScan(value: string) {
+  return value
+    .toLowerCase()
+    .replace(/ё/g, "е")
+    .replace(/[«»„“"'`]+/g, "")
+    .replace(/[^0-9a-zа-я]+/g, " ")
+    .trim()
+    .replace(/\s+/g, " ");
 }
 
 function downsampleTo16Khz(chunks: Float32Array[], inputSampleRate: number) {
