@@ -230,6 +230,7 @@ def _enrich_with_ai(module_slug: str, inputs: dict, sections: list[dict[str, str
 
 
 def _build_ai_prompt(module_slug: str, inputs: dict) -> str:
+    prompt_inputs = _ai_prompt_inputs(module_slug, inputs)
     shared_rules = (
         "Ты — эксперт по заявкам ПФКИ. Подготовь текстовые блоки результата для выбранного модуля.\n"
         "Формат ответа строго такой, без Markdown и без дополнительных комментариев:\n"
@@ -240,7 +241,7 @@ def _build_ai_prompt(module_slug: str, inputs: dict) -> str:
         "Запрещено использовать символы **, ###, ---, слово «Краткое описание» и технический заголовок «AI-уточнение».\n"
         "Не пиши воду и объяснения о том, что нужно сделать. Пиши готовый текст.\n"
         "Не выдумывай точные номера, даты и реквизиты документов. Если реквизит не гарантирован, напиши «проверить реквизиты на официальном источнике».\n"
-        f"Данные пользователя: {inputs}.\n"
+        f"Данные пользователя: {prompt_inputs}.\n"
     )
     module_rules = {
         "social-research": (
@@ -260,7 +261,8 @@ def _build_ai_prompt(module_slug: str, inputs: dict) -> str:
         ),
         "support-letter": (
             "Нужны разделы: Адресат и партнер, Текст поддержки, Вклад партнера, Значение для территории, Чек-лист оформления. "
-            "Пиши как рабочую заготовку письма поддержки."
+            "Пиши как рабочую заготовку письма поддержки. Не пиши сумму софинансирования, оценку вклада в рублях, денежный эквивалент поддержки "
+            "или фразу «Оценка вклада» — сумма подставляется в документ отдельно."
         ),
         "presentation": (
             "Нужны разделы: Структура презентации, Слайды 1-3, Слайды 4-7, Слайды 8-12, Визуальные акценты. "
@@ -272,6 +274,13 @@ def _build_ai_prompt(module_slug: str, inputs: dict) -> str:
         ),
     }
     return shared_rules + "\n" + module_rules.get(module_slug, "Сделай 4-6 смысловых разделов по модулю, готовых для вставки в документ.")
+
+
+def _ai_prompt_inputs(module_slug: str, inputs: dict) -> dict:
+    if module_slug != "support-letter":
+        return inputs
+    hidden_keys = {"contribution_amount", "contribution", "cofinance_block", "support_amount"}
+    return {key: value for key, value in inputs.items() if key not in hidden_keys}
 
 
 def _parse_ai_sections(module_slug: str, text: str) -> list[dict[str, str]]:
@@ -343,6 +352,9 @@ def _clean_ai_line(line: str) -> str:
 
 
 def _postprocess_ai_section(module_slug: str, section: dict[str, str]) -> dict[str, str]:
+    if module_slug == "support-letter":
+        return {"title": section["title"], "body": _remove_ai_cofinance_amounts(section["body"])}
+
     if module_slug != "legal-acts":
         return section
 
@@ -355,6 +367,20 @@ def _postprocess_ai_section(module_slug: str, section: dict[str, str]) -> dict[s
     body = re.sub(r"\s{2,}", " ", body)
     body = body.replace("источник: официальный сайт органа власти", "источник: официальный сайт органа власти")
     return {"title": section["title"], "body": body.strip()}
+
+
+def _remove_ai_cofinance_amounts(body: str) -> str:
+    lines = []
+    money_pattern = re.compile(r"(?:\d[\d\s.,]*|[а-яё]+)\s*(?:тыс\.?|тысяч[аи]?|млн\.?|миллион[а-яё]*)?\s*(?:руб(?:\.|лей|ля|ль)?|₽)", re.IGNORECASE)
+    forbidden_terms = re.compile(r"(оценк[аиу]\s+вклада|сумм[ауы]\s+софинансирования|финансов[а-яё\s]+вклад|денежн[а-яё\s]+эквивалент)", re.IGNORECASE)
+    for raw_line in str(body or "").splitlines():
+        line = raw_line.strip()
+        if not line:
+            continue
+        if forbidden_terms.search(line) and money_pattern.search(line):
+            continue
+        lines.append(raw_line)
+    return "\n".join(lines).strip()
 
 
 def _fallback_ai_title(module_slug: str) -> str:

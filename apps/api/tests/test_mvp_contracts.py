@@ -578,6 +578,54 @@ class LaryMvpContractsTest(unittest.TestCase):
         self.assertNotIn("№…", joined)
         self.assertNotIn("____", joined)
 
+    def test_support_letter_ai_does_not_write_cofinance_amounts(self):
+        original_credentials = settings.gigachat_credentials
+        settings.gigachat_credentials = "test"
+        captured_prompts: list[str] = []
+
+        def fake_gigachat(prompt: str) -> str:
+            captured_prompts.append(prompt)
+            return """
+РАЗДЕЛ: Текст поддержки
+ТЕКСТ: Проект важен для территории и помогает целевой группе получить доступ к культурным событиям.
+
+РАЗДЕЛ: Вклад партнера
+ТЕКСТ: Оценка вклада: 300 тыс. рублей. Финансовый вклад партнера составляет 300 000 рублей.
+"""
+
+        try:
+            with patch("app.services.module_engine.generate_with_gigachat", side_effect=fake_gigachat):
+                response = self.client.post(
+                    "/api/module-runs",
+                    json={
+                        "module_slug": "support-letter",
+                        "inputs": {
+                            "project_title": "Музейная смена",
+                            "region": "Краснодарский край",
+                            "target_group": "молодежь 18-22 лет",
+                            "target_value": "молодежь получает культурную практику",
+                            "region_value": "проект усиливает музейную повестку региона",
+                            "support_type": "Информационная поддержка",
+                            "details": "партнер готов рассказать о проекте своей аудитории",
+                        },
+                    },
+                )
+        finally:
+            settings.gigachat_credentials = original_credentials
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        result = self.client.get(f"/api/module-runs/{payload['run_id']}/result").json()
+        joined = "\n".join([section["title"] + "\n" + section["body"] for section in result["sections"]])
+
+        self.assertTrue(captured_prompts)
+        self.assertIn("не пиши сумму софинансирования", captured_prompts[0].lower())
+        self.assertNotIn("Оценка вклада: 300 тыс. рублей", joined)
+        self.assertNotIn("Финансовый вклад партнера составляет 300 000 рублей", joined)
+        self.assertNotIn("300 тыс", joined)
+        self.assertNotIn("300 000 рублей", joined)
+        self.assertIn("Проект важен для территории", joined)
+
     def test_vosk_model_can_be_downloaded_from_configured_archive(self):
         temp_dir = Path(tempfile.mkdtemp(prefix="lary-vosk-model-test-"))
         archive_path = temp_dir / "model.zip"
