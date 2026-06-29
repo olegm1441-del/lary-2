@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import html
 import json
 import re
 from dataclasses import dataclass
@@ -138,7 +139,8 @@ def render_support_letter_docx(payload: NormalizedSupportLetterPayload, ai_value
             "AI_SUPPORT_BLOCK": _clean_docx_block(ai_support_block),
             "COFINANCE_BLOCK": payload.cofinance.formatted,
             "SIGNATORY": payload.signatory,
-        }
+        },
+        autoescape=True,
     )
     buffer = BytesIO()
     template.save(buffer)
@@ -423,14 +425,24 @@ def _extract_json_field(raw: str, key: str, max_length: int) -> str:
 
 
 def _clean_docx_block(value: str) -> str:
+    text = _remove_html_markup(value)
     cleaned_lines: list[str] = []
-    for raw_line in str(value or "").replace("\r", "\n").split("\n"):
+    for raw_line in text.replace("\r", "\n").split("\n"):
         line = raw_line.strip()
         line = line.replace("**", "").replace("###", "").replace("##", "").replace("#", "")
         line = re.sub(r"^\s*[-–—]\s*$", "", line)
         if line:
             cleaned_lines.append(line)
     return "\n".join(cleaned_lines).strip()
+
+
+def _remove_html_markup(value: str) -> str:
+    text = html.unescape(str(value or "")).replace("\u00a0", " ")
+    text = re.sub(r"(?is)<\s*br\s*/?\s*>", "\n", text)
+    text = re.sub(r"(?is)</\s*(p|div|li|tr|h[1-6])\s*>", "\n", text)
+    text = re.sub(r"(?is)<\s*li(?:\s[^>]*)?>", "- ", text)
+    text = re.sub(r"(?is)<[^>\n]{1,200}>", "", text)
+    return text
 
 
 def _required(inputs: dict[str, Any], key: str, message: str) -> str:

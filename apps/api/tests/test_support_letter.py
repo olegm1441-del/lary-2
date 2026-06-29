@@ -4,6 +4,7 @@ import unittest
 from io import BytesIO
 from pathlib import Path
 from unittest.mock import patch
+from zipfile import ZipFile
 
 from docx import Document
 
@@ -41,6 +42,11 @@ def docx_text(docx_bytes: bytes) -> str:
                 if cell.text:
                     parts.append(cell.text)
     return "\n".join(parts)
+
+
+def docx_document_xml(docx_bytes: bytes) -> str:
+    with ZipFile(BytesIO(docx_bytes)) as archive:
+        return archive.read("word/document.xml").decode("utf-8")
 
 
 class SupportLetterServiceTest(unittest.TestCase):
@@ -183,6 +189,25 @@ class SupportLetterServiceTest(unittest.TestCase):
         ):
             with self.assertRaises(SupportLetterGenerationError):
                 build_support_letter_document(payload)
+
+    def test_html_breaks_from_ai_do_not_corrupt_word_xml(self):
+        ai_value = {
+            "ai_value_block": "Видим необходимость проекта в следующем:<br/>1. Проект помогает детям проявлять себя творчески.<br/>2. Проект поддерживает уверенность участников.<br/>3. Проект вовлекает семьи в культурную активность.<br/><br/>Видим особенным этот проект для нашей территории.",
+        }
+        ai_support = {
+            "ai_support_block": "Информационная поддержка: готовы разместить публикации о проекте на информационных площадках.<br/>Это поможет донести информацию до участников.",
+        }
+
+        with patch("app.services.support_letter.generate_with_gigachat", side_effect=[json.dumps(ai_value, ensure_ascii=False), json.dumps(ai_support, ensure_ascii=False)]):
+            result = build_support_letter_document({**VALID_PAYLOAD, "support_types": ["Информационная"]})
+
+        xml = docx_document_xml(result.docx_bytes)
+        self.assertNotIn("<br/>", xml)
+        self.assertNotIn("<br />", xml)
+        self.assertNotIn("&lt;br", xml)
+        text = docx_text(result.docx_bytes)
+        self.assertNotIn("<br/>", text)
+        self.assertIn("1. Проект помогает детям проявлять себя творчески.", text)
 
 
 if __name__ == "__main__":
