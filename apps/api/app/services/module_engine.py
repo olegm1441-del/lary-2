@@ -8,6 +8,7 @@ from app.services.ai_router import AiRouterError, generate_with_gigachat
 from app.services.file_generators import generate_docx, generate_pdf, generate_pptx
 from app.services.module_inputs import normalize_inputs, primary_project_label
 from app.services.run_store import StoredRun, run_store
+from app.services.support_letter import SupportLetterDocument, build_support_letter_document
 
 
 def create_module_run(module_slug: str, inputs: dict, presentation_variant: str | None = None) -> StoredRun:
@@ -17,6 +18,10 @@ def create_module_run(module_slug: str, inputs: dict, presentation_variant: str 
 
     inputs = normalize_inputs(module_slug, inputs)
     _validate_module_create_inputs(module_slug, inputs)
+
+    if module_slug == "support-letter":
+        return _create_support_letter_run(module, inputs)
+
     run_id = str(uuid4())
     title = _result_title(module, inputs)
     sections = _build_sections(module_slug, inputs, presentation_variant)
@@ -59,6 +64,68 @@ def create_module_run(module_slug: str, inputs: dict, presentation_variant: str 
             files=files,
         )
     )
+
+
+def _create_support_letter_run(module: dict, inputs: dict) -> StoredRun:
+    document = build_support_letter_document(inputs)
+    run_id = str(uuid4())
+    run_dir = Path(settings.file_storage_dir) / run_id
+    run_dir.mkdir(parents=True, exist_ok=True)
+    path = run_dir / document.filename
+    path.write_bytes(document.docx_bytes)
+
+    title = f"{module['title']}: {document.normalized.project_title}"
+    summary = "Письмо поддержки готово. Перед загрузкой в заявку проверьте текст, дату, исходящий номер, подпись и печать при наличии."
+    sections = _support_letter_sections(document)
+    downloads = {"docx": f"/api/module-runs/{run_id}/download/docx"}
+    files = {"docx": str(path)}
+
+    return run_store.save(
+        StoredRun(
+            run_id=run_id,
+            module_slug="support-letter",
+            title=title,
+            status="completed",
+            summary=summary,
+            sections=sections,
+            downloads=downloads,
+            files=files,
+        )
+    )
+
+
+def _support_letter_sections(document: SupportLetterDocument) -> list[dict[str, str]]:
+    payload = document.normalized
+    return [
+        {
+            "title": "Письмо поддержки готово",
+            "body": "Скачайте DOCX, распечатайте письмо, укажите дату и исходящий номер, подпишите и поставьте печать при наличии.",
+        },
+        {
+            "title": "Партнер и проект",
+            "body": "\n".join(
+                [
+                    f"Партнер: {payload.partner_name}.",
+                    f"Описание партнера: {payload.partner_intro_block}.",
+                    f"Проект: {payload.project_title}.",
+                ]
+            ),
+        },
+        {
+            "title": "Вклад партнера",
+            "body": "\n".join(
+                [
+                    f"Вид поддержки: {'; '.join(payload.support_types)}.",
+                    f"Описание поддержки: {payload.support_details}.",
+                    f"Оценка вклада: {payload.cofinance.formatted} рублей.",
+                ]
+            ),
+        },
+        {
+            "title": "Что проверить перед загрузкой",
+            "body": "Проверьте, что письмо напечатано на бланке партнера при наличии, подписант указан корректно, а сумма вклада совпадает с бюджетом и софинансированием заявки.",
+        },
+    ]
 
 
 def _validate_module_create_inputs(module_slug: str, inputs: dict[str, str]) -> None:
@@ -174,12 +241,11 @@ def _build_sections(module_slug: str, inputs: dict, presentation_variant: str | 
             {"title": "Что проверить вручную", "body": "Источник средней зарплаты по региону, корректность процента занятости, номера мероприятий календарного плана и соответствие суммы бюджету заявки."},
         ],
         "support-letter": [
-            {"title": "Значимость для целевой группы", "body": str(inputs.get("target_value") or "Опишите, что меняется для целевой группы и почему партнер поддерживает проект.")},
-            {"title": "Значимость для региона", "body": str(inputs.get("region_value") or "Опишите, почему проект важен для территории и как партнер связан с этой задачей.")},
+            {"title": "Ключевые смыслы и значимость проекта", "body": str(inputs.get("value_keywords") or "Опишите, для кого и почему партнер поддерживает проект.")},
             {"title": "Вклад партнера", "body": "\n".join([
-                f"Тип поддержки: {inputs.get('support_type') or inputs.get('partner_role') or 'уточнить'}",
-                f"Вклад в рублях: {inputs.get('contribution_amount') or inputs.get('contribution') or 'ВСТАВЬТЕ СУММУ ИЛИ ФОРМУЛИРОВКУ БЕЗ ОЦЕНКИ ВКЛАДА'}",
-                f"Дополнительные сведения: {inputs.get('details') or 'не указаны'}",
+                f"Вид поддержки: {inputs.get('support_types') or 'уточнить'}",
+                f"Оценка вклада, рублей: {inputs.get('cofinance_block') or 'уточнить'}",
+                f"Что именно делает партнер: {inputs.get('support_details') or 'не указано'}",
             ])},
             {"title": "Чек-лист оформления", "body": "Проверьте подпись, печать, дату, исходящий номер, реквизиты и корректного адресата конкурса."},
         ],
@@ -259,8 +325,8 @@ def _build_ai_prompt(module_slug: str, inputs: dict) -> str:
             "Не добавляй предложения по оптимизации, если пользователь не просил."
         ),
         "support-letter": (
-            "Нужны разделы: Адресат и партнер, Текст поддержки, Вклад партнера, Значение для территории, Чек-лист оформления. "
-            "Пиши как рабочую заготовку письма поддержки."
+            "Нужны разделы: Партнер и проект, Значимость проекта, Вклад партнера, Чек-лист оформления. "
+            "Пиши как рабочую заготовку письма поддержки без подписи и без выдуманных реквизитов."
         ),
         "presentation": (
             "Нужны разделы: Структура презентации, Слайды 1-3, Слайды 4-7, Слайды 8-12, Визуальные акценты. "

@@ -18,12 +18,12 @@ class ModulesResponse(BaseModel):
 
 class ModuleRunCreateRequest(BaseModel):
     module_slug: str = Field(..., min_length=2)
-    inputs: dict[str, str | int | float | bool | None] = Field(default_factory=dict)
+    inputs: dict[str, str | int | float | bool | list[str] | None] = Field(default_factory=dict)
     presentation_variant: str | None = Field(default=None, description="grant_defense or calendar_plan")
 
 
 class ModuleValidationRequest(BaseModel):
-    inputs: dict[str, str | int | float | bool | None] = Field(default_factory=dict)
+    inputs: dict[str, str | int | float | bool | list[str] | None] = Field(default_factory=dict)
 
 
 class ModuleValidationHint(BaseModel):

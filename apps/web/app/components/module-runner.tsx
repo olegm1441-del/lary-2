@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getFieldKey, getFieldOptions, type LaryModule, type ModuleField } from "../lib/lary-data";
 import { apiUrl, readApiError } from "../lib/api-client";
 import { FieldAssistantHint, type FieldAssistantHintData } from "./field-assistant-hint";
@@ -50,17 +50,37 @@ export function ModuleRunner({ module }: { module: LaryModule }) {
     [module.fields, module.slug],
   );
 
+  const collectFieldHints = useCallback(
+    (force: boolean, currentValues = values): FieldHintMap => {
+      const nextHints: FieldHintMap = {};
+      module.fields.forEach((field, fieldIndex) => {
+        const key = getFieldKey(module.slug, fieldIndex, field.label);
+        const value = String(currentValues[key] || "");
+        const shouldShowLegalRegion = module.slug === "legal-acts" && key === "region" && isRegionalLegalSearch(currentValues.program_level);
+        const shouldShow = force || submitAttempted || touchedFields[key] || value.trim().length > 0 || shouldShowLegalRegion;
+        if (!shouldShow) return;
+        const hint = getFieldQualityHint(module.slug, key, field, value, currentValues, force || submitAttempted || Boolean(touchedFields[key]) || shouldShowLegalRegion);
+        if (hint.status !== "success") nextHints[key] = hint;
+      });
+      return nextHints;
+    },
+    [module.fields, module.slug, submitAttempted, touchedFields, values],
+  );
+
   useEffect(() => {
-    try {
-      const raw = window.localStorage.getItem(`lary.module_draft.${module.slug}`);
-      const draft = raw ? JSON.parse(raw) : {};
-      setValues(applyModuleDefaults(module.slug, draft));
-    } catch {
-      setValues(applyModuleDefaults(module.slug, {}));
-    }
-    setTouchedFields({});
-    setFieldHints({});
-    setSubmitAttempted(false);
+    const timer = window.setTimeout(() => {
+      try {
+        const raw = window.localStorage.getItem(`lary.module_draft.${module.slug}`);
+        const draft = raw ? JSON.parse(raw) : {};
+        setValues(applyModuleDefaults(module.slug, draft));
+      } catch {
+        setValues(applyModuleDefaults(module.slug, {}));
+      }
+      setTouchedFields({});
+      setFieldHints({});
+      setSubmitAttempted(false);
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, [module.slug]);
 
   useEffect(() => {
@@ -115,21 +135,7 @@ export function ModuleRunner({ module }: { module: LaryModule }) {
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [module.slug, module.fields, values, touchedFields]);
-
-  function collectFieldHints(force: boolean, currentValues = values): FieldHintMap {
-    const nextHints: FieldHintMap = {};
-    module.fields.forEach((field, fieldIndex) => {
-      const key = getFieldKey(module.slug, fieldIndex, field.label);
-      const value = String(currentValues[key] || "");
-      const shouldShowLegalRegion = module.slug === "legal-acts" && key === "region" && isRegionalLegalSearch(currentValues.program_level);
-      const shouldShow = force || submitAttempted || touchedFields[key] || value.trim().length > 0 || shouldShowLegalRegion;
-      if (!shouldShow) return;
-      const hint = getFieldQualityHint(module.slug, key, field, value, currentValues, force || submitAttempted || Boolean(touchedFields[key]) || shouldShowLegalRegion);
-      if (hint.status !== "success") nextHints[key] = hint;
-    });
-    return nextHints;
-  }
+  }, [module.slug, module.fields, values, touchedFields, collectFieldHints]);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -142,7 +148,7 @@ export function ModuleRunner({ module }: { module: LaryModule }) {
 
     if (Object.values(nextHints).some((hint) => hint.should_block)) {
       setState("error");
-      setMessage("Исправьте поля с красной подсказкой.");
+      setMessage(module.slug === "support-letter" ? "Заполните обязательные поля, чтобы запустить" : "Исправьте поля с красной подсказкой.");
       return;
     }
 
@@ -155,7 +161,8 @@ export function ModuleRunner({ module }: { module: LaryModule }) {
     }
 
     setState("submitting");
-    setMessage("Лари готовит результат. Данные сохранены.");
+    setMessage(module.slug === "support-letter" ? "Готовим письмо поддержки..." : "Лари готовит результат. Данные сохранены.");
+    const submissionInputs = buildSubmissionInputs(module.slug, nextValues);
 
     try {
       const response = await fetch(apiUrl("/api/module-runs"), {
@@ -164,7 +171,7 @@ export function ModuleRunner({ module }: { module: LaryModule }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           module_slug: module.slug,
-          inputs: nextValues,
+          inputs: submissionInputs,
           presentation_variant: presentationVariant,
         }),
       });
@@ -183,7 +190,13 @@ export function ModuleRunner({ module }: { module: LaryModule }) {
       router.push(`/run/${payload.run_id}/result`);
     } catch (error) {
       setState("error");
-      setMessage(error instanceof Error ? error.message : "Не получилось подготовить ответ. Данные сохранены. Попробуйте еще раз через минуту.");
+      setMessage(
+        error instanceof Error
+          ? error.message
+          : module.slug === "support-letter"
+            ? "Не получилось подготовить письмо. Данные сохранены. Попробуйте еще раз через минуту."
+            : "Не получилось подготовить ответ. Данные сохранены. Попробуйте еще раз через минуту.",
+      );
     }
   }
 
@@ -203,6 +216,12 @@ export function ModuleRunner({ module }: { module: LaryModule }) {
       [key]: current[key] ? `${current[key]}\n${value}` : value,
     }));
     setTouchedFields((current) => ({ ...current, [key]: true }));
+  }
+
+  function toggleMultiValue(key: string, option: string) {
+    const selected = selectedMultiValues(values[key]);
+    const next = selected.includes(option) ? selected.filter((item) => item !== option) : [...selected, option];
+    updateValue(key, next.join("; "));
   }
 
   function fillUnknownField(key: string) {
@@ -407,6 +426,7 @@ export function ModuleRunner({ module }: { module: LaryModule }) {
         const isLongText = field.type === "textarea";
         const options = key === "scenario_type" ? [...getFieldOptions(key), "Не знаю — помогите выбрать"] : getFieldOptions(key);
         const hasFixedOptions = field.type === "chips" && options.length > 0;
+        const selectedMulti = selectedMultiValues(values[key]);
         const inputId = `${module.slug}-${key}`;
         const hint = fieldHints[key];
 
@@ -431,6 +451,24 @@ export function ModuleRunner({ module }: { module: LaryModule }) {
                 onBlur={() => markTouched(key)}
                 onChange={(event) => updateValue(key, event.target.value)}
               />
+            ) : field.type === "multiselect" ? (
+              <div className="mt-4 grid gap-3">
+                <div className="flex flex-wrap gap-2">
+                  {options.map((option) => (
+                    <button
+                      type="button"
+                      key={option}
+                      onClick={() => toggleMultiValue(key, option)}
+                      className={`min-h-11 rounded-2xl border px-4 py-2 text-base font-semibold ${
+                        selectedMulti.includes(option) ? "border-blue-800 bg-blue-50 text-blue-900" : "border-slate-300 bg-white text-slate-700"
+                      }`}
+                      aria-pressed={selectedMulti.includes(option)}
+                    >
+                      {option}
+                    </button>
+                  ))}
+                </div>
+              </div>
             ) : field.type === "chips" ? (
               <div className="mt-4 grid gap-3">
                 {options.length ? (
@@ -535,7 +573,7 @@ export function ModuleRunner({ module }: { module: LaryModule }) {
           disabled={state === "submitting"}
           className="mt-4 min-h-14 rounded-2xl bg-blue-800 px-6 py-4 text-lg font-semibold text-white shadow-sm hover:bg-blue-900 disabled:cursor-not-allowed disabled:bg-slate-400"
         >
-          {state === "submitting" ? "Готовим результат..." : launchButtonLabel(module.slug, usage)}
+          {state === "submitting" ? (module.slug === "support-letter" ? "Готовим письмо поддержки..." : "Готовим результат...") : launchButtonLabel(module.slug, usage)}
         </button>
         {!(usage?.modules?.[module.slug]?.free_attempt_available ?? true) && (usage?.paid_runs ?? 0) <= 0 ? (
           <button
@@ -604,8 +642,8 @@ function getFieldQualityHint(
   }
 
   if (!trimmed) {
-    if (moduleSlug === "support-letter" && ["partner", "contribution_amount"].includes(fieldKey) && force) {
-      return warningHint(fieldKey === "partner" ? "Если организация пока неизвестна, оставьте поле пустым и добавьте вручную позже." : "Если сумма неизвестна, Лари оставит место для ручной вставки.");
+    if (moduleSlug === "support-letter") {
+      return getSupportLetterMissingHint(fieldKey, force);
     }
     return successHint();
   }
@@ -645,9 +683,21 @@ function getFieldQualityHint(
     }
   }
 
-  if (moduleSlug === "support-letter" && fieldKey === "contribution_amount") {
-    if (hasLetters(trimmed) && !hasDigits(trimmed)) {
-      return errorHint("Укажите вклад числом в рублях или оставьте поле пустым.");
+  if (moduleSlug === "support-letter") {
+    if (fieldKey === "cofinance_block" && (!hasDigits(trimmed) || hasLetters(trimmed) || /[₽.,;:]/.test(trimmed))) {
+      return errorHint("Введите оценку вклада только числом, без слова “рублей”.");
+    }
+    if (fieldKey === "project_title" && hasOuterQuotes(trimmed)) {
+      return warningHint("Лари уберет внешние кавычки в названии проекта и оставит корректные внутренние кавычки.", ["Оставить так"]);
+    }
+    if (fieldKey === "partner_name" && hasStraightQuotes(trimmed)) {
+      return warningHint("Лари заменит обычные кавычки в названии партнера на «...».", ["Оставить так"]);
+    }
+    if (fieldKey === "partner_intro_block" && trimmed.endsWith(".")) {
+      return warningHint("Точку в конце можно не ставить: Лари вставит описание партнера в готовую фразу.", ["Оставить так"]);
+    }
+    if (["value_keywords", "support_details"].includes(fieldKey) && countWords(trimmed) < 8) {
+      return warningHint("Добавьте 1–2 факта: для кого проект, что делает партнер и где это произойдет.", ["Оставить так"]);
     }
   }
 
@@ -668,7 +718,10 @@ function getFormQualityState(module: LaryModule, fieldKeys: string[], values: Re
   const hasWarnings = Object.values(hints).some((hint) => hint.status === "warning" || hint.status === "info");
 
   if (hasBlocking) {
-    return { message: "Заполните обязательные поля, чтобы запустить.", className: "bg-red-50 text-red-900" };
+    return {
+      message: module.slug === "support-letter" ? "Заполните обязательные поля, чтобы запустить" : "Заполните обязательные поля, чтобы запустить.",
+      className: "bg-red-50 text-red-900",
+    };
   }
   if (hasWarnings) {
     return { message: "Можно запускать. Есть подсказки, которые улучшат результат.", className: "bg-orange-50 text-orange-950" };
@@ -684,8 +737,7 @@ function applyModuleDefaults(moduleSlug: string, source: Record<string, string>)
     values.slide_count ||= "10–12 рекомендуется";
   }
   if (moduleSlug === "support-letter") {
-    values.competition ||= "ПФКИ";
-    values.style ||= "Официальный";
+    values.contest ||= "ПФКИ";
   }
   return values;
 }
@@ -696,13 +748,45 @@ function voiceButtonLabel(fieldKey: string) {
 
 function launchButtonLabel(moduleSlug: string, usage: UsagePayload | null) {
   const freeAvailable = usage?.modules?.[moduleSlug]?.free_attempt_available ?? true;
+  if (moduleSlug === "support-letter" && (freeAvailable || (usage?.paid_runs ?? 0) > 0)) return "Сформировать DOCX";
   if (freeAvailable) return "Запустить бесплатно";
   if ((usage?.paid_runs ?? 0) > 0) return "Использовать 1 запуск";
   return "Купить запуск модуля";
 }
 
 function canUseUnknown(field: ModuleField, key: string) {
-  return !field.required && field.type !== "file" && field.type !== "email" && !["competition", "style", "visual_style", "slide_count"].includes(key);
+  return !field.required && field.type !== "file" && field.type !== "email" && !["contest", "competition", "style", "visual_style", "slide_count"].includes(key);
+}
+
+function buildSubmissionInputs(moduleSlug: string, values: Record<string, string>) {
+  if (moduleSlug !== "support-letter") return values;
+  return {
+    ...values,
+    contest: "ПФКИ",
+    support_types: selectedMultiValues(values.support_types),
+  };
+}
+
+function selectedMultiValues(value: string | undefined) {
+  return String(value || "")
+    .split(";")
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function getSupportLetterMissingHint(fieldKey: string, force: boolean) {
+  if (!force) return successHint();
+  const messages: Record<string, string> = {
+    project_title: "Название проекта нужно заполнить.",
+    partner_name: "Введите название партнера.",
+    partner_intro_block: "Опишите, кто партнер и чем занимается.",
+    value_keywords: "Добавьте ключевые смыслы проекта: для кого, где и почему проект важен.",
+    support_types: "Выберите хотя бы один вид поддержки.",
+    support_details: "Опишите, что именно делает партнер.",
+    cofinance_block: "Введите оценку вклада только числом, без слова “рублей”.",
+    signatory: "Введите строку подписанта для блока “С уважением”.",
+  };
+  return messages[fieldKey] ? errorHint(messages[fieldKey]) : successHint();
 }
 
 function normalizeAssistantHint(payload: unknown): FieldAssistantHintData | null {
@@ -778,6 +862,15 @@ function hasLetters(value: string) {
 
 function hasDigits(value: string) {
   return /\d/.test(value);
+}
+
+function hasOuterQuotes(value: string) {
+  const trimmed = value.trim();
+  return (trimmed.startsWith("«") && trimmed.endsWith("»")) || (trimmed.startsWith("\"") && trimmed.endsWith("\""));
+}
+
+function hasStraightQuotes(value: string) {
+  return value.includes("\"");
 }
 
 function downsampleTo16Khz(chunks: Float32Array[], inputSampleRate: number) {

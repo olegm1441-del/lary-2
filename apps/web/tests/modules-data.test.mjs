@@ -261,13 +261,72 @@ test("P1 module forms include split salary fields and scenario helper choices", 
   assert.equal(salaryLabels.includes("Занятость и количество людей"), false);
 
   const supportLabels = supportLetter.fields.map((field) => field.label);
-  assert.equal(supportLabels.includes("Тип поддержки"), true);
-  assert.equal(supportLabels.includes("Вклад в рублях"), true);
-  assert.equal(supportLabels.includes("Стиль письма"), true);
+  assert.equal(supportLabels.includes("Название партнера"), true);
+  assert.equal(supportLabels.includes("Кто партнер и чем занимается"), true);
+  assert.equal(supportLabels.includes("Ключевые смыслы и значимость проекта"), true);
+  assert.equal(supportLabels.includes("Вид поддержки"), true);
+  assert.equal(supportLabels.includes("Что именно делает партнер"), true);
+  assert.equal(supportLabels.includes("Оценка вклада, рублей"), true);
+  assert.equal(supportLabels.includes("С уважением"), true);
+  assert.equal(supportLabels.includes("Тип поддержки"), false);
+  assert.equal(supportLabels.includes("Вклад в рублях"), false);
+  assert.equal(supportLabels.includes("Стиль письма"), false);
 
   assert.equal(scenario.fields[0].type, "chips");
   assert.equal(laryData.includes("Документальный фильм"), true);
   assert.equal(laryData.includes("Спортивно-культурное событие"), true);
+});
+
+test("support letter module uses the deterministic PFKI letter workflow", () => {
+  const modules = readModules();
+  const supportLetter = modules.find((module) => module.slug === "support-letter");
+  const fieldLabels = supportLetter.fields.map((field) => field.label);
+  const fieldHints = supportLetter.fields.map((field) => field.hint).join("\n");
+  const laryData = readFileSync(join(root, "app/lib/lary-data.ts"), "utf8");
+  const runner = readFileSync(join(root, "app/components/module-runner.tsx"), "utf8");
+  const modulePage = readFileSync(join(root, "app/m/[slug]/page.tsx"), "utf8");
+
+  assert.deepEqual(fieldLabels, [
+    "Конкурс",
+    "Название проекта",
+    "Название партнера",
+    "Кто партнер и чем занимается",
+    "Ключевые смыслы и значимость проекта",
+    "Вид поддержки",
+    "Что именно делает партнер",
+    "Оценка вклада, рублей",
+    "С уважением",
+  ]);
+  assert.equal(supportLetter.promise.includes("DOCX-письмо по шаблону ПФКИ"), true);
+  assert.equal(fieldHints.includes("Адресат уже подставлен в шаблон ПФКИ."), true);
+  assert.equal(fieldHints.includes("Только число без слова “рублей”"), true);
+  assert.equal(laryData.includes("support_types"), true);
+  for (const option of [
+    "Информационная поддержка",
+    "Организационная поддержка",
+    "Экспертная поддержка",
+    "Консультационная поддержка",
+    "Помещение",
+    "Оборудование",
+    "Материальная поддержка",
+    "Финансовый вклад",
+    "Подарки / призы",
+    "Полиграфия",
+    "Иная поддержка",
+  ]) {
+    assert.equal(laryData.includes(option), true, `support type option missing: ${option}`);
+  }
+  assert.equal(/\bpartner_role\b/.test(laryData), false);
+  assert.equal(/\bcontribution_amount\b/.test(laryData), false);
+  assert.equal(/\bsupport_type:/.test(laryData), false);
+  assert.equal(/\bstyle:/.test(laryData), false);
+  assert.equal(runner.includes("Сформировать DOCX"), true);
+  assert.equal(runner.includes("Готовим письмо поддержки..."), true);
+  assert.equal(runner.includes("Не получилось подготовить письмо. Данные сохранены. Попробуйте еще раз через минуту."), true);
+  assert.equal(runner.includes("buildSubmissionInputs"), true);
+  assert.equal(runner.includes("support_types: selectedMultiValues"), true);
+  assert.equal(modulePage.includes("Заполните данные партнера и вклада"), true);
+  assert.equal(modulePage.includes("Название партнера, вклад и подписант вставляются в письмо без нейросети"), true);
 });
 
 test("P0 public copy and account gate match revision spec", () => {

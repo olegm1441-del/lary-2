@@ -95,7 +95,7 @@ def download(run_id: str, file_format: str):
     if not path.exists():
         raise HTTPException(status_code=404, detail={"message": "Файл временно недоступен. Запустите модуль еще раз."})
 
-    filename = f"{DOWNLOAD_TITLES.get(run.module_slug, run.module_slug)}.{file_format}"
+    filename = path.name if run.module_slug == "support-letter" and file_format == "docx" else f"{DOWNLOAD_TITLES.get(run.module_slug, run.module_slug)}.{file_format}"
     return FileResponse(path, media_type=MEDIA_TYPES.get(file_format, "application/octet-stream"), filename=filename)
 
 
@@ -121,6 +121,8 @@ def _load_run(run_id: str):
 def _regenerate_file(run, file_format: str) -> Path:
     path = Path(settings.file_storage_dir) / run.run_id / f"{run.module_slug}.{file_format}"
     path.parent.mkdir(parents=True, exist_ok=True)
+    if run.module_slug == "support-letter":
+        return Path(run.files.get(file_format, path))
     if file_format == "docx":
         generate_docx(path, run.title, run.summary, run.sections)
     elif file_format == "pdf":

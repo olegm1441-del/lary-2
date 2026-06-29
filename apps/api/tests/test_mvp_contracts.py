@@ -1,4 +1,5 @@
 import os
+import json
 import hashlib
 import sqlite3
 from urllib.parse import unquote
@@ -22,6 +23,34 @@ from app.services.vosk_model_manager import ensure_vosk_model_available  # noqa:
 from app.services.vosk_speech import VoskSpeechError, transcribe_with_vosk  # noqa: E402
 from app.services.run_store import run_store  # noqa: E402
 from app.services.account_store import clear_account_store_for_tests, ensure_account_schema, simulate_account_store_restart_for_tests  # noqa: E402
+
+
+SUPPORT_LETTER_INPUTS = {
+    "contest": "ПФКИ",
+    "project_title": "Фестиваль дворового футбола",
+    "partner_name": "ООО \"Спорт-партнер\"",
+    "partner_intro_block": "региональный поставщик спортивной экипировки",
+    "value_keywords": "подростки 12-17 лет получают безопасную регулярную спортивную практику во дворе, общение со сверстниками и понятный маршрут участия",
+    "support_types": ["Информационная поддержка", "Подарки / призы"],
+    "support_details": "партнер разместит информационные публикации и предоставит комплекты призов для участников финального события",
+    "cofinance_block": "50000",
+    "signatory": "Директор ООО \"Спорт-партнер\" Иванов Иван Иванович",
+}
+
+SUPPORT_LETTER_AI_RESPONSES = [
+    json.dumps(
+        {
+            "ai_value_block": "Видим необходимость проекта в том, что он дает подросткам безопасную регулярную спортивную практику, помогает выстроить общение со сверстниками и делает дворовую активность понятной для семей.",
+        },
+        ensure_ascii=False,
+    ),
+    json.dumps(
+        {
+            "ai_support_block": "Информационная поддержка: разместим публикации о проекте. Подарки / призы: предоставим комплекты призов для участников финального события.",
+        },
+        ensure_ascii=False,
+    ),
+]
 
 
 class LaryMvpContractsTest(unittest.TestCase):
@@ -52,19 +81,11 @@ class LaryMvpContractsTest(unittest.TestCase):
         self.assertEqual(future, ["check-application"])
 
     def test_module_run_generates_result_and_downloadable_files(self):
-        create_response = self.client.post(
-            "/api/module-runs",
-            json={
-                "module_slug": "support-letter",
-                "inputs": {
-                    "project_title": "Фестиваль дворового футбола",
-                    "region": "Республика Татарстан",
-                    "target_group": "подростки 12-17 лет",
-                    "problem": "мало регулярных дворовых событий",
-                    "partner": "местная спортивная школа",
-                },
-            },
-        )
+        with patch("app.services.support_letter.generate_with_gigachat", side_effect=SUPPORT_LETTER_AI_RESPONSES):
+            create_response = self.client.post(
+                "/api/module-runs",
+                json={"module_slug": "support-letter", "inputs": SUPPORT_LETTER_INPUTS},
+            )
 
         self.assertEqual(create_response.status_code, 200)
         created = create_response.json()
@@ -83,6 +104,7 @@ class LaryMvpContractsTest(unittest.TestCase):
             download = self.client.get(f"/api/module-runs/{created['run_id']}/download/{fmt}")
             self.assertEqual(download.status_code, 200)
             self.assertGreater(len(download.content), 500)
+            self.assertIn("Письмо", unquote(download.headers.get("content-disposition", "")))
 
     def test_presentation_run_generates_real_pptx(self):
         response = self.client.post(
@@ -296,19 +318,20 @@ class LaryMvpContractsTest(unittest.TestCase):
             settings.payment_webhook_secret = original_secret
 
     def test_magic_link_attaches_temporary_work_to_account_and_project(self):
-        created = self.client.post(
-            "/api/module-runs",
-            json={
-                "module_slug": "support-letter",
-                "inputs": {
-                    "competition": "ПФКИ",
-                    "partner": "Музей города",
-                    "project_title": "Музейная смена",
-                    "target_value": "подростки получают практику",
-                    "region_value": "город Казань",
+        with patch("app.services.support_letter.generate_with_gigachat", side_effect=SUPPORT_LETTER_AI_RESPONSES):
+            created = self.client.post(
+                "/api/module-runs",
+                json={
+                    "module_slug": "support-letter",
+                    "inputs": {
+                        **SUPPORT_LETTER_INPUTS,
+                        "project_title": "Музейная смена",
+                        "partner_name": "Музей города",
+                        "partner_intro_block": "городское культурное учреждение",
+                        "signatory": "Директор Музея города Петров Петр Петрович",
+                    },
                 },
-            },
-        )
+            )
         self.assertEqual(created.status_code, 200)
         run_id = created.json()["run_id"]
 
@@ -507,22 +530,22 @@ class LaryMvpContractsTest(unittest.TestCase):
             "/api/field-assistant/analyze",
             json={
                 "module_slug": "support-letter",
-                "field_key": "contribution_amount",
-                "field_label": "Вклад в рублях",
+                "field_key": "cofinance_block",
+                "field_label": "Оценка вклада, рублей",
                 "value": "",
                 "form_context": {},
             },
         )
         self.assertEqual(support_empty.status_code, 200)
-        self.assertEqual(support_empty.json()["status"], "warning")
-        self.assertFalse(support_empty.json()["should_block"])
+        self.assertEqual(support_empty.json()["status"], "error")
+        self.assertTrue(support_empty.json()["should_block"])
 
         support_letters = self.client.post(
             "/api/field-assistant/analyze",
             json={
                 "module_slug": "support-letter",
-                "field_key": "contribution_amount",
-                "field_label": "Вклад в рублях",
+                "field_key": "cofinance_block",
+                "field_label": "Оценка вклада, рублей",
                 "value": "пятьдесят тысяч рублей",
                 "form_context": {},
             },
@@ -799,17 +822,11 @@ class LaryMvpContractsTest(unittest.TestCase):
         self.assertGreater(len(download.content), 500)
 
     def test_deleted_work_is_removed_from_account_and_old_links(self):
-        created = self.client.post(
-            "/api/module-runs",
-            json={
-                "module_slug": "support-letter",
-                "inputs": {
-                    "project_title": "Музейная смена",
-                    "partner": "Музей города",
-                    "target_value": "молодежь получает практику",
-                },
-            },
-        )
+        with patch("app.services.support_letter.generate_with_gigachat", side_effect=SUPPORT_LETTER_AI_RESPONSES):
+            created = self.client.post(
+                "/api/module-runs",
+                json={"module_slug": "support-letter", "inputs": SUPPORT_LETTER_INPUTS},
+            )
         self.assertEqual(created.status_code, 200)
         run_id = created.json()["run_id"]
 

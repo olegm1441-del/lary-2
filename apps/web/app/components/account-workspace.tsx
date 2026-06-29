@@ -57,8 +57,11 @@ export function AccountWorkspace() {
   }
 
   useEffect(() => {
-    void loadWorks();
-    void loadProjects();
+    const timer = window.setTimeout(() => {
+      void loadWorks();
+      void loadProjects();
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, []);
 
   useEffect(() => {
