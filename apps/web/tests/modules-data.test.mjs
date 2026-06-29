@@ -5,7 +5,7 @@ import test from "node:test";
 
 const root = process.cwd();
 const modulesPath = join(root, "app", "data", "modules.json");
-const prohibitedTerms = ["FAQ", "Dashboard", "dashboard", "prompt", "Prompt", "tokens", "Tokens", "credits", "Credits", "кредиты", "токены", "промпт", "MVP", "P0/P1", "in-memory", "runtime", "demo"];
+const prohibitedTerms = ["FAQ", "Dashboard", "dashboard", "prompt", "Prompt", "tokens", "Tokens", "credits", "Credits", "кредиты", "токены", "промпт", "MVP", "P0/P1", "in-memory", "runtime", "demo", "backend", "добавим позже"];
 const requiredActiveSlugs = [
   "social-research",
   "legal-acts",
@@ -233,11 +233,16 @@ test("presentation form avoids duplicated type and manual slide count", () => {
   const modules = readModules();
   const presentation = modules.find((module) => module.slug === "presentation");
   const fieldLabels = presentation.fields.map((field) => field.label);
+  const fieldHints = presentation.fields.map((field) => field.hint).join("\n");
   const laryData = readFileSync(join(root, "app/lib/lary-data.ts"), "utf8");
 
   assert.equal(fieldLabels.includes("Тип презентации"), false);
   assert.equal(fieldLabels.includes("Количество слайдов"), true);
   assert.equal(fieldLabels.includes("Шаблон"), true);
+  assert.equal(fieldHints.includes("Вставьте описание проекта или сценарного плана."), true);
+  assert.equal(fieldHints.includes("Выберите один из доступных шаблонов."), true);
+  assert.equal(fieldHints.includes("backend"), false);
+  assert.equal(fieldHints.includes("добавим позже"), false);
   assert.equal(laryData.includes("Официальный"), true);
   assert.equal(laryData.includes("Минималистичный"), true);
   assert.equal(laryData.includes("10–12 рекомендуется"), true);
