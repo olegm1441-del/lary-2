@@ -261,13 +261,92 @@ test("P1 module forms include split salary fields and scenario helper choices", 
   assert.equal(salaryLabels.includes("Занятость и количество людей"), false);
 
   const supportLabels = supportLetter.fields.map((field) => field.label);
-  assert.equal(supportLabels.includes("Тип поддержки"), true);
-  assert.equal(supportLabels.includes("Вклад в рублях"), true);
-  assert.equal(supportLabels.includes("Стиль письма"), true);
+  assert.equal(supportLabels.includes("Организация-партнер"), true);
+  assert.equal(supportLabels.includes("Кто партнер и чем занимается"), true);
+  assert.equal(supportLabels.includes("Ключевые смыслы и значимость проекта"), true);
+  assert.equal(supportLabels.includes("Вид поддержки"), true);
+  assert.equal(supportLabels.includes("Что именно делает партнер"), true);
+  assert.equal(supportLabels.includes("Оценка вклада, рублей"), true);
+  assert.equal(supportLabels.includes("С уважением,"), true);
+  assert.equal(supportLabels.includes("Название партнера"), false);
+  assert.equal(supportLabels.includes("С уважением"), false);
+  assert.equal(supportLabels.includes("Тип поддержки"), false);
+  assert.equal(supportLabels.includes("Вклад в рублях"), false);
+  assert.equal(supportLabels.includes("Стиль письма"), false);
 
   assert.equal(scenario.fields[0].type, "chips");
   assert.equal(laryData.includes("Документальный фильм"), true);
   assert.equal(laryData.includes("Спортивно-культурное событие"), true);
+});
+
+test("support letter module uses the deterministic PFKI letter workflow", () => {
+  const modules = readModules();
+  const supportLetter = modules.find((module) => module.slug === "support-letter");
+  const fieldLabels = supportLetter.fields.map((field) => field.label);
+  const fieldHints = supportLetter.fields.map((field) => field.hint).join("\n");
+  const laryData = readFileSync(join(root, "app/lib/lary-data.ts"), "utf8");
+  const runner = readFileSync(join(root, "app/components/module-runner.tsx"), "utf8");
+  const resultViewer = readFileSync(join(root, "app/components/result-viewer.tsx"), "utf8");
+  const modulePage = readFileSync(join(root, "app/m/[slug]/page.tsx"), "utf8");
+
+  assert.deepEqual(fieldLabels, [
+    "Конкурс",
+    "Название проекта",
+    "Организация-партнер",
+    "Кто партнер и чем занимается",
+    "Ключевые смыслы и значимость проекта",
+    "Вид поддержки",
+    "Что именно делает партнер",
+    "Оценка вклада, рублей",
+    "С уважением,",
+  ]);
+  assert.equal(supportLetter.promise.includes("DOCX-письмо по шаблону ПФКИ"), true);
+  assert.equal(fieldHints.includes("Адресат уже подставлен в шаблон ПФКИ."), true);
+  assert.equal(fieldHints.includes("Только число без слова “рублей”"), true);
+  assert.equal(fieldHints.includes("От лица организации — для вставки в письмо"), true);
+  assert.equal(fieldHints.includes("На основе этих тезисов Лари пропишет блок значимости проекта."), true);
+  assert.equal(fieldHints.includes("Должность и инициалы представителя организации"), true);
+  assert.equal(fieldHints.includes("GigaChat"), false);
+  assert.equal(fieldHints.includes("нейросети"), false);
+  assert.equal(fieldHints.includes("кавыч"), false);
+  assert.equal(fieldHints.includes("точк"), false);
+  assert.equal(supportLetter.fields.find((field) => field.label === "Организация-партнер").required, false);
+  assert.equal(supportLetter.fields.find((field) => field.label === "Название проекта").required, false);
+  assert.equal(supportLetter.fields.find((field) => field.label === "Кто партнер и чем занимается").required, false);
+  assert.equal(supportLetter.fields.find((field) => field.label === "Оценка вклада, рублей").required, false);
+  assert.equal(supportLetter.fields.find((field) => field.label === "С уважением,").required, false);
+  assert.equal(laryData.includes("support_types"), true);
+  for (const option of ["Информационная", "Консультационная", "Организационная", "Материальная", "Финансовая", "Иная"]) {
+    assert.equal(laryData.includes(option), true, `support type option missing: ${option}`);
+  }
+  for (const removedOption of ["Экспертная поддержка", "Помещение", "Оборудование", "Финансовый вклад", "Подарки / призы", "Полиграфия"]) {
+    assert.equal(laryData.includes(removedOption), false, `removed support type option is still present: ${removedOption}`);
+  }
+  assert.equal(/\bpartner_role\b/.test(laryData), false);
+  assert.equal(/\bcontribution_amount\b/.test(laryData), false);
+  assert.equal(/\bsupport_type:/.test(laryData), false);
+  assert.equal(/\bstyle:/.test(laryData), false);
+  assert.equal(runner.includes("Сформировать DOCX"), true);
+  assert.equal(runner.includes("Готовим письмо поддержки..."), true);
+  assert.equal(runner.includes("Не получилось подготовить письмо. Данные сохранены. Попробуйте еще раз через минуту."), true);
+  assert.equal(runner.includes("Голос распознан и добавлен"), false);
+  assert.equal(runner.includes("Лари заменит обычные кавычки"), false);
+  assert.equal(runner.includes("Лари уберет внешние кавычки"), false);
+  assert.equal(runner.includes("Точку в конце можно не ставить"), false);
+  assert.equal(runner.includes("Проверьте официальность формулировок: письмо поддержки будет загружаться в заявку ПФКИ."), true);
+  assert.equal(runner.includes("Исправьте формулировку: письмо поддержки должно быть официальным и корректным."), true);
+  assert.equal(runner.includes("buildSubmissionInputs"), true);
+  assert.equal(runner.includes("support_types: selectedMultiValues"), true);
+  assert.equal(resultViewer.includes("copyAvailable"), true);
+  assert.equal(modulePage.includes("Заполните данные партнера и вклада"), true);
+  assert.equal(modulePage.includes("Лари соберет письмо по шаблону: отдельно подставит данные партнера, аккуратно сформулирует значимость проекта и опишет вклад партнера."), true);
+  assert.equal(modulePage.includes("GigaChat"), false);
+  assert.equal(supportLetter.resultPreview.includes("DOCX-письмо по шаблону ПФКИ."), true);
+  assert.equal(supportLetter.resultPreview.includes("Короткий блок значимости проекта."), true);
+  assert.equal(supportLetter.resultPreview.includes("Конкретное описание вклада партнера."), true);
+  assert.equal(supportLetter.resultPreview.includes("Сумма софинансирования в готовой фразе."), true);
+  assert.equal(supportLetter.resultPreview.includes("Название партнера, проект, вклад и подписант без нейросетевого переписывания."), false);
+  assert.equal(supportLetter.resultPreview.includes("Два аккуратно сформулированных смысловых блока."), false);
 });
 
 test("P0 public copy and account gate match revision spec", () => {

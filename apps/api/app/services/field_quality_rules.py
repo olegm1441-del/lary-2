@@ -10,7 +10,7 @@ REQUIRED_FIELDS: dict[str, set[str]] = {
     "social-research": {"region", "direction", "target_group", "problem"},
     "legal-acts": {"program_level", "region", "direction", "target_group"},
     "salary": {"role", "region", "functionality", "months", "employee_count", "employment_percent", "cofunding"},
-    "support-letter": {"competition", "partner_role", "project_title", "target_value", "region_value", "support_type"},
+    "support-letter": {"value_keywords", "support_types", "support_details"},
     "presentation": {"project_description"},
     "scenario-plan": {"scenario_type", "description", "duration", "preparation", "participants"},
 }
@@ -32,10 +32,12 @@ def analyze_field_quality(module_slug: str, field_key: str, value: Any, form_con
         return _error("Выберите вид сценарного плана.")
 
     if not text:
-        if module_slug == "support-letter" and field_key == "partner":
-            return _warning("Если организация пока неизвестна, оставьте поле пустым и добавьте вручную позже.")
-        if module_slug == "support-letter" and field_key == "contribution_amount":
-            return _warning("Если сумма неизвестна, Лари оставит место для ручной вставки.")
+        if module_slug == "support-letter" and field_key == "value_keywords":
+            return _error("Добавьте ключевые смыслы проекта: для кого, где и почему проект важен.")
+        if module_slug == "support-letter" and field_key == "support_types":
+            return _error("Выберите хотя бы один вид поддержки.")
+        if module_slug == "support-letter" and field_key == "support_details":
+            return _error("Опишите, что именно делает партнер.")
         if field_key in REQUIRED_FIELDS.get(module_slug, set()):
             return _error("Заполните это поле, чтобы запустить.")
         return _success()
@@ -68,8 +70,14 @@ def analyze_field_quality(module_slug: str, field_key: str, value: Any, form_con
         if field_key == "functionality" and _word_count(text) < 10:
             return _warning("Опишите 2–3 обязанности: что делает специалист и к каким мероприятиям относится.")
 
-    if module_slug == "support-letter" and field_key == "contribution_amount" and _has_letters(text) and not _has_digits(text):
-        return _error("Укажите вклад числом в рублях или оставьте поле пустым.")
+    if module_slug == "support-letter":
+        official_hint = _official_language_hint(field_key, text)
+        if official_hint:
+            return official_hint
+        if field_key == "cofinance_block" and (not _has_digits(text) or _has_letters(text) or any(char in text for char in "₽.,;:")):
+            return _error("Введите оценку вклада только числом, без слова “рублей”.")
+        if field_key in {"value_keywords", "support_details"} and _word_count(text) < 8:
+            return _warning("Добавьте 1–2 факта: для кого проект, что делает партнер и где это произойдет.")
 
     if module_slug == "presentation" and field_key == "project_description" and len(text) < 500:
         return _warning("Материала мало. Можно запускать, но добавьте идею, аудиторию, сроки и результаты, если они есть.")
@@ -99,7 +107,35 @@ def _limit(message: str) -> str:
 def _string(value: Any) -> str:
     if value is None:
         return ""
+    if isinstance(value, list):
+        return "; ".join(str(item).strip() for item in value if str(item).strip())
     return str(value).strip()
+
+
+def _official_language_hint(field_key: str, text: str) -> dict | None:
+    if field_key not in {"partner_name", "partner_intro_block", "project_title", "support_details", "signatory"}:
+        return None
+    scan = _normalize_for_scan(text)
+    offensive = ["негр", "хач", "чурк", "пидор", "пида", "хуй", "хуе", "пизд", "еба", "ебл", "бля", "сука"]
+    if any(item in scan for item in offensive):
+        return _error("Исправьте формулировку: письмо поддержки должно быть официальным и корректным.")
+
+    testish = ["кринж", "кринжульки", "asdf", "ыва"]
+    if any(item in scan for item in testish) or re.fullmatch(r"(тест|test)(\s+\d+)?", scan):
+        return _warning("Проверьте официальность формулировок: письмо поддержки будет загружаться в заявку ПФКИ.")
+
+    informal_signatory = ["адмирал", "генералиссимус", "повелитель", "магистр", "рыбаков олегинс"]
+    if field_key == "signatory" and any(item in scan for item in informal_signatory):
+        return _warning("Проверьте официальность формулировок: письмо поддержки будет загружаться в заявку ПФКИ.")
+
+    return None
+
+
+def _normalize_for_scan(value: str) -> str:
+    text = str(value or "").lower().replace("ё", "е")
+    text = re.sub(r"[«»„“\"'`]+", "", text)
+    text = re.sub(r"[^0-9a-zа-я]+", " ", text)
+    return re.sub(r"\s+", " ", text).strip()
 
 
 def _word_count(value: str) -> int:

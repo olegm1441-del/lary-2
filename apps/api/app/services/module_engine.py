@@ -8,6 +8,7 @@ from app.services.ai_router import AiRouterError, generate_with_gigachat
 from app.services.file_generators import generate_docx, generate_pdf, generate_pptx
 from app.services.module_inputs import normalize_inputs, primary_project_label
 from app.services.run_store import StoredRun, run_store
+from app.services.support_letter import SupportLetterDocument, build_support_letter_document
 
 
 def create_module_run(module_slug: str, inputs: dict, presentation_variant: str | None = None) -> StoredRun:
@@ -17,6 +18,10 @@ def create_module_run(module_slug: str, inputs: dict, presentation_variant: str 
 
     inputs = normalize_inputs(module_slug, inputs)
     _validate_module_create_inputs(module_slug, inputs)
+
+    if module_slug == "support-letter":
+        return _create_support_letter_run(module, inputs)
+
     run_id = str(uuid4())
     title = _result_title(module, inputs)
     sections = _build_sections(module_slug, inputs, presentation_variant)
@@ -59,6 +64,68 @@ def create_module_run(module_slug: str, inputs: dict, presentation_variant: str 
             files=files,
         )
     )
+
+
+def _create_support_letter_run(module: dict, inputs: dict) -> StoredRun:
+    document = build_support_letter_document(inputs)
+    run_id = str(uuid4())
+    run_dir = Path(settings.file_storage_dir) / run_id
+    run_dir.mkdir(parents=True, exist_ok=True)
+    path = run_dir / document.filename
+    path.write_bytes(document.docx_bytes)
+
+    title = f"{module['title']}: {document.normalized.project_title}"
+    summary = "Письмо поддержки готово. Перед загрузкой в заявку проверьте текст, дату, исходящий номер, подпись и печать при наличии."
+    sections = _support_letter_sections(document)
+    downloads = {"docx": f"/api/module-runs/{run_id}/download/docx"}
+    files = {"docx": str(path)}
+
+    return run_store.save(
+        StoredRun(
+            run_id=run_id,
+            module_slug="support-letter",
+            title=title,
+            status="completed",
+            summary=summary,
+            sections=sections,
+            downloads=downloads,
+            files=files,
+        )
+    )
+
+
+def _support_letter_sections(document: SupportLetterDocument) -> list[dict[str, str]]:
+    payload = document.normalized
+    return [
+        {
+            "title": "Письмо поддержки готово",
+            "body": "Скачайте DOCX, распечатайте письмо, укажите дату и исходящий номер, подпишите и поставьте печать при наличии.",
+        },
+        {
+            "title": "Партнер и проект",
+            "body": "\n".join(
+                [
+                    f"Партнер: {payload.partner_name}.",
+                    f"Описание партнера: {payload.partner_intro_block}.",
+                    f"Проект: {payload.project_title}.",
+                ]
+            ),
+        },
+        {
+            "title": "Вклад партнера",
+            "body": "\n".join(
+                [
+                    f"Вид поддержки: {'; '.join(payload.support_types)}.",
+                    f"Описание поддержки: {payload.support_details}.",
+                    f"Оценка вклада: {payload.cofinance.formatted} рублей.",
+                ]
+            ),
+        },
+        {
+            "title": "Что проверить перед загрузкой",
+            "body": "Проверьте, что письмо напечатано на бланке партнера при наличии, подписант указан корректно, а сумма вклада совпадает с бюджетом и софинансированием заявки.",
+        },
+    ]
 
 
 def _validate_module_create_inputs(module_slug: str, inputs: dict[str, str]) -> None:
@@ -174,12 +241,11 @@ def _build_sections(module_slug: str, inputs: dict, presentation_variant: str | 
             {"title": "Что проверить вручную", "body": "Источник средней зарплаты по региону, корректность процента занятости, номера мероприятий календарного плана и соответствие суммы бюджету заявки."},
         ],
         "support-letter": [
-            {"title": "Значимость для целевой группы", "body": str(inputs.get("target_value") or "Опишите, что меняется для целевой группы и почему партнер поддерживает проект.")},
-            {"title": "Значимость для региона", "body": str(inputs.get("region_value") or "Опишите, почему проект важен для территории и как партнер связан с этой задачей.")},
+            {"title": "Ключевые смыслы и значимость проекта", "body": str(inputs.get("value_keywords") or "Опишите, для кого и почему партнер поддерживает проект.")},
             {"title": "Вклад партнера", "body": "\n".join([
-                f"Тип поддержки: {inputs.get('support_type') or inputs.get('partner_role') or 'уточнить'}",
-                f"Вклад в рублях: {inputs.get('contribution_amount') or inputs.get('contribution') or 'ВСТАВЬТЕ СУММУ ИЛИ ФОРМУЛИРОВКУ БЕЗ ОЦЕНКИ ВКЛАДА'}",
-                f"Дополнительные сведения: {inputs.get('details') or 'не указаны'}",
+                f"Вид поддержки: {inputs.get('support_types') or 'уточнить'}",
+                f"Оценка вклада, рублей: {inputs.get('cofinance_block') or 'уточнить'}",
+                f"Что именно делает партнер: {inputs.get('support_details') or 'не указано'}",
             ])},
             {"title": "Чек-лист оформления", "body": "Проверьте подпись, печать, дату, исходящий номер, реквизиты и корректного адресата конкурса."},
         ],
@@ -230,7 +296,6 @@ def _enrich_with_ai(module_slug: str, inputs: dict, sections: list[dict[str, str
 
 
 def _build_ai_prompt(module_slug: str, inputs: dict) -> str:
-    prompt_inputs = _ai_prompt_inputs(module_slug, inputs)
     shared_rules = (
         "Ты — эксперт по заявкам ПФКИ. Подготовь текстовые блоки результата для выбранного модуля.\n"
         "Формат ответа строго такой, без Markdown и без дополнительных комментариев:\n"
@@ -241,7 +306,7 @@ def _build_ai_prompt(module_slug: str, inputs: dict) -> str:
         "Запрещено использовать символы **, ###, ---, слово «Краткое описание» и технический заголовок «AI-уточнение».\n"
         "Не пиши воду и объяснения о том, что нужно сделать. Пиши готовый текст.\n"
         "Не выдумывай точные номера, даты и реквизиты документов. Если реквизит не гарантирован, напиши «проверить реквизиты на официальном источнике».\n"
-        f"Данные пользователя: {prompt_inputs}.\n"
+        f"Данные пользователя: {inputs}.\n"
     )
     module_rules = {
         "social-research": (
@@ -260,9 +325,8 @@ def _build_ai_prompt(module_slug: str, inputs: dict) -> str:
             "Не добавляй предложения по оптимизации, если пользователь не просил."
         ),
         "support-letter": (
-            "Нужны разделы: Адресат и партнер, Текст поддержки, Вклад партнера, Значение для территории, Чек-лист оформления. "
-            "Пиши как рабочую заготовку письма поддержки. Не пиши сумму софинансирования, оценку вклада в рублях, денежный эквивалент поддержки "
-            "или фразу «Оценка вклада» — сумма подставляется в документ отдельно."
+            "Нужны разделы: Партнер и проект, Значимость проекта, Вклад партнера, Чек-лист оформления. "
+            "Пиши как рабочую заготовку письма поддержки без подписи и без выдуманных реквизитов."
         ),
         "presentation": (
             "Нужны разделы: Структура презентации, Слайды 1-3, Слайды 4-7, Слайды 8-12, Визуальные акценты. "
@@ -274,13 +338,6 @@ def _build_ai_prompt(module_slug: str, inputs: dict) -> str:
         ),
     }
     return shared_rules + "\n" + module_rules.get(module_slug, "Сделай 4-6 смысловых разделов по модулю, готовых для вставки в документ.")
-
-
-def _ai_prompt_inputs(module_slug: str, inputs: dict) -> dict:
-    if module_slug != "support-letter":
-        return inputs
-    hidden_keys = {"contribution_amount", "contribution", "cofinance_block", "support_amount"}
-    return {key: value for key, value in inputs.items() if key not in hidden_keys}
 
 
 def _parse_ai_sections(module_slug: str, text: str) -> list[dict[str, str]]:
@@ -352,9 +409,6 @@ def _clean_ai_line(line: str) -> str:
 
 
 def _postprocess_ai_section(module_slug: str, section: dict[str, str]) -> dict[str, str]:
-    if module_slug == "support-letter":
-        return {"title": section["title"], "body": _remove_ai_cofinance_amounts(section["body"])}
-
     if module_slug != "legal-acts":
         return section
 
@@ -367,20 +421,6 @@ def _postprocess_ai_section(module_slug: str, section: dict[str, str]) -> dict[s
     body = re.sub(r"\s{2,}", " ", body)
     body = body.replace("источник: официальный сайт органа власти", "источник: официальный сайт органа власти")
     return {"title": section["title"], "body": body.strip()}
-
-
-def _remove_ai_cofinance_amounts(body: str) -> str:
-    lines = []
-    money_pattern = re.compile(r"(?:\d[\d\s.,]*|[а-яё]+)\s*(?:тыс\.?|тысяч[аи]?|млн\.?|миллион[а-яё]*)?\s*(?:руб(?:\.|лей|ля|ль)?|₽)", re.IGNORECASE)
-    forbidden_terms = re.compile(r"(оценк[аиу]\s+вклада|сумм[ауы]\s+софинансирования|финансов[а-яё\s]+вклад|денежн[а-яё\s]+эквивалент)", re.IGNORECASE)
-    for raw_line in str(body or "").splitlines():
-        line = raw_line.strip()
-        if not line:
-            continue
-        if forbidden_terms.search(line) and money_pattern.search(line):
-            continue
-        lines.append(raw_line)
-    return "\n".join(lines).strip()
 
 
 def _fallback_ai_title(module_slug: str) -> str:

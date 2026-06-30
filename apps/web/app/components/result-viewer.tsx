@@ -106,6 +106,7 @@ function ResultActions({ result, onResult }: { result: ResultPayload; onResult: 
     ...(preferred ? [[preferred, result.downloads[preferred]]] : []),
     ...Object.entries(result.downloads).filter(([format]) => format !== preferred),
   ];
+  const copyAvailable = result.module_slug !== "support-letter";
 
   async function copyResult() {
     const text = [result.title, result.summary, ...result.sections.map((section) => `${section.title}\n${section.body}`)].join("\n\n");
@@ -143,9 +144,11 @@ function ResultActions({ result, onResult }: { result: ResultPayload; onResult: 
           Скачать {format.toUpperCase()}
         </a>
       ))}
-      <button type="button" onClick={() => void copyResult()} className="min-h-14 rounded-2xl border border-slate-300 px-6 py-4 text-lg font-semibold text-slate-900 hover:bg-slate-50">
-        Скопировать
-      </button>
+      {copyAvailable ? (
+        <button type="button" onClick={() => void copyResult()} className="min-h-14 rounded-2xl border border-slate-300 px-6 py-4 text-lg font-semibold text-slate-900 hover:bg-slate-50">
+          Скопировать
+        </button>
+      ) : null}
       <button id="improve" type="button" onClick={() => void improveResult()} className="min-h-14 rounded-2xl border border-slate-300 px-6 py-4 text-lg font-semibold text-slate-900 hover:bg-slate-50">
         Улучшить
       </button>

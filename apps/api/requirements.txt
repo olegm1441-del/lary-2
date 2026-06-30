@@ -8,6 +8,7 @@ pydantic
 sqlalchemy
 psycopg[binary]
 python-docx
+docxtpl
 python-pptx
 reportlab
 font-roboto==0.0.1

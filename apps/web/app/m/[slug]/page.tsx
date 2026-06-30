@@ -27,6 +27,11 @@ export default async function ModulePage({ params, searchParams }: { params: Pro
 
   const isComingSoon = laryModule.status === "coming_soon";
   const showExample = query.example === "1";
+  const formTitle = laryModule.slug === "support-letter" ? "Заполните данные партнера и вклада" : "Заполните то, что уже известно";
+  const formDescription =
+    laryModule.slug === "support-letter"
+      ? "Пишите коротко и фактами. Лари соберет письмо по шаблону: отдельно подставит данные партнера, аккуратно сформулирует значимость проекта и опишет вклад партнера."
+      : "Лари обработает ответы и подготовит рабочий файл для скачивания.";
 
   return (
     <PageShell>
@@ -65,10 +70,8 @@ export default async function ModulePage({ params, searchParams }: { params: Pro
             <div>
               <div className="rounded-3xl border border-slate-200 bg-white p-6">
                 <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">Ответьте на вопросы</p>
-                <h2 className="mt-2 text-3xl font-bold">Заполните то, что уже известно</h2>
-                <p className="mt-3 text-lg leading-8 text-slate-700">
-                  Лари обработает ответы и подготовит рабочий файл для скачивания.
-                </p>
+                <h2 className="mt-2 text-3xl font-bold">{formTitle}</h2>
+                <p className="mt-3 text-lg leading-8 text-slate-700">{formDescription}</p>
               </div>
               {showExample ? <ExampleResult slug={laryModule.slug} title={laryModule.taskTitle} /> : null}
               <ModuleRunner module={laryModule} />
@@ -127,8 +130,8 @@ const EXAMPLE_RESULTS: Record<string, Array<{ title: string; body: string }>> = 
     { title: "Обоснование", body: "Связь должности с мероприятиями и результатами проекта." },
   ],
   "support-letter": [
-    { title: "Текст письма", body: "Рабочая заготовка письма партнера с ролью, вкладом и значимостью проекта." },
-    { title: "Чек-лист", body: "Подпись, печать, дата, исходящий номер и подтверждение вклада." },
+    { title: "DOCX-письмо", body: "Письмо по шаблону ПФКИ с названием партнера, описанием поддержки, вкладом и подписантом." },
+    { title: "Чек-лист", body: "Дата, исходящий номер, подпись, печать при наличии и подтверждение суммы вклада." },
   ],
   presentation: [
     { title: "Структура", body: "Обложка, идея, актуальность, аудитория, механика, календарный план, команда, результаты." },
