@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import type { LaryModule } from "../lib/lary-data";
 import { apiUrl, readApiError } from "../lib/api-client";
 import { USAGE_UPDATED_EVENT } from "./module-attempt-status";
@@ -13,6 +13,7 @@ type UsagePayload = {
 type WorkloadMode = "percent" | "hours_total";
 type SourceScope = "all" | "aggregators" | "official";
 type CofinanceSource = "own_legal_entity_funds" | "partner_letter_funds";
+type VoiceState = "idle" | "recording" | "uploading";
 
 type SalaryPositionDraft = {
   id: string;
@@ -44,27 +45,12 @@ type SalaryGenerateResult = {
 };
 
 const STORAGE_KEY = "lary.module_draft.salary.v2";
-
 const REGION_OPTIONS = ["Свердловская область", "Республика Татарстан", "Москва", "Санкт-Петербург", "Краснодарский край", "Нижегородская область"];
-
-const SOURCE_OPTIONS: Array<{ value: SourceScope; label: string; hint: string }> = [
-  {
-    value: "all",
-    label: "Все доступные",
-    hint: "Искать по агрегаторам вакансий и официальной статистике, затем выбрать самый высокий подтвержденный показатель.",
-  },
-  {
-    value: "aggregators",
-    label: "Агрегаторы вакансий",
-    hint: "Использовать источники с зарплатными предложениями по должности: ГородРабот, HH, Trudvsem, доступные адаптеры.",
-  },
-  {
-    value: "official",
-    label: "Официальная статистика",
-    hint: "Использовать официальный региональный ориентир Росстат/ЕМИСС, если он доступен.",
-  },
+const SOURCE_OPTIONS: Array<{ value: SourceScope; label: string }> = [
+  { value: "all", label: "Все доступные" },
+  { value: "aggregators", label: "Агрегаторы вакансий" },
+  { value: "official", label: "Официальная статистика" },
 ];
-
 const COFINANCE_OPTIONS: Array<{ value: CofinanceSource; label: string }> = [
   { value: "own_legal_entity_funds", label: "Собственные средства юридического лица" },
   { value: "partner_letter_funds", label: "Привлеченные средства согласно письму поддержки" },
@@ -76,16 +62,29 @@ export function SalaryModuleRunner({ module }: { module: LaryModule }) {
   const [state, setState] = useState<"idle" | "submitting" | "error">("idle");
   const [message, setMessage] = useState("");
   const [result, setResult] = useState<SalaryGenerateResult | null>(null);
+  const [voiceState, setVoiceState] = useState<VoiceState>("idle");
+  const [voiceTargetId, setVoiceTargetId] = useState<string | null>(null);
+  const [voiceMessage, setVoiceMessage] = useState("");
+
+  const mediaStreamRef = useRef<MediaStream | null>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const processorRef = useRef<ScriptProcessorNode | null>(null);
+  const sourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
+  const silentGainRef = useRef<GainNode | null>(null);
+  const audioChunksRef = useRef<Float32Array[]>([]);
+  const sourceSampleRateRef = useRef(44100);
+  const stopTimerRef = useRef<number | null>(null);
 
   const validationErrors = useMemo(() => validateDraft(draft), [draft]);
   const canSubmit = validationErrors.length === 0;
+  const duplicateTitleCounts = useMemo(() => buildDuplicateTitleCounts(draft.positions), [draft.positions]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
       try {
         window.localStorage.setItem(STORAGE_KEY, JSON.stringify(draft));
       } catch {
-        // Черновик — локальное удобство. Основной результат сохраняется backend-ом.
+        // Локальный черновик не является источником истины.
       }
     }, 250);
     return () => window.clearTimeout(timer);
@@ -145,7 +144,7 @@ export function SalaryModuleRunner({ module }: { module: LaryModule }) {
       const payload = await response.json();
       setResult(payload);
       setState("idle");
-      setMessage("Расчет готов");
+      setMessage("");
       window.dispatchEvent(new CustomEvent(USAGE_UPDATED_EVENT));
     } catch (error) {
       setState("error");
@@ -161,6 +160,13 @@ export function SalaryModuleRunner({ module }: { module: LaryModule }) {
     setDraft((current) => ({
       ...current,
       positions: current.positions.map((position) => (position.id === id ? { ...position, ...patch } : position)),
+    }));
+  }
+
+  function appendPositionText(id: string, text: string) {
+    setDraft((current) => ({
+      ...current,
+      positions: current.positions.map((position) => (position.id === id ? { ...position, functionality: appendText(position.functionality, text) } : position)),
     }));
   }
 
@@ -183,22 +189,132 @@ export function SalaryModuleRunner({ module }: { module: LaryModule }) {
     });
   }
 
+  async function startVoice(positionId: string) {
+    if (voiceState === "recording" && voiceTargetId === positionId) {
+      await stopVoiceAndSend();
+      return;
+    }
+    if (voiceState !== "idle") {
+      setVoiceMessage("Сначала завершите текущую голосовую запись.");
+      return;
+    }
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setVoiceMessage("В этом браузере голосовой ввод недоступен. Заполните поле текстом.");
+      return;
+    }
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const AudioContextClass = window.AudioContext || (window as Window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+      if (!AudioContextClass) {
+        stream.getTracks().forEach((track) => track.stop());
+        setVoiceMessage("Браузер не поддерживает запись звука. Заполните поле текстом.");
+        return;
+      }
+
+      const audioContext = new AudioContextClass();
+      const source = audioContext.createMediaStreamSource(stream);
+      const processor = audioContext.createScriptProcessor(4096, 1, 1);
+      const silentGain = audioContext.createGain();
+      silentGain.gain.value = 0;
+
+      audioChunksRef.current = [];
+      sourceSampleRateRef.current = audioContext.sampleRate;
+      processor.onaudioprocess = (event) => {
+        audioChunksRef.current.push(new Float32Array(event.inputBuffer.getChannelData(0)));
+      };
+
+      source.connect(processor);
+      processor.connect(silentGain);
+      silentGain.connect(audioContext.destination);
+
+      mediaStreamRef.current = stream;
+      audioContextRef.current = audioContext;
+      processorRef.current = processor;
+      sourceRef.current = source;
+      silentGainRef.current = silentGain;
+      setVoiceTargetId(positionId);
+      setVoiceState("recording");
+      setVoiceMessage("Идет запись поля «Что делает сотрудник». Нажмите «Остановить запись», когда закончите.");
+      stopTimerRef.current = window.setTimeout(() => {
+        void stopVoiceAndSend();
+      }, 55_000);
+    } catch {
+      setVoiceState("idle");
+      setVoiceTargetId(null);
+      setVoiceMessage("Не удалось получить доступ к микрофону. Проверьте разрешение браузера или заполните поле текстом.");
+      cleanupVoice();
+    }
+  }
+
+  async function stopVoiceAndSend() {
+    const targetId = voiceTargetId;
+    if (!targetId) return;
+
+    setVoiceState("uploading");
+    setVoiceMessage("Распознаем запись для поля «Что делает сотрудник»...");
+    cleanupVoice();
+
+    const chunks = audioChunksRef.current;
+    if (!chunks.length) {
+      setVoiceState("idle");
+      setVoiceTargetId(null);
+      setVoiceMessage("Запись получилась пустой. Попробуйте еще раз или заполните поле текстом.");
+      return;
+    }
+
+    try {
+      const pcm = encodePcm16(downsampleTo16Khz(chunks, sourceSampleRateRef.current));
+      const formData = new FormData();
+      formData.append("audio", new File([pcm], "voice.pcm", { type: "audio/x-pcm;bit=16;rate=16000" }));
+      const response = await fetch(apiUrl("/api/speech/transcribe"), {
+        method: "POST",
+        credentials: "include",
+        body: formData,
+      });
+      if (!response.ok) throw new Error(await readApiError(response));
+      const payload = await response.json();
+      const text = typeof payload?.text === "string" ? payload.text.trim() : "";
+      if (!text) throw new Error("Не получилось распознать голос. Можно заполнить поле текстом.");
+      appendPositionText(targetId, text);
+      setVoiceMessage("");
+    } catch (error) {
+      setVoiceMessage(error instanceof Error ? error.message : "Не получилось распознать голос. Можно заполнить поле текстом.");
+    } finally {
+      setVoiceState("idle");
+      setVoiceTargetId(null);
+      audioChunksRef.current = [];
+    }
+  }
+
+  function cleanupVoice() {
+    if (stopTimerRef.current) {
+      window.clearTimeout(stopTimerRef.current);
+      stopTimerRef.current = null;
+    }
+    processorRef.current?.disconnect();
+    sourceRef.current?.disconnect();
+    silentGainRef.current?.disconnect();
+    mediaStreamRef.current?.getTracks().forEach((track) => track.stop());
+    void audioContextRef.current?.close();
+    processorRef.current = null;
+    sourceRef.current = null;
+    silentGainRef.current = null;
+    mediaStreamRef.current = null;
+    audioContextRef.current = null;
+  }
+
   return (
     <form onSubmit={(event) => void submit(event)} noValidate className="mt-6 grid gap-5">
       <section className="rounded-3xl border border-slate-200 bg-white p-5">
-        <h3 className="text-2xl font-bold text-slate-950">Заполните расчет по должностям</h3>
-        <p className="mt-2 text-base leading-7 text-slate-600">
-          Добавьте одну или несколько должностей. Лари проверит доступные источники зарплат, выберет самый высокий подтвержденный показатель и соберет расчет с обоснованием.
-        </p>
-
-        <div className="mt-5 grid gap-5">
-          <FieldBlock label="Регион" required hint="Выберите регион, по которому нужно найти зарплатный ориентир.">
+        <div className="grid gap-5">
+          <FieldBlock label="Регион" required>
             <input
               list="salary-region-options"
               value={draft.region}
               onChange={(event) => updateDraft("region", event.target.value)}
               className={inputClassName}
-              placeholder="Например: Свердловская область"
+              placeholder="Например: Санкт-Петербург"
             />
             <datalist id="salary-region-options">
               {REGION_OPTIONS.map((region) => (
@@ -208,24 +324,23 @@ export function SalaryModuleRunner({ module }: { module: LaryModule }) {
             {!draft.region.trim() ? <InlineError>Выберите регион расчета.</InlineError> : null}
           </FieldBlock>
 
-          <FieldBlock label="База расчета" required hint="Лари проверит доступные источники и выберет самый высокий подтвержденный показатель из выбранной группы.">
+          <FieldBlock label="База расчета" required>
             <div className="grid gap-3">
               {SOURCE_OPTIONS.map((option) => (
                 <button
                   type="button"
                   key={option.value}
                   onClick={() => updateDraft("source_scope", option.value)}
-                  className={`rounded-2xl border p-4 text-left ${draft.source_scope === option.value ? "border-blue-800 bg-blue-50" : "border-slate-300 bg-white"}`}
+                  className={`rounded-2xl border p-4 text-left text-lg font-bold ${draft.source_scope === option.value ? "border-blue-800 bg-blue-50 text-blue-950" : "border-slate-300 bg-white text-slate-800"}`}
                   aria-pressed={draft.source_scope === option.value}
                 >
-                  <span className="block text-lg font-bold">{option.label}</span>
-                  <span className="mt-1 block text-base leading-7 text-slate-600">{option.hint}</span>
+                  {option.label}
                 </button>
               ))}
             </div>
           </FieldBlock>
 
-          <FieldBlock label="Софинансирование" required hint="Этот текст попадет в обоснование источника софинансирования.">
+          <FieldBlock label="Софинансирование" required>
             <div className="grid gap-3 sm:grid-cols-2">
               {COFINANCE_OPTIONS.map((option) => (
                 <label key={option.value} className={`flex min-h-14 cursor-pointer items-center gap-3 rounded-2xl border p-4 ${draft.cofinance_source === option.value ? "border-blue-800 bg-blue-50" : "border-slate-300 bg-white"}`}>
@@ -246,32 +361,28 @@ export function SalaryModuleRunner({ module }: { module: LaryModule }) {
       </section>
 
       <section className="rounded-3xl border border-slate-200 bg-white p-5">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <h3 className="text-2xl font-bold text-slate-950">Позиции расчета</h3>
-            <p className="mt-2 max-w-3xl text-base leading-7 text-slate-600">
-              Добавьте одну или несколько должностей. Лари рассчитает каждую позицию отдельно и соберет общий итог.
-            </p>
-          </div>
-          <button type="button" onClick={addPosition} className="min-h-12 rounded-2xl border border-blue-800 px-5 py-3 text-base font-semibold text-blue-800 hover:bg-blue-50">
-            Добавить должность
-          </button>
-        </div>
-
+        <h3 className="text-2xl font-bold text-slate-950">Позиции расчета</h3>
         <div className="mt-5 grid gap-5">
           {draft.positions.map((position, index) => (
             <PositionCard
               key={position.id}
-              index={index}
+              title={positionDisplayTitle(position, duplicateTitleCounts, draft.positions.slice(0, index + 1))}
               position={position}
               canDelete={draft.positions.length > 1}
               onChange={(patch) => updatePosition(position.id, patch)}
               onDuplicate={() => duplicatePosition(position.id)}
               onRemove={() => removePosition(position.id)}
+              onStartVoice={() => void startVoice(position.id)}
+              voiceState={voiceTargetId === position.id ? voiceState : "idle"}
             />
           ))}
+          <button type="button" onClick={addPosition} className="min-h-12 rounded-2xl border border-blue-800 px-5 py-3 text-base font-semibold text-blue-800 hover:bg-blue-50">
+            Добавить должность
+          </button>
         </div>
       </section>
+
+      {voiceMessage ? <div className="rounded-2xl bg-blue-50 p-4 text-base leading-7 text-blue-950">{voiceMessage}</div> : null}
 
       <section className="rounded-3xl border border-slate-200 bg-white p-6">
         <p className={`rounded-2xl p-4 text-base leading-7 ${canSubmit ? "bg-green-50 text-green-900" : "bg-red-50 text-red-900"}`}>
@@ -294,30 +405,34 @@ export function SalaryModuleRunner({ module }: { module: LaryModule }) {
 }
 
 function PositionCard({
-  index,
+  title,
   position,
   canDelete,
   onChange,
   onDuplicate,
   onRemove,
+  onStartVoice,
+  voiceState,
 }: {
-  index: number;
+  title: string;
   position: SalaryPositionDraft;
   canDelete: boolean;
   onChange: (patch: Partial<SalaryPositionDraft>) => void;
   onDuplicate: () => void;
   onRemove: () => void;
+  onStartVoice: () => void;
+  voiceState: VoiceState;
 }) {
   const workloadLabel = position.workload_mode === "hours_total" ? "Часы за весь проект на одного сотрудника" : "Занятость одного сотрудника, %";
   const workloadHint =
     position.workload_mode === "hours_total"
-      ? "Например: 96. Лари рассчитает почасовую ставку от месячной зарплаты, принимая норму 160 часов в месяц."
-      : "Например: 40. Формула: зарплата × 40% × месяцы × количество сотрудников.";
+      ? "Формула: зарплата / 166 × часы × количество."
+      : "Формула: зарплата × процент × месяцы × количество.";
 
   return (
     <article className="rounded-3xl border border-slate-200 bg-slate-50 p-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h4 className="text-xl font-bold text-slate-950">Должность {index + 1}</h4>
+        <h4 className="text-xl font-bold text-slate-950">{title}</h4>
         <div className="flex flex-wrap gap-2">
           <button type="button" onClick={onDuplicate} className="min-h-11 rounded-2xl border border-slate-300 bg-white px-4 py-2 text-base font-semibold text-slate-900 hover:bg-blue-50">
             Дублировать
@@ -334,20 +449,20 @@ function PositionCard({
       </div>
 
       <div className="mt-5 grid gap-5">
-        <FieldBlock label="Должность в проекте" required hint="Напишите должность так, как она будет в бюджете проекта. Лари сам попробует найти подходящие зарплатные данные и смежные названия.">
+        <FieldBlock label="Должность в проекте" required hint="Как в бюджете проекта.">
           <input className={inputClassName} value={position.role_title} onChange={(event) => onChange({ role_title: event.target.value })} placeholder="Например: координатор проекта" />
         </FieldBlock>
 
         <div className="grid gap-5 sm:grid-cols-2">
-          <FieldBlock label="Количество сотрудников в этой роли" required hint="Если несколько человек выполняют одинаковую роль с одинаковой занятостью, укажите их количество здесь.">
-            <input className={inputClassName} type="number" min={1} value={position.staff_count} onChange={(event) => onChange({ staff_count: event.target.value })} />
+          <FieldBlock label="Количество сотрудников в этой роли" required>
+            <input className={inputClassName} type="number" min={1} value={position.staff_count} onChange={(event) => onChange({ staff_count: event.target.value })} placeholder="Например: 1" />
           </FieldBlock>
-          <FieldBlock label="Срок работы в проекте, месяцев" required hint="Укажите только период работы в рамках проекта.">
-            <input className={inputClassName} type="number" min={1} step="0.5" value={position.duration_months} onChange={(event) => onChange({ duration_months: event.target.value })} />
+          <FieldBlock label="Срок работы в проекте, месяцев" required>
+            <input className={inputClassName} type="number" min={1} step="0.5" value={position.duration_months} onChange={(event) => onChange({ duration_months: event.target.value })} placeholder="Например: 4" />
           </FieldBlock>
         </div>
 
-        <FieldBlock label="Как считать занятость" required hint="Выберите процент занятости за месяц или общее число часов за весь проект.">
+        <FieldBlock label="Как считать занятость" required>
           <div className="grid gap-3 sm:grid-cols-2">
             {[
               ["percent", "% времени"],
@@ -366,14 +481,41 @@ function PositionCard({
         </FieldBlock>
 
         <FieldBlock label={workloadLabel} required hint={workloadHint}>
-          <input className={inputClassName} type="number" min={1} max={position.workload_mode === "percent" ? 100 : undefined} value={position.workload_value} onChange={(event) => onChange({ workload_value: event.target.value })} />
+          <input
+            className={inputClassName}
+            type="number"
+            min={1}
+            max={position.workload_mode === "percent" ? 100 : undefined}
+            value={position.workload_value}
+            onChange={(event) => onChange({ workload_value: event.target.value })}
+            placeholder={position.workload_mode === "percent" ? "Например: 40" : "Например: 96"}
+          />
         </FieldBlock>
 
-        <FieldBlock label="Что делает сотрудник" hint="Можно написать коротко. Если оставить пустым, Лари предложит типовой функционал по должности.">
+        <FieldBlock label="Что делает сотрудник" hint="Можно оставить пустым — Лари предложит типовой функционал по должности.">
           <textarea className={`${inputClassName} min-h-32`} value={position.functionality} onChange={(event) => onChange({ functionality: event.target.value })} placeholder="Например: ведет списки участников, согласует расписание, собирает обратную связь" />
+          <div className="mt-3 flex flex-wrap gap-3">
+            <button
+              type="button"
+              onClick={onStartVoice}
+              disabled={voiceState === "uploading"}
+              className="min-h-12 rounded-2xl border border-blue-800 px-4 py-3 text-base font-semibold text-blue-800 hover:bg-blue-50 disabled:border-slate-300 disabled:text-slate-400"
+            >
+              {voiceState === "recording" ? "Остановить запись" : voiceState === "uploading" ? "Распознаем..." : "Наговорить ответ"}
+            </button>
+            {position.functionality ? (
+              <button
+                type="button"
+                onClick={() => onChange({ functionality: "" })}
+                className="min-h-12 rounded-2xl border border-slate-300 px-4 py-3 text-base font-semibold text-slate-700 hover:bg-slate-50"
+              >
+                Очистить
+              </button>
+            ) : null}
+          </div>
         </FieldBlock>
 
-        <FieldBlock label="Мероприятия календарного плана" hint="Необязательно. Если номера пока неизвестны, оставьте поле пустым — Лари поставит пометку для ручной вставки.">
+        <FieldBlock label="Мероприятия календарного плана" hint="Если неизвестно, оставьте пустым.">
           <input className={inputClassName} value={position.calendar_events} onChange={(event) => onChange({ calendar_events: event.target.value })} placeholder="Например: 1.1–1.4, 2.1–2.3, 3.1" />
         </FieldBlock>
       </div>
@@ -383,23 +525,17 @@ function PositionCard({
 
 function SalaryResultBlock({ result, onRerun }: { result: SalaryGenerateResult; onRerun: () => void }) {
   const docx = result.downloads.docx;
+  const [copied, setCopied] = useState(false);
 
   async function copyText() {
     await navigator.clipboard?.writeText(result.plain_text);
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 1800);
   }
 
   return (
     <section className="rounded-3xl border border-green-200 bg-green-50 p-6 text-green-950">
-      <p className="text-sm font-semibold uppercase tracking-wide">Расчет готов</p>
-      <h3 className="mt-2 text-3xl font-bold">Plain-text результат</h3>
-      <pre className="mt-5 max-h-[560px] overflow-auto whitespace-pre-wrap rounded-2xl bg-white p-5 text-base leading-7 text-slate-800">{result.plain_text}</pre>
-      {result.warnings?.length ? (
-        <div className="mt-4 rounded-2xl bg-orange-50 p-4 text-base leading-7 text-orange-950">
-          {result.warnings.map((warning) => (
-            <p key={warning}>{warning}</p>
-          ))}
-        </div>
-      ) : null}
+      <h3 className="text-3xl font-bold">Расчет готов</h3>
       <div className="mt-5 flex flex-wrap gap-3">
         {docx ? (
           <a href={apiUrl(docx)} className="inline-flex min-h-14 items-center justify-center rounded-2xl bg-blue-800 px-6 py-4 text-lg font-semibold text-white hover:bg-blue-900">
@@ -407,20 +543,27 @@ function SalaryResultBlock({ result, onRerun }: { result: SalaryGenerateResult; 
           </a>
         ) : null}
         <button type="button" onClick={() => void copyText()} className="min-h-14 rounded-2xl border border-green-700 bg-white px-6 py-4 text-lg font-semibold text-green-900 hover:bg-green-100">
-          Скопировать текст
+          ⧉ Скопировать
         </button>
         <button type="button" onClick={onRerun} className="min-h-14 rounded-2xl border border-green-700 bg-white px-6 py-4 text-lg font-semibold text-green-900 hover:bg-green-100">
           Рассчитать заново
         </button>
-        <a href={`/run/${result.run_id}/result`} className="inline-flex min-h-14 items-center justify-center rounded-2xl border border-green-700 bg-white px-6 py-4 text-lg font-semibold text-green-900 hover:bg-green-100">
-          Открыть страницу результата
-        </a>
       </div>
+      {copied ? <p className="mt-3 rounded-2xl bg-white px-4 py-3 text-base font-semibold text-green-900">Скопировано</p> : null}
+      <h4 className="mt-6 text-2xl font-bold">Текст результата</h4>
+      <pre className="mt-4 max-h-[560px] overflow-auto whitespace-pre-wrap rounded-2xl bg-white p-5 text-base leading-7 text-slate-800">{result.plain_text}</pre>
+      {result.warnings?.length ? (
+        <div className="mt-4 rounded-2xl bg-orange-50 p-4 text-base leading-7 text-orange-950">
+          {result.warnings.map((warning) => (
+            <p key={warning}>{warning}</p>
+          ))}
+        </div>
+      ) : null}
     </section>
   );
 }
 
-function FieldBlock({ label, hint, required = false, children }: { label: string; hint: string; required?: boolean; children: React.ReactNode }) {
+function FieldBlock({ label, hint, required = false, children }: { label: string; hint?: string; required?: boolean; children: React.ReactNode }) {
   return (
     <label className="block">
       <span className="flex flex-wrap items-center gap-2">
@@ -429,7 +572,7 @@ function FieldBlock({ label, hint, required = false, children }: { label: string
           {required ? "обязательно" : "можно позже"}
         </span>
       </span>
-      <span className="mt-2 block text-base leading-7 text-slate-600">{hint}</span>
+      {hint ? <span className="mt-2 block text-base leading-7 text-slate-600">{hint}</span> : null}
       <span className="mt-4 block">{children}</span>
     </label>
   );
@@ -532,6 +675,35 @@ function defaultPosition(): SalaryPositionDraft {
   };
 }
 
+function positionDisplayTitle(position: SalaryPositionDraft, duplicateTitleCounts: Record<string, number>, previousPositions: SalaryPositionDraft[]) {
+  const base = titleizeRole(position.role_title);
+  if (!base) return "Новая должность";
+  const key = titleKey(position.role_title);
+  if ((duplicateTitleCounts[key] || 0) < 2) return base;
+  const index = previousPositions.filter((item) => titleKey(item.role_title) === key).length;
+  return `${base} ${index}`;
+}
+
+function buildDuplicateTitleCounts(positions: SalaryPositionDraft[]) {
+  const duplicateTitleCounts: Record<string, number> = {};
+  positions.forEach((position) => {
+    const key = titleKey(position.role_title);
+    if (!key) return;
+    duplicateTitleCounts[key] = (duplicateTitleCounts[key] || 0) + 1;
+  });
+  return duplicateTitleCounts;
+}
+
+function titleizeRole(value: string) {
+  const cleaned = value.trim().replace(/\s+/g, " ");
+  if (!cleaned) return "";
+  return `${cleaned[0].toUpperCase()}${cleaned.slice(1)}`;
+}
+
+function titleKey(value: string) {
+  return value.trim().toLowerCase().replace(/ё/g, "е").replace(/\s+/g, " ");
+}
+
 function salaryButtonLabel(usage: UsagePayload | null) {
   const freeAvailable = usage?.modules?.salary?.free_attempt_available ?? true;
   if (freeAvailable || (usage?.paid_runs ?? 0) > 0) return "Рассчитать зарплату";
@@ -545,6 +717,49 @@ function toNumber(value: string) {
 
 function draftId() {
   return `pos-${Math.random().toString(36).slice(2)}-${Date.now().toString(36)}`;
+}
+
+function appendText(current: string | undefined, addition: string) {
+  const base = String(current || "").trim();
+  return base ? `${base}\n${addition}` : addition;
+}
+
+function downsampleTo16Khz(chunks: Float32Array[], inputSampleRate: number) {
+  const inputLength = chunks.reduce((sum, chunk) => sum + chunk.length, 0);
+  const input = new Float32Array(inputLength);
+  let offset = 0;
+  for (const chunk of chunks) {
+    input.set(chunk, offset);
+    offset += chunk.length;
+  }
+
+  const targetSampleRate = 16000;
+  if (inputSampleRate === targetSampleRate) return input;
+  const ratio = inputSampleRate / targetSampleRate;
+  const outputLength = Math.floor(input.length / ratio);
+  const output = new Float32Array(outputLength);
+  for (let index = 0; index < outputLength; index += 1) {
+    const start = Math.floor(index * ratio);
+    const end = Math.min(Math.floor((index + 1) * ratio), input.length);
+    let total = 0;
+    let count = 0;
+    for (let sourceIndex = start; sourceIndex < end; sourceIndex += 1) {
+      total += input[sourceIndex];
+      count += 1;
+    }
+    output[index] = count ? total / count : 0;
+  }
+  return output;
+}
+
+function encodePcm16(samples: Float32Array) {
+  const buffer = new ArrayBuffer(samples.length * 2);
+  const view = new DataView(buffer);
+  for (let index = 0; index < samples.length; index += 1) {
+    const sample = Math.max(-1, Math.min(1, samples[index]));
+    view.setInt16(index * 2, sample < 0 ? sample * 0x8000 : sample * 0x7fff, true);
+  }
+  return buffer;
 }
 
 const inputClassName = "min-h-14 w-full rounded-2xl border border-slate-300 bg-white p-4 text-lg outline-none focus:border-blue-700 focus:ring-2 focus:ring-blue-100";

@@ -124,10 +124,10 @@ class SalaryGenerateTest(unittest.TestCase):
 
         self.assertEqual(response.status_code, 200)
         body = response.json()
-        self.assertEqual(body["total_amount"], 208_000)
+        self.assertEqual(body["total_amount"], 204_530)
         self.assertIn("70 000 руб. × 40% × 4 мес. × 1", body["plain_text"])
-        self.assertIn("80 000 руб. / 160 × 96 ч. × 2", body["plain_text"])
-        self.assertIn("Итого по оплате труда: 208 000 руб.", body["plain_text"])
+        self.assertIn("80 000 руб. / 166 × 96 ч. × 2", body["plain_text"])
+        self.assertIn("Итого по оплате труда: 204 530 руб.", body["plain_text"])
         self.assertIn("привлеченные средства согласно письму поддержки", body["plain_text"])
 
     def test_generate_selects_highest_eligible_source_not_first(self):
@@ -158,6 +158,88 @@ class SalaryGenerateTest(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["positions"][0]["salary_value"], 74_000)
         self.assertIn("Trudvsem", response.json()["plain_text"])
+
+    def test_user_functionality_is_polished_and_calendar_events_are_formatted(self):
+        source = SalarySourceResult(
+            source="gorodrabot",
+            status="ok",
+            query_role="маркетолог",
+            matched_role="маркетолог",
+            region="Санкт-Петербург",
+            year=2025,
+            salary_value=92_780,
+            salary_type="mean",
+            source_url="https://spb.gorodrabot.ru/salaries/marketolog?y=2025",
+        )
+        payload = self._payload(
+            region="Санкт-Петербург",
+            positions=[
+                {
+                    "role_title": "маркетолог",
+                    "staff_count": 5,
+                    "duration_months": 3,
+                    "workload_mode": "hours_total",
+                    "workload_value": 123,
+                    "functionality": "формирует анонс кампанию и освещение проекта",
+                    "calendar_events": "1,2,3",
+                }
+            ],
+        )
+
+        client = TestClient(app)
+        with patch("app.services.salary_calculator.collect_salary_source_results", return_value=[source]):
+            response = client.post("/api/modules/salary/generate", json=payload)
+
+        self.assertEqual(response.status_code, 200)
+        plain_text = response.json()["plain_text"]
+        self.assertIn("92 780 руб. / 166 × 123 ч. × 5", plain_text)
+        self.assertIn("формирует анонсную кампанию проекта", plain_text)
+        self.assertNotIn("формирует анонс кампанию", plain_text)
+        self.assertIn("Календарный план: мероприятия № 1, 2, 3.", plain_text)
+
+    def test_source_notes_are_rendered_as_source_notes_not_after_cofinance(self):
+        source = SalarySourceResult(
+            source="gorodrabot",
+            status="ok",
+            query_role="координатор проекта",
+            matched_role="координатор проекта",
+            region="Свердловская область",
+            salary_value=70_000,
+            salary_type="mean",
+            source_url="https://gorodrabot.ru/source",
+        )
+        client = TestClient(app)
+        with patch("app.services.salary_calculator.collect_salary_source_results", return_value=[source]):
+            response = client.post("/api/modules/salary/generate", json=self._payload())
+
+        self.assertEqual(response.status_code, 200)
+        text = response.json()["plain_text"]
+        self.assertIn("Примечание к источнику:", text)
+        self.assertNotIn("Источник софинансирования: собственные средства юридического лица.\nПримечание:", text)
+
+    def test_empty_calendar_uses_exact_manual_placeholder_without_extra_period(self):
+        source = SalarySourceResult(
+            source="gorodrabot",
+            status="ok",
+            query_role="координатор проекта",
+            matched_role="координатор проекта",
+            region="Свердловская область",
+            salary_value=70_000,
+            salary_type="mean",
+            source_url="https://gorodrabot.ru/source",
+        )
+        payload = self._payload()
+        payload["positions"][0]["calendar_events"] = ""
+
+        client = TestClient(app)
+        with patch("app.services.salary_calculator.collect_salary_source_results", return_value=[source]):
+            response = client.post("/api/modules/salary/generate", json=payload)
+
+        self.assertEqual(response.status_code, 200)
+        text = response.json()["plain_text"]
+        expected = "Календарный план: УКАЖИТЕ НОМЕРА МЕРОПРИЯТИЙ КАЛЕНДАРНОГО ПЛАНА"
+        self.assertIn(expected, text)
+        self.assertNotIn(expected + ".", text)
 
     def test_source_scope_filters_sources(self):
         from app.services.salary_sources.aggregator import source_names_for_scope
@@ -235,7 +317,13 @@ class SalaryGenerateTest(unittest.TestCase):
             [position],
             109_395,
             "К включению в бюджет: 109 395 руб.",
-            ai_generate=lambda prompt: json.dumps({"plain_text": "68 372 руб. К включению в бюджет: 109 395 руб.", "items": []}, ensure_ascii=False),
+            ai_generate=lambda prompt: json.dumps(
+                {
+                    "plain_text": "68 372 руб. × 40% × 4 мес. × 1. К включению в бюджет: 109 395 руб. https://gorodrabot.ru/source",
+                    "items": [],
+                },
+                ensure_ascii=False,
+            ),
         )
 
         self.assertIsNone(invalid)

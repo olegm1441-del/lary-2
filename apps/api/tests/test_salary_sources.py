@@ -1,7 +1,10 @@
 import json
 import os
+import subprocess
 import statistics
+import sys
 import unittest
+from pathlib import Path
 from unittest.mock import patch
 
 from fastapi.testclient import TestClient
@@ -148,6 +151,23 @@ class SalarySourcesTest(unittest.TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["role"], "координатор")
+
+    def test_batch_fixture_and_cli_mode_are_present(self):
+        fixture = Path("apps/api/tests/fixtures/salary_live_cases.json")
+        self.assertTrue(fixture.exists())
+        cases = json.loads(fixture.read_text(encoding="utf-8"))
+        self.assertGreaterEqual(len(cases), 8)
+        self.assertIn({"role": "маркетолог", "region": "Санкт-Петербург", "year": 2025}, cases)
+
+        help_result = subprocess.run(
+            [sys.executable, "apps/api/scripts/probe_salary_sources.py", "--help"],
+            cwd=Path(__file__).resolve().parents[3],
+            env={**os.environ, "PYTHONPATH": "apps/api"},
+            text=True,
+            capture_output=True,
+            check=True,
+        )
+        self.assertIn("--batch", help_result.stdout)
 
     @unittest.skipUnless(os.getenv("RUN_LIVE_SALARY_SOURCE_TESTS") == "1", "live salary source probe is opt-in")
     def test_live_salary_source_probe_report(self):

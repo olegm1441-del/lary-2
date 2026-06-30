@@ -34,12 +34,23 @@ COFINANCE_LABELS = {
     "partner_letter_funds": "привлеченные средства согласно письму поддержки",
 }
 
+MONTHLY_HOURS_NORM = Decimal(166)
+
 SOURCE_LABELS = {
     "gorodrabot": "GorodRabot",
     "hh": "HH",
     "trudvsem": "Trudvsem",
     "rosstat": "Росстат/ЕМИСС",
     "ai_salary_fallback": "резервный поиск по открытым источникам",
+}
+
+SOURCE_TYPE_LABELS = {
+    "mean": "средняя заработная плата по должности",
+    "median": "медианная заработная плата по должности",
+    "mode": "модальная заработная плата по должности",
+    "vacancy_sample_median": "медиана зарплатных предложений по вакансиям",
+    "official_region_mean": "официальный региональный показатель средней зарплаты",
+    "manual": "зарплатный ориентир",
 }
 
 
@@ -294,18 +305,26 @@ def _calculate_position(position: SalaryPositionInput, region: str, source: Sala
         formula = f"{_money(salary)} руб. × {_percent(position.workload_value)} × {_number(position.duration_months)} мес. × {position.staff_count}"
         workload_text = f"{_percent(position.workload_value)} рабочего времени"
     else:
-        hourly = Decimal(salary) / Decimal(160)
+        hourly = Decimal(salary) / MONTHLY_HOURS_NORM
         raw = hourly * Decimal(str(position.workload_value)) * Decimal(position.staff_count)
         amount = _round_rubles(raw)
-        formula = f"{_money(salary)} руб. / 160 × {_number(position.workload_value)} ч. × {position.staff_count}"
+        formula = f"{_money(salary)} руб. / 166 × {_number(position.workload_value)} ч. × {position.staff_count}"
         workload_text = f"{_number(position.workload_value)} часов за весь проект на одного сотрудника"
 
     functionality = _functionality_or_default(position.role_title, position.functionality)
-    calendar_events = position.calendar_events.strip() or CALENDAR_MANUAL_NOTE
+    calendar_events = _format_calendar_events(position.calendar_events)
     source_title = SOURCE_LABELS.get(source.source, source.source)
     matched_role = source.matched_role or source.query_role
+    calendar_line = (
+        f"Календарный план: {calendar_events}"
+        if calendar_events == CALENDAR_MANUAL_NOTE
+        else f"Календарный план: {calendar_events}."
+    )
 
     warnings: list[str] = []
+    source_note = _source_note(source)
+    if source_note:
+        warnings.append(source_note)
     if matched_role and matched_role.strip().lower() != position.role_title.strip().lower():
         warnings.append(f"Использована смежная должность: {matched_role}, потому что по исходной формулировке найдено мало данных.")
     if source.salary_type == "official_region_mean":
@@ -315,17 +334,17 @@ def _calculate_position(position: SalaryPositionInput, region: str, source: Sala
         f"Должность: {position.role_title}.",
         f"Регион расчета: {region}.",
         f"Количество сотрудников: {position.staff_count}. Срок работы: {_number(position.duration_months)} мес. Занятость: {workload_text}.",
-        f"Источник зарплаты: {source_title}; показатель: {_money(salary)} руб. в месяц; год/период: {source.year or 'актуальный доступный период'}.",
+        f"Источник расчета: {source_title}, {_salary_type_label(source)} — {_money(salary)} руб. в месяц, {_source_period(source)}.",
         f"Ссылка на источник: {source.source_url or 'проверьте источник вручную'}.",
         f"Функционал сотрудника: {functionality}",
-        f"Календарный план: {calendar_events}.",
+        calendar_line,
         f"Расчет: {formula} = {_money(amount)} руб.",
         f"К включению в бюджет: {_money(amount)} руб.",
         f"Обоснование: сумма рассчитана пропорционально занятости сотрудника в проекте и относится к выполнению задач календарного плана. В бюджет включается только часть оплаты труда, связанная с заявляемым проектом.",
         f"Источник софинансирования: {cofinance_text}.",
     ]
     if warnings:
-        text_lines.append("Примечание: " + " ".join(warnings))
+        text_lines.append("Примечание к источнику: " + " ".join(warnings))
 
     return SalaryPositionOutput(
         role_title=position.role_title,
@@ -447,24 +466,21 @@ def _salary_fallback_user_prompt(role_title: str, region: str, source_scope: str
 
 def _salary_text_composition_prompt(payload: dict) -> str:
     return (
-        "Ты профессиональный грантрайтер ПФКИ. Твоя задача — оформить расчет заработной платы и обоснование для заявки.\n"
-        "Нельзя: менять зарплатные числа; менять формулу; менять итоговые суммы; выдумывать источник зарплаты; "
-        "писать, что данные официальные, если source не rosstat; скрывать, что использована смежная должность; писать длинно и канцелярски.\n"
-        "Если функционал сотрудника пустой или слишком короткий, предложи типовой функционал по должности в проекте.\n"
-        "Верни строго валидный JSON без markdown: {\"plain_text\":\"...\",\"items\":[{\"role_title\":\"...\",\"text\":\"...\"}]}.\n"
-        "Структура текста по каждой позиции:\n"
-        "1. Должность, регион, количество сотрудников, срок работы, занятость.\n"
-        "2. Источник зарплаты: источник, год/период, найденная зарплата, ссылка или название источника.\n"
-        "3. Функционал сотрудника: 1 абзац.\n"
-        "4. Календарный план: если номера мероприятий есть — указать их; если нет — написать точную фразу "
-        f"«{CALENDAR_MANUAL_NOTE}».\n"
-        "5. Расчет: показать формулу.\n"
-        "6. К включению в бюджет: сумма в рублях.\n"
-        "7. Обоснование: 1 короткий абзац, почему занятость и сумма относятся к проекту.\n"
-        "8. Источник софинансирования.\n"
-        "Если позиций несколько, после всех позиций добавь итоговую строку.\n"
-        "Пиши официально, конкретно и компактно. Не добавляй вступление про Лари. Не добавляй обещаний победы в конкурсе. Не добавляй непроверенные данные.\n"
-        f"Входные данные JSON: {json.dumps(payload, ensure_ascii=False)}"
+        "Ты профессиональный грантрайтер ПФКИ. Составь официальный текст расчета оплаты труда по уже рассчитанным данным. "
+        "Числа, формулы, суммы, источники и ссылки менять запрещено. Если функционал сотрудника задан кратко или с ошибками, "
+        "перепиши его официально и грамотно. Если функционал пустой, предложи типовой функционал по должности, не добавляя уникальных фактов проекта. "
+        "Пиши коротко, ясно, без канцелярской воды.\n"
+        "Собери результат расчета оплаты труда для заявки ПФКИ.\n"
+        f"Данные: {json.dumps(payload, ensure_ascii=False)}\n"
+        "Требования:\n"
+        "1. Начни с заголовка: “Расчет оплаты труда для проекта ПФКИ”.\n"
+        "2. Укажи регион.\n"
+        "3. Для каждой позиции сделай отдельный блок.\n"
+        "4. В каждом блоке обязательно укажи должность, количество сотрудников, срок работы, занятость, источник зарплаты, показатель, год/период, ссылку, функционал, календарный план, формулу, сумму, обоснование и источник софинансирования.\n"
+        "5. Если есть примечания к источникам, вынеси их в строку “Примечание к источнику:” в конце соответствующего блока.\n"
+        "6. Не добавляй markdown-таблицы.\n"
+        "7. Не меняй ни одного числа из данных.\n"
+        "8. Верни JSON: {\"plain_text\":\"...\",\"position_summaries\":[\"...\"]}"
     )
 
 
@@ -472,7 +488,12 @@ def _ai_text_preserves_numbers(text: str, positions: list[SalaryPositionOutput],
     normalized = re.sub(r"\D", "", text)
     required_numbers: list[int] = []
     for position in positions:
-        required_numbers.extend([position.salary_value, position.amount])
+        required_numbers.extend([position.salary_value, position.amount, position.staff_count])
+        required_numbers.append(int(position.workload_value) if float(position.workload_value).is_integer() else int(position.workload_value * 100))
+        if position.workload_mode == "percent":
+            required_numbers.append(int(position.duration_months) if float(position.duration_months).is_integer() else int(position.duration_months * 100))
+        if position.source_url and position.source_url not in text:
+            return False
     if len(positions) > 1:
         required_numbers.append(total_amount)
     return all(str(number) in normalized for number in required_numbers)
@@ -512,13 +533,61 @@ def _is_allowed_fallback_url(url: str, allowed_domains: set[str] = ALLOWED_FALLB
 
 def _functionality_or_default(role_title: str, functionality: str) -> str:
     cleaned = functionality.strip()
-    if len(cleaned.split()) >= 5:
-        return cleaned
+    if len(cleaned) >= 30:
+        return _polish_functionality(role_title, cleaned)
     role = role_title.strip() or "специалист"
     return (
         f"{role} выполняет организационное сопровождение проекта: согласует расписание, взаимодействует с участниками и командой, "
         "контролирует подготовку мероприятий, фиксирует посещаемость и передает данные для отчетности."
     )
+
+
+def _polish_functionality(role_title: str, functionality: str) -> str:
+    cleaned = " ".join(functionality.strip().split())
+    lower = cleaned.lower().replace("ё", "е")
+    if "анонс камп" in lower and "освещ" in lower:
+        return "формирует анонсную кампанию проекта, готовит и координирует информационное освещение, согласует публикации и передает материалы ответственным членам команды."
+    replacements = {
+        "анонс кампанию": "анонсную кампанию проекта",
+        "анонс компанию": "анонсную кампанию проекта",
+        "освещение проекта": "информационное освещение проекта",
+    }
+    polished = cleaned
+    for source, target in replacements.items():
+        polished = re.sub(source, target, polished, flags=re.IGNORECASE)
+    return polished[0].lower() + polished[1:] if polished else _functionality_or_default(role_title, "")
+
+
+def _format_calendar_events(value: str) -> str:
+    cleaned = " ".join(str(value or "").strip().split())
+    if not cleaned:
+        return CALENDAR_MANUAL_NOTE
+    parts = [part.strip() for part in re.split(r"[,;]+", cleaned) if part.strip()]
+    if len(parts) > 1:
+        return f"мероприятия № {', '.join(parts)}"
+    if re.fullmatch(r"[\d\s,.;–—-]+", cleaned):
+        return f"мероприятия № {cleaned}"
+    return cleaned
+
+
+def _salary_type_label(source: SalarySourceResult) -> str:
+    return SOURCE_TYPE_LABELS.get(str(source.salary_type or ""), "зарплатный ориентир")
+
+
+def _source_period(source: SalarySourceResult) -> str:
+    return f"{source.year} год" if source.year else "актуальный доступный период"
+
+
+def _source_note(source: SalarySourceResult) -> str | None:
+    if source.source == "gorodrabot":
+        return "GorodRabot показывает зарплатные предложения по вакансиям, а не фактически выплаченную заработную плату."
+    if source.source == "hh":
+        return "HH показывает выборку вакансий с указанной зарплатой, а не среднюю фактически выплаченную зарплату."
+    if source.source == "trudvsem":
+        return "Trudvsem показывает вакансии работодателей; показатель нужно проверить перед подачей заявки."
+    if source.salary_type == "official_region_mean":
+        return "Использован официальный региональный показатель, а не статистика по конкретной должности."
+    return None
 
 
 def _salary_filename(region: str) -> str:

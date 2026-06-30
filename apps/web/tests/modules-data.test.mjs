@@ -272,17 +272,49 @@ test("salary module uses the multi-position calculation workflow", () => {
     "Удалить",
     "Часы за весь проект на одного сотрудника",
     "Скачать DOCX",
-    "Скопировать текст",
+    "Скопировать",
     "Рассчитать заново",
     "lary.module_draft.salary.v2",
     "/api/modules/salary/generate",
+    "Текст результата",
+    "Формула: зарплата / 166 × часы × количество.",
+    "Наговорить ответ",
   ]) {
     assert.equal(salaryRunner.includes(required), true, `salary runner should include ${required}`);
   }
 
+  for (const forbidden of [
+    "ОТВЕТЬТЕ НА ВОПРОСЫ",
+    "Plain-text результат",
+    "160 часов",
+    "/ 160",
+    "160 ×",
+    "если доступен",
+    "если доступна",
+    "доступные адаптеры",
+    "затем выбрать самый высокий подтвержденный показатель",
+    "Выберите регион, по которому нужно найти зарплатный ориентир.",
+    "Этот текст попадет в обоснование источника софинансирования.",
+    "Если несколько человек выполняют одинаковую роль",
+  ]) {
+    assert.equal(salaryRunner.includes(forbidden), false, `salary runner should not expose ${forbidden}`);
+  }
+
+  assert.equal(salaryRunner.indexOf("positions.map"), salaryRunner.indexOf("Добавить должность") < 0 ? -1 : salaryRunner.indexOf("positions.map"));
+  assert.equal(salaryRunner.includes("positionDisplayTitle"), true);
+  assert.equal(salaryRunner.includes("duplicateTitleCounts"), true);
+  assert.equal(salaryRunner.includes("Скопировано"), true);
+
   assert.equal(moduleRunner.includes("SalaryModuleRunner"), true);
   assert.equal(laryData.includes("Собственные средства юридического лица"), true);
   assert.equal(laryData.includes("Привлеченные средства согласно письму поддержки"), true);
+});
+
+test("salary page does not render duplicate intro card for salary module", () => {
+  const modulePage = readFileSync(join(root, "app/m/[slug]/page.tsx"), "utf8");
+
+  assert.equal(modulePage.includes("laryModule.slug !== \"salary\""), true);
+  assert.equal(modulePage.includes("Заполните расчет по должностям"), false);
 });
 
 test("support letter module keeps deterministic workflow and scenario helper choices", () => {
