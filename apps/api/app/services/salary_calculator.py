@@ -307,7 +307,7 @@ def _calculate_position(position: SalaryPositionInput, region: str, source: Sala
     calendar_events = _format_calendar_events(position.calendar_events)
     functionality = (
         request_ai_functionality_normalization(position, region=region, calendar_events=calendar_events, ai_generate=generate_with_gigachat)
-        or _safe_functionality_fallback()
+        or _safe_functionality_fallback(position, calendar_events)
     )
     source_title = SOURCE_LABELS.get(source.source, source.source)
     matched_role = source.matched_role or source.query_role
@@ -637,7 +637,17 @@ def _functionality_or_default(role_title: str, functionality: str) -> str:
     )
 
 
-def _safe_functionality_fallback() -> str:
+def _safe_functionality_fallback(position: SalaryPositionInput, calendar_events: str) -> str:
+    role = position.role_title.strip().lower().replace("ё", "е")
+    calendar_reference = re.sub(r"^мероприятия\b", "мероприятий", calendar_events)
+    calendar_tail = "" if calendar_events == CALENDAR_MANUAL_NOTE else f" {calendar_reference}"
+    if "дворник" in role or "убор" in role:
+        return (
+            "Сотрудник обеспечивает санитарное состояние и порядок на территории, используемой для мероприятий проекта. "
+            f"В период реализации проекта выполняет уборку площадки до и после{calendar_tail}, помогает поддерживать безопасные и комфортные условия для участников и посетителей."
+        )
+    if "маркетолог" in role or "smm" in role or "смм" in role:
+        return "Сотрудник формирует анонсную кампанию проекта, готовит и координирует информационное освещение. Согласует публикации, передает материалы ответственным членам команды и сопровождает коммуникации по мероприятиям календарного плана."
     return "Сотрудник выполняет функции, связанные с обеспечением задач проекта по своей должности, участвует в подготовке и сопровождении мероприятий календарного плана."
 
 

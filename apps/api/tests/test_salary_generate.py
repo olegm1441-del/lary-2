@@ -340,6 +340,44 @@ class SalaryGenerateTest(unittest.TestCase):
         self.assertNotIn("Что проверить вручную", doc_text)
         self.assertNotIn("Проверить вручную перед подачей", doc_text)
 
+    def test_role_aware_safe_fallback_keeps_ugly_functionality_out_when_ai_unavailable(self):
+        source = SalarySourceResult(
+            source="gorodrabot",
+            status="ok",
+            query_role="дворник",
+            matched_role="дворник",
+            region="Республика Татарстан",
+            year=2025,
+            salary_value=36_589,
+            salary_type="mean",
+            source_url="https://tatarstan.gorodrabot.ru/salaries/dvornik?y=2025",
+        )
+        payload = self._payload(
+            region="Республика Татарстан",
+            positions=[
+                {
+                    "role_title": "дворник",
+                    "staff_count": 1,
+                    "duration_months": 4,
+                    "workload_mode": "percent",
+                    "workload_value": 30,
+                    "functionality": "чистит всю территорию его а города казань каждый день с утра до вечера за наши деньги",
+                    "calendar_events": "1,4",
+                }
+            ],
+        )
+
+        client = TestClient(app)
+        with patch("app.services.salary_calculator.collect_production_salary_source_results", return_value=[source]), \
+            patch("app.services.salary_calculator.request_ai_functionality_normalization", return_value=None):
+            response = client.post("/api/modules/salary/generate", json=payload)
+
+        self.assertEqual(response.status_code, 200)
+        text = response.json()["plain_text"]
+        self.assertIn("Сотрудник обеспечивает санитарное состояние и порядок на территории", text)
+        self.assertIn("мероприятий № 1, 4", text)
+        self.assertNotIn("за наши деньги", text)
+
     def test_source_notes_and_generic_obosnovanie_are_not_rendered(self):
         source = SalarySourceResult(
             source="gorodrabot",
