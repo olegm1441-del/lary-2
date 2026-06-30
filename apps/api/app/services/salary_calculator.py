@@ -16,11 +16,11 @@ from app.core.config import settings
 from app.services.ai_router import AiRouterError, generate_with_gigachat
 from app.services.file_generators import generate_docx
 from app.services.run_store import StoredRun, run_store
-from app.services.salary_sources.aggregator import build_salary_role_queries, collect_salary_source_results, source_names_for_scope
+from app.services.salary_sources.aggregator import build_salary_role_queries, collect_production_salary_source_results, production_source_names, source_names_for_scope
 from app.services.salary_sources.models import SalarySourceResult
 
 
-SourceScope = Literal["all", "aggregators", "official"]
+SourceScope = Literal["all", "aggregators", "official", "active"]
 WorkloadMode = Literal["percent", "hours_total"]
 CofinanceSource = Literal["own_legal_entity_funds", "partner_letter_funds"]
 
@@ -28,6 +28,7 @@ CALENDAR_MANUAL_NOTE = "УКАЖИТЕ НОМЕРА МЕРОПРИЯТИЙ КА�
 SOFT_NO_SALARY_ERROR = "Не получилось автоматически найти зарплатный ориентир. Данные сохранены. Попробуйте изменить должность или регион и запустить расчет еще раз."
 ALLOWED_FALLBACK_DOMAINS = {"gorodrabot.ru", "hh.ru", "trudvsem.ru", "rosstat.gov.ru", "fedstat.ru"}
 OFFICIAL_FALLBACK_DOMAINS = {"rosstat.gov.ru", "fedstat.ru"}
+PRODUCTION_FALLBACK_DOMAINS = {"gorodrabot.ru", "trudvsem.ru"}
 
 COFINANCE_LABELS = {
     "own_legal_entity_funds": "собственные средства юридического лица",
@@ -111,11 +112,11 @@ def create_salary_run(payload: SalaryGenerateRequest) -> tuple[StoredRun, Salary
 
     run_dir = Path(settings.file_storage_dir) / run_id
     run_dir.mkdir(parents=True, exist_ok=True)
-    filename = _salary_filename(payload.region)
+    filename = _salary_filename(payload)
     path = run_dir / filename
 
     sections = _sections_from_salary_output(generated)
-    generate_docx(path, generated.title, generated.summary, sections)
+    generate_docx(path, generated.title, generated.summary, sections, include_manual_checklist=False)
     downloads = {"docx": f"/api/module-runs/{run_id}/download/docx"}
     files = {"docx": str(path)}
     generated.downloads = downloads
@@ -141,24 +142,23 @@ def generate_salary_result(payload: SalaryGenerateRequest) -> SalaryGenerationOu
     cofinance_text = COFINANCE_LABELS[payload.cofinance_source]
 
     for position in payload.positions:
-        source_results = collect_salary_source_results(
+        source_results = collect_production_salary_source_results(
             position.role_title,
             payload.region,
-            payload.source_scope,
             year=_default_salary_year(),
         )
-        selected, source_warnings = choose_highest_eligible_salary(source_results, payload.source_scope, original_role=position.role_title)
+        selected, source_warnings = choose_highest_eligible_salary(source_results, payload.source_scope, original_role=position.role_title, allowed_sources=production_source_names())
         warnings.extend(source_warnings)
         if not selected:
             fallback = request_ai_salary_fallback(
                 role_title=position.role_title,
                 region=payload.region,
-                source_scope=payload.source_scope,
+                source_scope="active",
                 role_query_variants=build_salary_role_queries(position.role_title),
+                allowed_domains=PRODUCTION_FALLBACK_DOMAINS,
             )
             if fallback:
                 selected = fallback
-                warnings.append("Зарплатный ориентир найден резервным способом. Проверьте источник перед подачей заявки.")
 
         if not selected:
             raise ValueError(SOFT_NO_SALARY_ERROR)
@@ -166,15 +166,14 @@ def generate_salary_result(payload: SalaryGenerateRequest) -> SalaryGenerationOu
         positions.append(_calculate_position(position, payload.region, selected, cofinance_text))
 
     total_amount = sum(item.amount for item in positions)
-    deterministic_plain_text = _compose_plain_text(payload.region, positions, total_amount)
-    plain_text = request_ai_text_composition(payload.region, positions, total_amount, deterministic_plain_text) or deterministic_plain_text
+    plain_text = _compose_plain_text(payload.region, positions, total_amount)
     return SalaryGenerationOutput(
         title=f"Расчет зарплаты и обоснование: {payload.region}",
-        summary="Расчет готов. Проверьте источник зарплаты, занятость, календарный план и итоговые суммы перед подачей заявки.",
+        summary=f"Регион: {payload.region}. Рабочий расчет оплаты труда для бюджета проекта ПФКИ.",
         plain_text=plain_text,
         positions=positions,
         total_amount=total_amount,
-        warnings=_unique(warnings),
+        warnings=[],
     )
 
 
@@ -182,22 +181,15 @@ def choose_highest_eligible_salary(
     results: list[SalarySourceResult],
     source_scope: SourceScope | str,
     original_role: str | None = None,
+    allowed_sources: set[str] | None = None,
 ) -> tuple[SalarySourceResult | None, list[str]]:
-    allowed = source_names_for_scope(str(source_scope))
+    allowed = allowed_sources or source_names_for_scope(str(source_scope))
     eligible = [result for result in results if _is_eligible_salary_result(result, allowed)]
     warnings: list[str] = []
     if not eligible:
         return None, warnings
 
     selected = max(eligible, key=lambda result: int(result.salary_value or 0))
-    if selected.source in {"gorodrabot", "hh", "trudvsem"}:
-        warnings.append(f"{SOURCE_LABELS.get(selected.source, selected.source)} показывает зарплатные предложения или выборку вакансий, а не фактически выплаченную заработную плату.")
-    if selected.salary_type == "official_region_mean":
-        warnings.append("Использован официальный региональный показатель, а не статистика по конкретной должности.")
-    if original_role and (selected.matched_role or selected.query_role).strip().lower() != original_role.strip().lower():
-        warnings.append(f"Использована смежная должность: {selected.matched_role or selected.query_role}, потому что по исходной формулировке найдено мало данных.")
-    if selected.source == "ai_salary_fallback" and selected.confidence == "low":
-        warnings.append("Резервный источник имеет низкую уверенность. Проверьте его вручную перед подачей заявки.")
     return selected, _unique(warnings)
 
 
@@ -209,6 +201,7 @@ def request_ai_salary_fallback(
     role_query_variants: list[str],
     ai_generate: Callable[[str], str] = generate_with_gigachat,
     url_checker: Callable[[str], bool] | None = None,
+    allowed_domains: set[str] | None = None,
 ) -> SalarySourceResult | None:
     if ai_generate is generate_with_gigachat and not settings.gigachat_credentials:
         return None
@@ -229,8 +222,8 @@ def request_ai_salary_fallback(
         parsed = _parse_json_object(raw)
         if not parsed:
             continue
-        allowed_domains = OFFICIAL_FALLBACK_DOMAINS if source_scope == "official" else ALLOWED_FALLBACK_DOMAINS
-        result = _validate_ai_salary_payload(parsed, checker, allowed_domains)
+        scope_domains = allowed_domains or (OFFICIAL_FALLBACK_DOMAINS if source_scope == "official" else ALLOWED_FALLBACK_DOMAINS)
+        result = _validate_ai_salary_payload(parsed, checker, scope_domains)
         if result:
             return result
         if parsed.get("status") == "no_data":
@@ -277,7 +270,7 @@ def request_ai_text_composition(
 def _validate_salary_request(payload: SalaryGenerateRequest) -> None:
     if not payload.region.strip():
         raise ValueError("Выберите регион расчета.")
-    if payload.source_scope not in {"all", "aggregators", "official"}:
+    if payload.source_scope not in {"all", "aggregators", "official", "active"}:
         raise ValueError("Выберите базу расчета.")
     if payload.cofinance_source not in COFINANCE_LABELS:
         raise ValueError("Выберите источник софинансирования.")
@@ -311,8 +304,11 @@ def _calculate_position(position: SalaryPositionInput, region: str, source: Sala
         formula = f"{_money(salary)} руб. / 166 × {_number(position.workload_value)} ч. × {position.staff_count}"
         workload_text = f"{_number(position.workload_value)} часов за весь проект на одного сотрудника"
 
-    functionality = _functionality_or_default(position.role_title, position.functionality)
     calendar_events = _format_calendar_events(position.calendar_events)
+    functionality = (
+        request_ai_functionality_normalization(position, region=region, calendar_events=calendar_events, ai_generate=generate_with_gigachat)
+        or _safe_functionality_fallback()
+    )
     source_title = SOURCE_LABELS.get(source.source, source.source)
     matched_role = source.matched_role or source.query_role
     calendar_line = (
@@ -320,15 +316,6 @@ def _calculate_position(position: SalaryPositionInput, region: str, source: Sala
         if calendar_events == CALENDAR_MANUAL_NOTE
         else f"Календарный план: {calendar_events}."
     )
-
-    warnings: list[str] = []
-    source_note = _source_note(source)
-    if source_note:
-        warnings.append(source_note)
-    if matched_role and matched_role.strip().lower() != position.role_title.strip().lower():
-        warnings.append(f"Использована смежная должность: {matched_role}, потому что по исходной формулировке найдено мало данных.")
-    if source.salary_type == "official_region_mean":
-        warnings.append("Использован официальный региональный показатель, а не статистика по конкретной должности.")
 
     text_lines = [
         f"Должность: {position.role_title}.",
@@ -340,11 +327,8 @@ def _calculate_position(position: SalaryPositionInput, region: str, source: Sala
         calendar_line,
         f"Расчет: {formula} = {_money(amount)} руб.",
         f"К включению в бюджет: {_money(amount)} руб.",
-        f"Обоснование: сумма рассчитана пропорционально занятости сотрудника в проекте и относится к выполнению задач календарного плана. В бюджет включается только часть оплаты труда, связанная с заявляемым проектом.",
         f"Источник софинансирования: {cofinance_text}.",
     ]
-    if warnings:
-        text_lines.append("Примечание к источнику: " + " ".join(warnings))
 
     return SalaryPositionOutput(
         role_title=position.role_title,
@@ -359,7 +343,7 @@ def _calculate_position(position: SalaryPositionInput, region: str, source: Sala
         amount=amount,
         formula=formula,
         text="\n".join(text_lines),
-        warnings=warnings,
+        warnings=[],
     )
 
 
@@ -368,7 +352,7 @@ def _compose_plain_text(region: str, positions: list[SalaryPositionOutput], tota
     for index, item in enumerate(positions, start=1):
         chunks.append(f"Позиция {index}. {item.role_title}\n{item.text}")
     if len(positions) > 1:
-        chunks.append(f"Итого по оплате труда: {_money(total_amount)} руб.")
+        chunks.append(f"Итого к включению в бюджет: {_money(total_amount)} руб.")
     return "\n\n".join(chunks).strip()
 
 
@@ -378,9 +362,7 @@ def _sections_from_salary_output(output: SalaryGenerationOutput) -> list[dict[st
         for item in output.positions
     ]
     if len(output.positions) > 1:
-        sections.append({"title": "Итого", "body": f"Итого по оплате труда: {_money(output.total_amount)} руб."})
-    if output.warnings:
-        sections.append({"title": "Что проверить вручную", "body": "\n".join(output.warnings)})
+        sections.append({"title": "Итого", "body": f"Итого к включению в бюджет: {_money(output.total_amount)} руб."})
     return sections
 
 
@@ -476,12 +458,125 @@ def _salary_text_composition_prompt(payload: dict) -> str:
         "1. Начни с заголовка: “Расчет оплаты труда для проекта ПФКИ”.\n"
         "2. Укажи регион.\n"
         "3. Для каждой позиции сделай отдельный блок.\n"
-        "4. В каждом блоке обязательно укажи должность, количество сотрудников, срок работы, занятость, источник зарплаты, показатель, год/период, ссылку, функционал, календарный план, формулу, сумму, обоснование и источник софинансирования.\n"
-        "5. Если есть примечания к источникам, вынеси их в строку “Примечание к источнику:” в конце соответствующего блока.\n"
+        "4. В каждом блоке обязательно укажи должность, количество сотрудников, срок работы, занятость, источник зарплаты, показатель, год/период, ссылку, функционал, календарный план, формулу, сумму и источник софинансирования.\n"
+        "5. Не добавляй примечания к источникам и общий блок “Обоснование”.\n"
         "6. Не добавляй markdown-таблицы.\n"
         "7. Не меняй ни одного числа из данных.\n"
         "8. Верни JSON: {\"plain_text\":\"...\",\"position_summaries\":[\"...\"]}"
     )
+
+
+def request_ai_functionality_normalization(
+    position: SalaryPositionInput,
+    *,
+    region: str,
+    calendar_events: str,
+    ai_generate: Callable[[str], str] = generate_with_gigachat,
+) -> str | None:
+    if ai_generate is generate_with_gigachat and not settings.gigachat_credentials:
+        return None
+
+    user_functionality = " ".join(position.functionality.strip().split())
+    prompts = [_functionality_normalization_prompt(position, region, calendar_events, user_functionality)]
+    last_text: str | None = None
+    for prompt in prompts:
+        try:
+            raw = ai_generate(prompt)
+        except (AiRouterError, Exception):  # noqa: BLE001 - raw user text must never leak on AI failure.
+            return None
+        parsed = _parse_json_object(raw)
+        text = _clean_functionality_text(parsed.get("functional_text") if parsed else None)
+        if not text or _contains_disallowed_raw_functionality(text, user_functionality):
+            continue
+        if len(text) <= 450:
+            return text
+        last_text = text
+        if len(prompts) == 1:
+            prompts.append(_functionality_shorten_prompt(text))
+
+    if last_text:
+        shortened = _truncate_by_sentence(last_text, 450)
+        if shortened and not _contains_disallowed_raw_functionality(shortened, user_functionality):
+            return shortened
+    return None
+
+
+def _functionality_normalization_prompt(position: SalaryPositionInput, region: str, calendar_events: str, user_functionality: str) -> str:
+    system_prompt = (
+        "Ты профессиональный грантрайтер ПФКИ. Твоя задача — переписать или составить функционал сотрудника для обоснования оплаты труда в бюджете проекта.\n\n"
+        "Пиши официально, конкретно и кратко. Не копируй сырой пользовательский текст дословно, если он разговорный, грубый, грамматически кривой или слишком общий.\n\n"
+        "Нельзя:\n"
+        "- добавлять неподтвержденные должности, суммы и источники;\n"
+        "- писать просторечия, мат, шутки, обвинительные или неофициальные формулировки;\n"
+        "- писать больше 450 символов;\n"
+        "- обещать результат проекта;\n"
+        "- менять должность сотрудника;\n"
+        "- упоминать зарплатные источники.\n\n"
+        "Если пользовательский функционал пустой или слабый, составь типовой функционал по должности и проектной занятости.\n\n"
+        "Верни строго JSON без markdown:\n{\"functional_text\":\"...\"}"
+    )
+    workload_type = "% рабочего времени" if position.workload_mode == "percent" else "часы за весь проект"
+    user_prompt = (
+        "Составь официальный функционал сотрудника для расчета оплаты труда.\n\n"
+        "Входные данные:\n"
+        f"- Должность: {position.role_title}\n"
+        f"- Регион: {region}\n"
+        f"- Количество сотрудников: {position.staff_count}\n"
+        f"- Срок работы: {_number(position.duration_months)} мес.\n"
+        f"- Тип занятости: {workload_type}\n"
+        f"- Занятость: {_number(position.workload_value)}\n"
+        f"- Мероприятия календарного плана: {calendar_events if calendar_events != CALENDAR_MANUAL_NOTE else ''}\n"
+        f"- Пользовательское описание функционала: {user_functionality}\n\n"
+        "Требования:\n"
+        "1. Напиши 2 коротких предложения.\n"
+        "2. Общий объем — максимум 450 символов.\n"
+        "3. Текст должен показывать, зачем эта должность нужна проекту.\n"
+        "4. Если есть календарные мероприятия, привяжи функционал к сопровождению этих мероприятий.\n"
+        "5. Если описание пользователя кривое или разговорное, используй его только как смысловую подсказку.\n"
+        "6. Не вставляй сырой текст пользователя дословно.\n"
+        "7. Не добавляй “Обоснование:” — нужен только сам функционал.\n\n"
+        "Верни только JSON:\n{\"functional_text\":\"...\"}"
+    )
+    return f"{system_prompt}\n\n{user_prompt}"
+
+
+def _functionality_shorten_prompt(text: str) -> str:
+    return (
+        "Сократи functional_text до 400 символов, сохрани официальный стиль. "
+        "Верни строго JSON без markdown: {\"functional_text\":\"...\"}\n\n"
+        f"functional_text: {text}"
+    )
+
+
+def _clean_functionality_text(value: object) -> str:
+    if not isinstance(value, str):
+        return ""
+    return " ".join(value.strip().split())
+
+
+def _contains_disallowed_raw_functionality(text: str, raw: str) -> bool:
+    normalized_text = text.lower().replace("ё", "е")
+    normalized_raw = raw.lower().replace("ё", "е").strip()
+    if not normalized_text:
+        return True
+    if normalized_raw and normalized_raw in normalized_text:
+        return True
+    return any(phrase in normalized_text for phrase in ["за наши деньги", "с утра до вечера", "хер", "бляд", "нахуй"])
+
+
+def _truncate_by_sentence(text: str, limit: int) -> str:
+    if len(text) <= limit:
+        return text
+    parts = re.split(r"(?<=[.!?])\s+", text)
+    result = ""
+    for part in parts:
+        candidate = f"{result} {part}".strip()
+        if len(candidate) > limit:
+            break
+        result = candidate
+    if result:
+        return result
+    return text[: limit - 1].rstrip(" ,;:.") + "."
 
 
 def _ai_text_preserves_numbers(text: str, positions: list[SalaryPositionOutput], total_amount: int) -> bool:
@@ -542,6 +637,10 @@ def _functionality_or_default(role_title: str, functionality: str) -> str:
     )
 
 
+def _safe_functionality_fallback() -> str:
+    return "Сотрудник выполняет функции, связанные с обеспечением задач проекта по своей должности, участвует в подготовке и сопровождении мероприятий календарного плана."
+
+
 def _polish_functionality(role_title: str, functionality: str) -> str:
     cleaned = " ".join(functionality.strip().split())
     lower = cleaned.lower().replace("ё", "е")
@@ -590,9 +689,14 @@ def _source_note(source: SalarySourceResult) -> str | None:
     return None
 
 
-def _salary_filename(region: str) -> str:
-    safe_region = re.sub(r"[^0-9A-Za-zА-Яа-яЁё _-]+", "", region).strip().replace(" ", "_") or "регион"
-    return f"Расчет зарплаты_ПФКИ_{safe_region}_{date.today().isoformat()}.docx"
+def _salary_filename(payload: SalaryGenerateRequest) -> str:
+    total_staff = sum(max(0, int(position.staff_count)) for position in payload.positions) or 1
+    role = payload.positions[0].role_title if payload.positions else "должность"
+    unique_roles = {position.role_title.strip().lower().replace("ё", "е") for position in payload.positions if position.role_title.strip()}
+    if len(unique_roles) > 1:
+        role = f"{role}_и_еще_{len(unique_roles) - 1}"
+    safe_role = re.sub(r"[^0-9A-Za-zА-Яа-яЁё _-]+", "", role).strip().lower().replace(" ", "_") or "должность"
+    return f"расчет_зарплаты_{total_staff}_{safe_role}.docx"
 
 
 def _default_salary_year() -> int:

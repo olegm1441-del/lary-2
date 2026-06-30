@@ -132,6 +132,42 @@ class SalarySourcesTest(unittest.TestCase):
         self.assertEqual(response.recommended.source, "hh")
         self.assertTrue(response.warnings)
 
+    def test_production_source_collection_uses_only_active_sources(self):
+        from app.services.salary_sources.aggregator import collect_production_salary_source_results
+
+        gorodrabot = SalarySourceResult(
+            source="gorodrabot",
+            status="ok",
+            query_role="координатор проекта",
+            region="Свердловская область",
+            salary_value=70_000,
+            salary_type="mean",
+            source_url="https://gorodrabot.ru/source",
+        )
+        trudvsem = SalarySourceResult(
+            source="trudvsem",
+            status="ok",
+            query_role="координатор проекта",
+            region="Свердловская область",
+            salary_value=80_000,
+            salary_type="vacancy_sample_median",
+            source_url="https://trudvsem.ru/source",
+        )
+
+        with patch("app.services.salary_sources.aggregator.fetch_gorodrabot_salary", return_value=gorodrabot) as gorodrabot_fetch, \
+            patch("app.services.salary_sources.aggregator.fetch_trudvsem_salary_sample", return_value=trudvsem) as trudvsem_fetch, \
+            patch("app.services.salary_sources.aggregator.fetch_hh_salary_sample") as hh_fetch, \
+            patch("app.services.salary_sources.aggregator.fetch_rosstat_region_wage") as rosstat_fetch, \
+            patch("app.services.salary_sources.aggregator.check_rabota_ru_salary_source") as rabota_fetch:
+            results = collect_production_salary_source_results("координатор проекта", "Свердловская область", 2025)
+
+        self.assertEqual([item.source for item in results], ["gorodrabot", "trudvsem"])
+        gorodrabot_fetch.assert_called_once()
+        trudvsem_fetch.assert_called_once()
+        hh_fetch.assert_not_called()
+        rosstat_fetch.assert_not_called()
+        rabota_fetch.assert_not_called()
+
     def test_salary_probe_endpoint_is_available_in_test_env(self):
         client = TestClient(app)
         with patch("app.routers.modules.probe_salary_sources") as probe:

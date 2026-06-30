@@ -19,6 +19,8 @@ ROLE_SYNONYMS = {
     "администратор": ["администратор проекта", "координатор проекта", "администратор мероприятий"],
 }
 
+PRODUCTION_ACTIVE_SOURCE_NAMES = ("gorodrabot", "trudvsem")
+
 
 def normalize_role_title(role: str) -> str:
     cleaned = " ".join(str(role or "").strip().lower().replace("ё", "е").split())
@@ -58,11 +60,25 @@ def build_salary_role_queries(role: str) -> list[str]:
 
 
 def source_names_for_scope(source_scope: str) -> set[str]:
+    if source_scope == "active":
+        return production_source_names() | {"ai_salary_fallback"}
     if source_scope == "aggregators":
         return {"gorodrabot", "hh", "trudvsem", "ai_salary_fallback"}
     if source_scope == "official":
         return {"rosstat", "ai_salary_fallback"}
     return {"gorodrabot", "hh", "trudvsem", "rosstat", "ai_salary_fallback"}
+
+
+def production_source_names() -> set[str]:
+    return set(PRODUCTION_ACTIVE_SOURCE_NAMES)
+
+
+def collect_production_salary_source_results(role: str, region: str, year: int | None = None) -> list[SalarySourceResult]:
+    actual_year = year or 2025
+    return [
+        _safe_probe("gorodrabot", lambda: _probe_role_queries(fetch_gorodrabot_salary, role, region, actual_year, min_sample_size=None)),
+        _safe_probe("trudvsem", lambda: _probe_role_queries(fetch_trudvsem_salary_sample, role, region, actual_year, min_sample_size=None)),
+    ]
 
 
 def collect_salary_source_results(role: str, region: str, source_scope: str, year: int | None = None) -> list[SalarySourceResult]:

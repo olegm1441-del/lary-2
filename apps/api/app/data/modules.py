@@ -27,7 +27,7 @@ MODULES = [
         "duration": "5-8 минут",
         "competition": "ПФКИ",
         "output_formats": ["docx"],
-        "fields": ["region", "source_scope", "cofinance_source", "positions"],
+        "fields": ["region", "cofinance_source", "positions"],
     },
     {
         "slug": "support-letter",

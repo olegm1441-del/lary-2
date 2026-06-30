@@ -53,7 +53,7 @@ test("each module has enough UI metadata for first MVP screens", () => {
     assert.ok(Array.isArray(laryModule.outputFormats));
     assert.ok(laryModule.outputFormats.length >= 1);
     assert.ok(Array.isArray(laryModule.fields));
-    assert.ok(laryModule.fields.length >= 4);
+    assert.ok(laryModule.fields.length >= (laryModule.slug === "salary" ? 3 : 4));
     assert.ok(Array.isArray(laryModule.resultActions));
     assert.ok(laryModule.resultActions.length >= 3);
   }
@@ -256,11 +256,11 @@ test("salary module uses the multi-position calculation workflow", () => {
   const moduleRunner = readFileSync(join(root, "app/components/module-runner.tsx"), "utf8");
 
   const salaryLabels = salary.fields.map((field) => field.label);
-  assert.deepEqual(salaryLabels, ["Регион", "База расчета", "Софинансирование", "Позиции расчета"]);
+  assert.deepEqual(salaryLabels, ["Регион", "Софинансирование", "Позиции расчета"]);
   assert.equal(salary.promise.includes("Лари найдет зарплатный ориентир"), true);
   assert.equal(salary.resultPreview.includes("DOCX и текст результата на странице."), true);
 
-  for (const forbidden of ["Год расчета", "Ссылка на источник", "ввести вручную", "Должность для поиска зарплаты", "Процент все равно нужен"]) {
+  for (const forbidden of ["Год расчета", "Ссылка на источник", "ввести вручную", "Должность для поиска зарплаты", "Процент все равно нужен", "База расчета", "Все доступные", "Агрегаторы вакансий", "Официальная статистика"]) {
     assert.equal(JSON.stringify(salary).includes(forbidden), false, `salary public data should not include ${forbidden}`);
     assert.equal(salaryRunner.includes(forbidden), false, `salary runner should not include ${forbidden}`);
   }
@@ -296,6 +296,9 @@ test("salary module uses the multi-position calculation workflow", () => {
     "Выберите регион, по которому нужно найти зарплатный ориентир.",
     "Этот текст попадет в обоснование источника софинансирования.",
     "Если несколько человек выполняют одинаковую роль",
+    "blocked",
+    "unavailable",
+    "not_implemented",
   ]) {
     assert.equal(salaryRunner.includes(forbidden), false, `salary runner should not expose ${forbidden}`);
   }
@@ -308,6 +311,7 @@ test("salary module uses the multi-position calculation workflow", () => {
   assert.equal(moduleRunner.includes("SalaryModuleRunner"), true);
   assert.equal(laryData.includes("Собственные средства юридического лица"), true);
   assert.equal(laryData.includes("Привлеченные средства согласно письму поддержки"), true);
+  assert.equal(laryData.includes("source_scope"), false);
 });
 
 test("salary page does not render duplicate intro card for salary module", () => {
@@ -315,6 +319,9 @@ test("salary page does not render duplicate intro card for salary module", () =>
 
   assert.equal(modulePage.includes("laryModule.slug !== \"salary\""), true);
   assert.equal(modulePage.includes("Заполните расчет по должностям"), false);
+  assert.equal(modulePage.includes("Источники расчета"), true);
+  assert.equal(modulePage.includes("Лари использует GorodRabot и Trudvsem. В расчет попадает самый высокий подтвержденный показатель с доступной ссылкой на источник."), true);
+  assert.equal(modulePage.includes("официальная статистика"), false);
 });
 
 test("support letter module keeps deterministic workflow and scenario helper choices", () => {

@@ -13,7 +13,7 @@ export type ModuleField = {
 export const FIELD_KEYS_BY_MODULE: Record<string, string[]> = {
   "social-research": ["region", "direction", "target_group", "problem", "details"],
   "legal-acts": ["program_level", "region", "direction", "target_group", "details"],
-  salary: ["region", "source_scope", "cofinance_source", "positions"],
+  salary: ["region", "cofinance_source", "positions"],
   "support-letter": [
     "contest",
     "project_title",
@@ -35,7 +35,6 @@ export const FIELD_OPTIONS_BY_KEY: Record<string, string[]> = {
   direction: ["Дворовой футбол", "Театр", "Музей", "Семейная память", "Локальная история", "Культурный фестиваль", "Спорт и культура"],
   program_level: ["Федеральные и региональные документы", "Только федеральные документы", "Только региональные документы"],
   role: ["Координатор проекта", "Организатор", "Куратор", "Режиссер", "Методист", "SMM-специалист"],
-  source_scope: ["Все доступные", "Агрегаторы вакансий", "Официальная статистика"],
   cofinance_source: ["Собственные средства юридического лица", "Привлеченные средства согласно письму поддержки"],
   cofunding: ["Собственные средства юридического лица", "Привлеченные средства согласно письму поддержки"],
   support_types: [

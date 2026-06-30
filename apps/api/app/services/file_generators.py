@@ -23,7 +23,7 @@ GRAY = RGBColor(107, 114, 128)
 LIGHT_BLUE = RGBColor(239, 246, 255)
 
 
-def generate_docx(path: Path, title: str, summary: str, sections: list[dict[str, str]]) -> None:
+def generate_docx(path: Path, title: str, summary: str, sections: list[dict[str, str]], include_manual_checklist: bool = True) -> None:
     document = Document()
     styles = document.styles
     styles["Normal"].font.name = "Arial"
@@ -39,13 +39,14 @@ def generate_docx(path: Path, title: str, summary: str, sections: list[dict[str,
             if line.strip():
                 document.add_paragraph(line.strip())
 
-    document.add_heading("Проверить вручную перед подачей", level=2)
-    for item in [
-        "актуальность источников и дат",
-        "точные суммы, должности, номера мероприятий и реквизиты",
-        "соответствие требованиям выбранного конкурса",
-    ]:
-        document.add_paragraph(item, style="List Bullet")
+    if include_manual_checklist:
+        document.add_heading("Проверить вручную перед подачей", level=2)
+        for item in [
+            "актуальность источников и дат",
+            "точные суммы, должности, номера мероприятий и реквизиты",
+            "соответствие требованиям выбранного конкурса",
+        ]:
+            document.add_paragraph(item, style="List Bullet")
 
     document.save(path)
 

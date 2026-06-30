@@ -11,7 +11,6 @@ type UsagePayload = {
 };
 
 type WorkloadMode = "percent" | "hours_total";
-type SourceScope = "all" | "aggregators" | "official";
 type CofinanceSource = "own_legal_entity_funds" | "partner_letter_funds";
 type VoiceState = "idle" | "recording" | "uploading";
 
@@ -28,7 +27,6 @@ type SalaryPositionDraft = {
 
 type SalaryDraft = {
   region: string;
-  source_scope: SourceScope;
   cofinance_source: CofinanceSource | "";
   positions: SalaryPositionDraft[];
 };
@@ -46,11 +44,6 @@ type SalaryGenerateResult = {
 
 const STORAGE_KEY = "lary.module_draft.salary.v2";
 const REGION_OPTIONS = ["Свердловская область", "Республика Татарстан", "Москва", "Санкт-Петербург", "Краснодарский край", "Нижегородская область"];
-const SOURCE_OPTIONS: Array<{ value: SourceScope; label: string }> = [
-  { value: "all", label: "Все доступные" },
-  { value: "aggregators", label: "Агрегаторы вакансий" },
-  { value: "official", label: "Официальная статистика" },
-];
 const COFINANCE_OPTIONS: Array<{ value: CofinanceSource; label: string }> = [
   { value: "own_legal_entity_funds", label: "Собственные средства юридического лица" },
   { value: "partner_letter_funds", label: "Привлеченные средства согласно письму поддержки" },
@@ -324,22 +317,6 @@ export function SalaryModuleRunner({ module }: { module: LaryModule }) {
             {!draft.region.trim() ? <InlineError>Выберите регион расчета.</InlineError> : null}
           </FieldBlock>
 
-          <FieldBlock label="База расчета" required>
-            <div className="grid gap-3">
-              {SOURCE_OPTIONS.map((option) => (
-                <button
-                  type="button"
-                  key={option.value}
-                  onClick={() => updateDraft("source_scope", option.value)}
-                  className={`rounded-2xl border p-4 text-left text-lg font-bold ${draft.source_scope === option.value ? "border-blue-800 bg-blue-50 text-blue-950" : "border-slate-300 bg-white text-slate-800"}`}
-                  aria-pressed={draft.source_scope === option.value}
-                >
-                  {option.label}
-                </button>
-              ))}
-            </div>
-          </FieldBlock>
-
           <FieldBlock label="Софинансирование" required>
             <div className="grid gap-3 sm:grid-cols-2">
               {COFINANCE_OPTIONS.map((option) => (
@@ -606,7 +583,6 @@ function validateDraft(draft: SalaryDraft) {
 function toApiPayload(draft: SalaryDraft) {
   return {
     region: draft.region.trim(),
-    source_scope: draft.source_scope,
     cofinance_source: draft.cofinance_source,
     positions: draft.positions.map((position) => ({
       role_title: position.role_title.trim(),
@@ -624,7 +600,6 @@ function normalizeDraft(source: Partial<SalaryDraft>): SalaryDraft {
   const positions = Array.isArray(source.positions) && source.positions.length ? source.positions.map(normalizePosition) : [defaultPosition()];
   return {
     region: typeof source.region === "string" ? source.region : "",
-    source_scope: source.source_scope === "aggregators" || source.source_scope === "official" ? source.source_scope : "all",
     cofinance_source: source.cofinance_source === "own_legal_entity_funds" || source.cofinance_source === "partner_letter_funds" ? source.cofinance_source : "",
     positions,
   };
@@ -646,7 +621,6 @@ function normalizePosition(source: Partial<SalaryPositionDraft>): SalaryPosition
 function defaultDraft(): SalaryDraft {
   return {
     region: "",
-    source_scope: "all",
     cofinance_source: "",
     positions: [defaultPosition()],
   };
