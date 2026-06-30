@@ -446,15 +446,26 @@ test("P2 public screens do not expose internal development markers", () => {
   }
 });
 
-test("P2 example result links render a non-real-application warning", () => {
+test("example result links render without the old explanatory caption", () => {
   const modulePage = readFileSync(join(root, "app/m/[slug]/page.tsx"), "utf8");
   const laryUi = readFileSync(join(root, "app/components/lary-ui.tsx"), "utf8");
 
   assert.equal(laryUi.includes("?example=1"), true);
-  assert.equal(modulePage.includes("пример, не настоящая заявка"), true);
+  assert.equal(modulePage.includes("пример, не настоящая заявка"), false);
   for (const slug of requiredActiveSlugs) {
     assert.equal(modulePage.includes(`"${slug}"`) || modulePage.includes(`${slug}:`), true, `example should include ${slug}`);
   }
+});
+
+test("salary example result uses the attached benchmark calculation text", () => {
+  const modulePage = readFileSync(join(root, "app/m/[slug]/page.tsx"), "utf8");
+
+  assert.equal(modulePage.includes("Формула, количество сотрудников, занятость одного сотрудника"), false);
+  assert.equal(modulePage.includes("Должность: координатор проекта."), true);
+  assert.equal(modulePage.includes("По данным открытого источника по рынку труда, средняя заработная плата координатора в Свердловской области за 2024 год составляет 68 372 рубля в месяц."), true);
+  assert.equal(modulePage.includes("68 372 руб. × 40% × 4 месяца = 109 395,20 руб."), true);
+  assert.equal(modulePage.includes("К включению в бюджет: 109 395 руб."), true);
+  assert.equal(modulePage.includes("Источник софинансирования: собственные средства заявителя / собственные средства ИП / привлеченные средства партнера согласно письму поддержки."), true);
 });
 
 test("account page keeps a single page title and passwordless card title", () => {
