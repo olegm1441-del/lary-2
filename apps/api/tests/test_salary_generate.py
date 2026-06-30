@@ -131,6 +131,8 @@ class SalaryGenerateTest(unittest.TestCase):
         self.assertIn("80 000 руб. / 166 × 96 ч. × 2", body["plain_text"])
         self.assertIn("Итого к включению в бюджет: 204 530 руб.", body["plain_text"])
         self.assertIn("привлеченные средства согласно письму поддержки", body["plain_text"])
+        self.assertNotIn("Позиция 1", body["plain_text"])
+        self.assertNotIn("Позиция 2", body["plain_text"])
 
     def test_generate_selects_highest_eligible_source_not_first(self):
         lower = SalarySourceResult(

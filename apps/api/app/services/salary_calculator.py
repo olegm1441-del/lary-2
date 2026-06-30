@@ -349,8 +349,8 @@ def _calculate_position(position: SalaryPositionInput, region: str, source: Sala
 
 def _compose_plain_text(region: str, positions: list[SalaryPositionOutput], total_amount: int) -> str:
     chunks = [f"Расчет оплаты труда для проекта ПФКИ\nРегион: {region}"]
-    for index, item in enumerate(positions, start=1):
-        chunks.append(f"Позиция {index}. {item.role_title}\n{item.text}")
+    for item in positions:
+        chunks.append(item.text)
     if len(positions) > 1:
         chunks.append(f"Итого к включению в бюджет: {_money(total_amount)} руб.")
     return "\n\n".join(chunks).strip()
@@ -488,14 +488,14 @@ def request_ai_functionality_normalization(
         text = _clean_functionality_text(parsed.get("functional_text") if parsed else None)
         if not text or _contains_disallowed_raw_functionality(text, user_functionality):
             continue
-        if len(text) <= 450:
+        if len(text) <= 650:
             return text
         last_text = text
         if len(prompts) == 1:
             prompts.append(_functionality_shorten_prompt(text))
 
     if last_text:
-        shortened = _truncate_by_sentence(last_text, 450)
+        shortened = _truncate_by_sentence(last_text, 650)
         if shortened and not _contains_disallowed_raw_functionality(shortened, user_functionality):
             return shortened
     return None
@@ -508,7 +508,7 @@ def _functionality_normalization_prompt(position: SalaryPositionInput, region: s
         "Нельзя:\n"
         "- добавлять неподтвержденные должности, суммы и источники;\n"
         "- писать просторечия, мат, шутки, обвинительные или неофициальные формулировки;\n"
-        "- писать больше 450 символов;\n"
+        "- писать больше 650 символов;\n"
         "- обещать результат проекта;\n"
         "- менять должность сотрудника;\n"
         "- упоминать зарплатные источники.\n\n"
@@ -528,8 +528,8 @@ def _functionality_normalization_prompt(position: SalaryPositionInput, region: s
         f"- Мероприятия календарного плана: {calendar_events if calendar_events != CALENDAR_MANUAL_NOTE else ''}\n"
         f"- Пользовательское описание функционала: {user_functionality}\n\n"
         "Требования:\n"
-        "1. Напиши 2 коротких предложения.\n"
-        "2. Общий объем — максимум 450 символов.\n"
+        "1. Напиши 2–4 коротких предложения.\n"
+        "2. Общий объем — максимум 650 символов.\n"
         "3. Текст должен показывать, зачем эта должность нужна проекту.\n"
         "4. Если есть календарные мероприятия, привяжи функционал к сопровождению этих мероприятий.\n"
         "5. Если описание пользователя кривое или разговорное, используй его только как смысловую подсказку.\n"
@@ -542,7 +542,7 @@ def _functionality_normalization_prompt(position: SalaryPositionInput, region: s
 
 def _functionality_shorten_prompt(text: str) -> str:
     return (
-        "Сократи functional_text до 400 символов, сохрани официальный стиль. "
+        "Сократи functional_text до 600 символов, сохрани официальный стиль. "
         "Верни строго JSON без markdown: {\"functional_text\":\"...\"}\n\n"
         f"functional_text: {text}"
     )

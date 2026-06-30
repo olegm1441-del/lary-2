@@ -58,6 +58,9 @@ export function SalaryModuleRunner({ module }: { module: LaryModule }) {
   const [voiceState, setVoiceState] = useState<VoiceState>("idle");
   const [voiceTargetId, setVoiceTargetId] = useState<string | null>(null);
   const [voiceMessage, setVoiceMessage] = useState("");
+  const [refinementOpen, setRefinementOpen] = useState(false);
+  const [refinementInstruction, setRefinementInstruction] = useState("");
+  const [refinementError, setRefinementError] = useState("");
 
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
@@ -104,12 +107,13 @@ export function SalaryModuleRunner({ module }: { module: LaryModule }) {
     };
   }, []);
 
-  async function submit(event?: FormEvent<HTMLFormElement>) {
+  async function submit(event?: FormEvent<HTMLFormElement>, draftOverride?: SalaryDraft) {
     event?.preventDefault();
     setMessage("");
     setResult(null);
 
-    const errors = validateDraft(draft);
+    const activeDraft = draftOverride || draft;
+    const errors = validateDraft(activeDraft);
     if (errors.length) {
       setState("error");
       setMessage(errors[0]);
@@ -131,7 +135,7 @@ export function SalaryModuleRunner({ module }: { module: LaryModule }) {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(toApiPayload(draft)),
+        body: JSON.stringify(toApiPayload(activeDraft)),
       });
       if (!response.ok) throw new Error(await readApiError(response));
       const payload = await response.json();
@@ -161,6 +165,27 @@ export function SalaryModuleRunner({ module }: { module: LaryModule }) {
       ...current,
       positions: current.positions.map((position) => (position.id === id ? { ...position, functionality: appendText(position.functionality, text) } : position)),
     }));
+  }
+
+  async function submitFunctionalityRefinement() {
+    const instruction = refinementInstruction.trim();
+    if (!instruction) {
+      setRefinementError("Напишите, что нужно изменить в функционале сотрудника.");
+      return;
+    }
+
+    const nextDraft = {
+      ...draft,
+      positions: draft.positions.map((position) => ({
+        ...position,
+        functionality: appendText(position.functionality, `Пожелание к доработке функционала сотрудника: ${instruction}`),
+      })),
+    };
+    setDraft(nextDraft);
+    setRefinementOpen(false);
+    setRefinementInstruction("");
+    setRefinementError("");
+    await submit(undefined, nextDraft);
   }
 
   function addPosition() {
@@ -375,7 +400,23 @@ export function SalaryModuleRunner({ module }: { module: LaryModule }) {
         {message ? <p className={`mt-4 rounded-2xl p-4 text-base leading-7 ${state === "error" ? "bg-red-50 text-red-900" : "bg-green-50 text-green-900"}`}>{message}</p> : null}
       </section>
 
-      {result ? <SalaryResultBlock result={result} onRerun={() => void submit()} /> : null}
+      {result ? <SalaryResultBlock result={result} onOpenRefinement={() => setRefinementOpen(true)} /> : null}
+      {refinementOpen ? (
+        <FunctionalityRefinementDialog
+          value={refinementInstruction}
+          error={refinementError}
+          submitting={state === "submitting"}
+          onChange={(value) => {
+            setRefinementInstruction(value);
+            setRefinementError("");
+          }}
+          onCancel={() => {
+            setRefinementOpen(false);
+            setRefinementError("");
+          }}
+          onSubmit={() => void submitFunctionalityRefinement()}
+        />
+      ) : null}
       <p className="sr-only">{module.shortTitle}</p>
     </form>
   );
@@ -432,10 +473,10 @@ function PositionCard({
 
         <div className="grid gap-5 sm:grid-cols-2">
           <FieldBlock label="Количество сотрудников в этой роли" required>
-            <input className={inputClassName} type="number" min={1} value={position.staff_count} onChange={(event) => onChange({ staff_count: event.target.value })} placeholder="Например: 1" />
+            <input className={inputClassName} inputMode="numeric" pattern="[0-9]*" value={position.staff_count} onChange={(event) => onChange({ staff_count: event.target.value })} placeholder="Например: 1" />
           </FieldBlock>
           <FieldBlock label="Срок работы в проекте, месяцев" required>
-            <input className={inputClassName} type="number" min={1} step="0.5" value={position.duration_months} onChange={(event) => onChange({ duration_months: event.target.value })} placeholder="Например: 4" />
+            <input className={inputClassName} inputMode="decimal" value={position.duration_months} onChange={(event) => onChange({ duration_months: event.target.value })} placeholder="Например: 4" />
           </FieldBlock>
         </div>
 
@@ -460,9 +501,7 @@ function PositionCard({
         <FieldBlock label={workloadLabel} required hint={workloadHint}>
           <input
             className={inputClassName}
-            type="number"
-            min={1}
-            max={position.workload_mode === "percent" ? 100 : undefined}
+            inputMode="decimal"
             value={position.workload_value}
             onChange={(event) => onChange({ workload_value: event.target.value })}
             placeholder={position.workload_mode === "percent" ? "Например: 40" : "Например: 96"}
@@ -500,7 +539,7 @@ function PositionCard({
   );
 }
 
-function SalaryResultBlock({ result, onRerun }: { result: SalaryGenerateResult; onRerun: () => void }) {
+function SalaryResultBlock({ result, onOpenRefinement }: { result: SalaryGenerateResult; onOpenRefinement: () => void }) {
   const docx = result.downloads.docx;
   const [copied, setCopied] = useState(false);
 
@@ -511,7 +550,7 @@ function SalaryResultBlock({ result, onRerun }: { result: SalaryGenerateResult; 
   }
 
   return (
-    <section className="rounded-3xl border border-green-200 bg-green-50 p-6 text-green-950">
+    <section className="min-w-0 rounded-3xl border border-green-200 bg-green-50 p-6 text-green-950">
       <h3 className="text-3xl font-bold">Расчет готов</h3>
       <div className="mt-5 flex flex-wrap gap-3">
         {docx ? (
@@ -522,13 +561,13 @@ function SalaryResultBlock({ result, onRerun }: { result: SalaryGenerateResult; 
         <button type="button" onClick={() => void copyText()} className="min-h-14 rounded-2xl border border-green-700 bg-white px-6 py-4 text-lg font-semibold text-green-900 hover:bg-green-100">
           ⧉ Скопировать
         </button>
-        <button type="button" onClick={onRerun} className="min-h-14 rounded-2xl border border-green-700 bg-white px-6 py-4 text-lg font-semibold text-green-900 hover:bg-green-100">
+        <button type="button" onClick={onOpenRefinement} className="min-h-14 rounded-2xl border border-green-700 bg-white px-6 py-4 text-lg font-semibold text-green-900 hover:bg-green-100">
           Рассчитать заново
         </button>
       </div>
       {copied ? <p className="mt-3 rounded-2xl bg-white px-4 py-3 text-base font-semibold text-green-900">Скопировано</p> : null}
       <h4 className="mt-6 text-2xl font-bold">Текст результата</h4>
-      <pre className="mt-4 max-h-[560px] overflow-auto whitespace-pre-wrap rounded-2xl bg-white p-5 text-base leading-7 text-slate-800">{result.plain_text}</pre>
+      <pre className="mt-4 max-h-[560px] max-w-full overflow-auto whitespace-pre-wrap break-words rounded-2xl bg-white p-5 text-base leading-7 text-slate-800 [overflow-wrap:anywhere]">{result.plain_text}</pre>
       {result.warnings?.length ? (
         <div className="mt-4 rounded-2xl bg-orange-50 p-4 text-base leading-7 text-orange-950">
           {result.warnings.map((warning) => (
@@ -537,6 +576,48 @@ function SalaryResultBlock({ result, onRerun }: { result: SalaryGenerateResult; 
         </div>
       ) : null}
     </section>
+  );
+}
+
+function FunctionalityRefinementDialog({
+  value,
+  error,
+  submitting,
+  onChange,
+  onCancel,
+  onSubmit,
+}: {
+  value: string;
+  error: string;
+  submitting: boolean;
+  onChange: (value: string) => void;
+  onCancel: () => void;
+  onSubmit: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-end bg-slate-950/40 p-4 sm:items-center sm:justify-center" role="dialog" aria-modal="true" aria-labelledby="salary-refinement-title">
+      <div className="w-full max-w-xl rounded-3xl bg-white p-5 shadow-2xl">
+        <h3 id="salary-refinement-title" className="text-2xl font-bold text-slate-950">
+          что именно изменить в функционале сотрудника?
+        </h3>
+        <p className="mt-3 text-base leading-7 text-slate-600">Напишите коротко, что добавить, убрать или уточнить. Лари пересчитает результат и перепишет абзац официальным языком.</p>
+        <textarea
+          className={`${inputClassName} mt-4 min-h-36`}
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          placeholder="Например: сделать акцент на уборке площадки после мероприятий и подготовке зала до прихода участников"
+        />
+        {error ? <p className="mt-3 rounded-2xl bg-red-50 px-4 py-3 text-base text-red-900">{error}</p> : null}
+        <div className="mt-5 flex flex-wrap gap-3">
+          <button type="button" onClick={onSubmit} disabled={submitting} className="min-h-12 rounded-2xl bg-blue-800 px-5 py-3 text-base font-semibold text-white hover:bg-blue-900 disabled:cursor-wait disabled:bg-slate-400">
+            Применить и рассчитать заново
+          </button>
+          <button type="button" onClick={onCancel} disabled={submitting} className="min-h-12 rounded-2xl border border-slate-300 px-5 py-3 text-base font-semibold text-slate-800 hover:bg-slate-50 disabled:cursor-wait">
+            Отмена
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 

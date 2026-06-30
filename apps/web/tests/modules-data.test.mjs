@@ -274,6 +274,7 @@ test("salary module uses the multi-position calculation workflow", () => {
     "Скачать DOCX",
     "Скопировать",
     "Рассчитать заново",
+    "что именно изменить в функционале сотрудника?",
     "lary.module_draft.salary.v2",
     "/api/modules/salary/generate",
     "Текст результата",
@@ -299,10 +300,14 @@ test("salary module uses the multi-position calculation workflow", () => {
     "blocked",
     "unavailable",
     "not_implemented",
+    "type=\"number\"",
   ]) {
     assert.equal(salaryRunner.includes(forbidden), false, `salary runner should not expose ${forbidden}`);
   }
 
+  assert.equal(salaryRunner.includes("inputMode=\"numeric\""), true);
+  assert.equal(salaryRunner.includes("inputMode=\"decimal\""), true);
+  assert.equal(salaryRunner.includes("[overflow-wrap:anywhere]"), true);
   assert.equal(salaryRunner.indexOf("positions.map"), salaryRunner.indexOf("Добавить должность") < 0 ? -1 : salaryRunner.indexOf("positions.map"));
   assert.equal(salaryRunner.includes("positionDisplayTitle"), true);
   assert.equal(salaryRunner.includes("duplicateTitleCounts"), true);
