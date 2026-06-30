@@ -6,6 +6,7 @@ import { getFieldKey, getFieldOptions, type LaryModule, type ModuleField } from 
 import { apiUrl, readApiError } from "../lib/api-client";
 import { FieldAssistantHint, type FieldAssistantHintData } from "./field-assistant-hint";
 import { USAGE_UPDATED_EVENT } from "./module-attempt-status";
+import { SalaryModuleRunner } from "./salary-module-runner";
 
 type RunState = "idle" | "submitting" | "error";
 type VoiceState = "idle" | "recording" | "uploading";
@@ -18,6 +19,12 @@ type UsagePayload = {
 type FieldHintMap = Record<string, FieldAssistantHintData>;
 
 export function ModuleRunner({ module }: { module: LaryModule }) {
+  if (module.slug === "salary") return <SalaryModuleRunner module={module} />;
+
+  return <GenericModuleRunner module={module} />;
+}
+
+function GenericModuleRunner({ module }: { module: LaryModule }) {
   const router = useRouter();
   const [values, setValues] = useState<Record<string, string>>({});
   const [state, setState] = useState<RunState>("idle");

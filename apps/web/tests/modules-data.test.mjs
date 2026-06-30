@@ -248,17 +248,48 @@ test("presentation form avoids duplicated type and manual slide count", () => {
   assert.equal(laryData.includes("10–12 рекомендуется"), true);
 });
 
-test("P1 module forms include split salary fields and scenario helper choices", () => {
+test("salary module uses the multi-position calculation workflow", () => {
   const modules = readModules();
   const salary = modules.find((module) => module.slug === "salary");
+  const laryData = readFileSync(join(root, "app/lib/lary-data.ts"), "utf8");
+  const salaryRunner = readFileSync(join(root, "app/components/salary-module-runner.tsx"), "utf8");
+  const moduleRunner = readFileSync(join(root, "app/components/module-runner.tsx"), "utf8");
+
+  const salaryLabels = salary.fields.map((field) => field.label);
+  assert.deepEqual(salaryLabels, ["Регион", "База расчета", "Софинансирование", "Позиции расчета"]);
+  assert.equal(salary.promise.includes("Лари найдет зарплатный ориентир"), true);
+  assert.equal(salary.resultPreview.includes("DOCX и текст результата на странице."), true);
+
+  for (const forbidden of ["Год расчета", "Ссылка на источник", "ввести вручную", "Должность для поиска зарплаты", "Процент все равно нужен"]) {
+    assert.equal(JSON.stringify(salary).includes(forbidden), false, `salary public data should not include ${forbidden}`);
+    assert.equal(salaryRunner.includes(forbidden), false, `salary runner should not include ${forbidden}`);
+  }
+
+  for (const required of [
+    "Позиции расчета",
+    "Добавить должность",
+    "Дублировать",
+    "Удалить",
+    "Часы за весь проект на одного сотрудника",
+    "Скачать DOCX",
+    "Скопировать текст",
+    "Рассчитать заново",
+    "lary.module_draft.salary.v2",
+    "/api/modules/salary/generate",
+  ]) {
+    assert.equal(salaryRunner.includes(required), true, `salary runner should include ${required}`);
+  }
+
+  assert.equal(moduleRunner.includes("SalaryModuleRunner"), true);
+  assert.equal(laryData.includes("Собственные средства юридического лица"), true);
+  assert.equal(laryData.includes("Привлеченные средства согласно письму поддержки"), true);
+});
+
+test("support letter module keeps deterministic workflow and scenario helper choices", () => {
+  const modules = readModules();
   const supportLetter = modules.find((module) => module.slug === "support-letter");
   const scenario = modules.find((module) => module.slug === "scenario-plan");
   const laryData = readFileSync(join(root, "app/lib/lary-data.ts"), "utf8");
-
-  const salaryLabels = salary.fields.map((field) => field.label);
-  assert.equal(salaryLabels.includes("Количество сотрудников в этой роли"), true);
-  assert.equal(salaryLabels.includes("Занятость одного сотрудника, %"), true);
-  assert.equal(salaryLabels.includes("Занятость и количество людей"), false);
 
   const supportLabels = supportLetter.fields.map((field) => field.label);
   assert.equal(supportLabels.includes("Организация-партнер"), true);

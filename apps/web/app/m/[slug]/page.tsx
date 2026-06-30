@@ -27,10 +27,17 @@ export default async function ModulePage({ params, searchParams }: { params: Pro
 
   const isComingSoon = laryModule.status === "coming_soon";
   const showExample = query.example === "1";
-  const formTitle = laryModule.slug === "support-letter" ? "Заполните данные партнера и вклада" : "Заполните то, что уже известно";
+  const formTitle =
+    laryModule.slug === "support-letter"
+      ? "Заполните данные партнера и вклада"
+      : laryModule.slug === "salary"
+        ? "Заполните расчет по должностям"
+        : "Заполните то, что уже известно";
   const formDescription =
     laryModule.slug === "support-letter"
       ? "Пишите коротко и фактами. Лари соберет письмо по шаблону: отдельно подставит данные партнера, аккуратно сформулирует значимость проекта и опишет вклад партнера."
+      : laryModule.slug === "salary"
+        ? "Добавьте одну или несколько должностей. Лари проверит доступные источники зарплат, выберет самый высокий подтвержденный показатель и соберет расчет с обоснованием."
       : "Лари обработает ответы и подготовит рабочий файл для скачивания.";
 
   return (

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from collections.abc import Callable
 
 from app.services.salary_sources.gorodrabot import fetch_gorodrabot_salary
@@ -12,16 +13,37 @@ from app.services.salary_sources.trudvsem import fetch_trudvsem_salary_sample
 
 ROLE_SYNONYMS = {
     "координатор": ["координатор проекта", "координатор мероприятий", "администратор проекта", "организатор мероприятий"],
-    "организатор": ["организатор мероприятий", "координатор мероприятий", "event manager", "администратор проекта"],
+    "организатор": ["организатор мероприятий", "организатор события", "координатор мероприятий", "event manager", "администратор мероприятий"],
     "куратор": ["куратор проекта", "координатор проекта", "руководитель проекта"],
-    "режиссер": ["режиссер", "постановщик", "режиссер-постановщик"],
+    "режиссер": ["режиссер", "постановщик", "режиссер-постановщик", "художественный руководитель"],
     "администратор": ["администратор проекта", "координатор проекта", "администратор мероприятий"],
 }
 
 
+def normalize_role_title(role: str) -> str:
+    cleaned = " ".join(str(role or "").strip().lower().replace("ё", "е").split())
+    cleaned = re.sub(r"\s*[-–—]\s*", "-", cleaned)
+    return cleaned
+
+
 def build_salary_role_queries(role: str) -> list[str]:
-    cleaned = " ".join(str(role or "").strip().lower().split())
+    cleaned = normalize_role_title(role)
     queries = [cleaned] if cleaned else []
+
+    if cleaned:
+        if "проектов" in cleaned:
+            queries.append(cleaned.replace("проектов", "проекта"))
+        if "проекта" in cleaned:
+            queries.append(cleaned.replace("проекта", "проектов"))
+        if "проектный" in cleaned:
+            queries.append(cleaned.replace("проектный", "проекта"))
+        stripped = re.sub(r"\b(проекта|проектов|проектный|проектная|проектное)\b", "", cleaned)
+        stripped = " ".join(stripped.split())
+        if stripped and stripped != cleaned:
+            queries.append(stripped)
+        if "-" in cleaned:
+            queries.extend(part for part in cleaned.split("-") if part)
+
     for key, synonyms in ROLE_SYNONYMS.items():
         if key in cleaned:
             queries.extend(synonyms)
@@ -33,6 +55,29 @@ def build_salary_role_queries(role: str) -> list[str]:
             seen.add(query)
             result.append(query)
     return result
+
+
+def source_names_for_scope(source_scope: str) -> set[str]:
+    if source_scope == "aggregators":
+        return {"gorodrabot", "hh", "trudvsem", "ai_salary_fallback"}
+    if source_scope == "official":
+        return {"rosstat", "ai_salary_fallback"}
+    return {"gorodrabot", "hh", "trudvsem", "rosstat", "ai_salary_fallback"}
+
+
+def collect_salary_source_results(role: str, region: str, source_scope: str, year: int | None = None) -> list[SalarySourceResult]:
+    actual_year = year or 2025
+    results: list[SalarySourceResult] = []
+    scope_sources = source_names_for_scope(source_scope)
+    if "gorodrabot" in scope_sources:
+        results.append(_safe_probe("gorodrabot", lambda: _probe_role_queries(fetch_gorodrabot_salary, role, region, actual_year, min_sample_size=None)))
+    if "hh" in scope_sources:
+        results.append(_safe_probe("hh", lambda: _probe_role_queries(fetch_hh_salary_sample, role, region, actual_year, min_sample_size=10)))
+    if "trudvsem" in scope_sources:
+        results.append(_safe_probe("trudvsem", lambda: _probe_role_queries(fetch_trudvsem_salary_sample, role, region, actual_year, min_sample_size=10)))
+    if "rosstat" in scope_sources:
+        results.append(_safe_probe("rosstat", lambda: fetch_rosstat_region_wage(region, actual_year, role=role)))
+    return results
 
 
 def probe_salary_sources(role: str, region: str, year: int) -> SalaryProbeResponse:
@@ -123,4 +168,3 @@ def _ok_with_salary(result: SalarySourceResult | None) -> SalarySourceResult | N
 def _append_adjacent_warning(warnings: list[str], result: SalarySourceResult, original_role: str | None) -> None:
     if original_role and result.query_role.strip().lower() != original_role.strip().lower():
         warnings.append("Использована смежная должность, потому что по исходной роли найдено мало данных.")
-

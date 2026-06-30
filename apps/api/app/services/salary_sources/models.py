@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field
 
 SalarySourceStatus = Literal["ok", "no_data", "unavailable", "blocked", "parse_error", "not_implemented"]
 SalaryType = Literal["mean", "median", "mode", "vacancy_sample_median", "official_region_mean", "manual"]
+SalaryConfidence = Literal["high", "medium", "low"]
 
 
 class SalarySourceResult(BaseModel):
@@ -22,6 +23,7 @@ class SalarySourceResult(BaseModel):
     sample_size: int | None = None
     source_url: str | None = None
     notes: str | None = None
+    confidence: SalaryConfidence | None = None
 
 
 class SalaryProbeResponse(BaseModel):
@@ -37,4 +39,3 @@ class SalaryProbeRequest(BaseModel):
     role: str
     region: str
     year: int
-
