@@ -95,7 +95,7 @@ def download(run_id: str, file_format: str):
     if not path.exists():
         raise HTTPException(status_code=404, detail={"message": "Файл временно недоступен. Запустите модуль еще раз."})
 
-    filename = path.name if run.module_slug == "support-letter" and file_format == "docx" else f"{DOWNLOAD_TITLES.get(run.module_slug, run.module_slug)}.{file_format}"
+    filename = path.name if run.module_slug in {"support-letter", "salary"} and file_format == "docx" else f"{DOWNLOAD_TITLES.get(run.module_slug, run.module_slug)}.{file_format}"
     return FileResponse(path, media_type=MEDIA_TYPES.get(file_format, "application/octet-stream"), filename=filename)
 
 

@@ -27,7 +27,10 @@ export default async function ModulePage({ params, searchParams }: { params: Pro
 
   const isComingSoon = laryModule.status === "coming_soon";
   const showExample = query.example === "1";
-  const formTitle = laryModule.slug === "support-letter" ? "Заполните данные партнера и вклада" : "Заполните то, что уже известно";
+  const formTitle =
+    laryModule.slug === "support-letter"
+      ? "Заполните данные партнера и вклада"
+      : "Заполните то, что уже известно";
   const formDescription =
     laryModule.slug === "support-letter"
       ? "Пишите коротко и фактами. Лари соберет письмо по шаблону: отдельно подставит данные партнера, аккуратно сформулирует значимость проекта и опишет вклад партнера."
@@ -68,11 +71,13 @@ export default async function ModulePage({ params, searchParams }: { params: Pro
         <>
           <section className="mx-auto grid max-w-7xl gap-8 px-5 py-12 sm:px-8 lg:grid-cols-[1fr_320px]">
             <div>
-              <div className="rounded-3xl border border-slate-200 bg-white p-6">
-                <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">Ответьте на вопросы</p>
-                <h2 className="mt-2 text-3xl font-bold">{formTitle}</h2>
-                <p className="mt-3 text-lg leading-8 text-slate-700">{formDescription}</p>
-              </div>
+              {laryModule.slug !== "salary" ? (
+                <div className="rounded-3xl border border-slate-200 bg-white p-6">
+                  <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">Ответьте на вопросы</p>
+                  <h2 className="mt-2 text-3xl font-bold">{formTitle}</h2>
+                  <p className="mt-3 text-lg leading-8 text-slate-700">{formDescription}</p>
+                </div>
+              ) : null}
               {showExample ? <ExampleResult slug={laryModule.slug} title={laryModule.taskTitle} /> : null}
               <ModuleRunner module={laryModule} />
             </div>
@@ -87,6 +92,11 @@ export default async function ModulePage({ params, searchParams }: { params: Pro
               <InfoCallout tone="green" title="После результата">
                 Можно скачать файл, улучшить текст, отправить себе на почту или прикрепить к проекту.
               </InfoCallout>
+              {laryModule.slug === "salary" ? (
+                <InfoCallout title="Источники расчета">
+                  Лари использует GorodRabot и Trudvsem. В расчет попадает самый высокий подтвержденный показатель с доступной ссылкой на источник.
+                </InfoCallout>
+              ) : null}
             </div>
           </section>
 
@@ -103,7 +113,6 @@ function ExampleResult({ slug, title }: { slug: string; title: string }) {
     <div className="mt-6 rounded-3xl border border-blue-200 bg-blue-50 p-6 text-blue-950">
       <p className="text-sm font-semibold uppercase tracking-wide">Пример результата</p>
       <h2 className="mt-2 text-2xl font-bold">{title}</h2>
-      <p className="mt-2 text-base leading-7">Это пример, не настоящая заявка. Он показывает формат результата, который можно будет скачать после запуска модуля.</p>
       <div className="mt-4 grid gap-3">
         {sample.map((item) => (
           <section key={item.title} className="rounded-2xl bg-white p-4">
@@ -126,8 +135,34 @@ const EXAMPLE_RESULTS: Record<string, Array<{ title: string; body: string }>> = 
     { title: "Региональный уровень", body: "Документы субъекта РФ и предупреждение проверить актуальную редакцию." },
   ],
   salary: [
-    { title: "Расчет", body: "Формула, количество сотрудников, занятость одного сотрудника, срок работы и заметка по календарному плану." },
-    { title: "Обоснование", body: "Связь должности с мероприятиями и результатами проекта." },
+    {
+      title: "Исходные данные",
+      body: "Должность: координатор проекта. Регион: Свердловская область. Период работы в проекте: 4 месяца. Занятость: 40% рабочего времени. Источник расчета: средняя заработная плата по выбранной должности и региону за актуальный доступный год.",
+    },
+    {
+      title: "Источник зарплаты",
+      body: "По данным открытого источника по рынку труда, средняя заработная плата координатора в Свердловской области за 2024 год составляет 68 372 рубля в месяц.",
+    },
+    {
+      title: "Функционал",
+      body: "Координатор проекта обеспечивает организационное сопровождение участников и команды: ведет списки участников, согласует расписание, назначает и сопровождает организационные встречи, предупреждает участников об изменениях, фиксирует посещаемость, помогает собрать анкеты и обратную связь, передает информацию руководителю проекта и ответственным за мероприятия. Работа координатора необходима на всех этапах, где есть взаимодействие с участниками, расписанием, площадками и отчетными материалами.",
+    },
+    {
+      title: "Календарный план",
+      body: "Координатор задействован в мероприятиях календарного плана № 1.1–1.4, 2.1–2.3, 3.1.",
+    },
+    {
+      title: "Расчет",
+      body: "68 372 руб. × 40% × 4 месяца = 109 395,20 руб. К включению в бюджет: 109 395 руб.",
+    },
+    {
+      title: "Обоснование",
+      body: "Сумма рассчитана пропорционально фактической занятости координатора в проекте. В бюджет включается только та часть оплаты труда, которая относится к выполнению задач заявляемого проекта. Занятость 40% обоснована регулярной коммуникацией с участниками и командой, сопровождением нескольких мероприятий календарного плана, контролем посещаемости, переносами занятий/встреч и сбором отчетных данных.",
+    },
+    {
+      title: "Софинансирование",
+      body: "Источник софинансирования: собственные средства заявителя / собственные средства ИП / привлеченные средства партнера согласно письму поддержки.",
+    },
   ],
   "support-letter": [
     { title: "DOCX-письмо", body: "Письмо по шаблону ПФКИ с названием партнера, описанием поддержки, вкладом и подписантом." },

@@ -12,3 +12,4 @@ docxtpl
 python-pptx
 reportlab
 font-roboto==0.0.1
+openpyxl

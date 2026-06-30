@@ -19,6 +19,7 @@ class Settings:
     gigachat_verify_ssl_certs: bool = os.getenv("GIGACHAT_VERIFY_SSL_CERTS", "false").lower() == "true"
     gigachat_timeout: float = float(os.getenv("GIGACHAT_TIMEOUT", "60.0"))
     gigachat_max_retries: int = int(os.getenv("GIGACHAT_MAX_RETRIES", "3"))
+    salary_enable_ai_text_composition: bool = os.getenv("SALARY_ENABLE_AI_TEXT_COMPOSITION", "true").lower() == "true"
 
     salute_speech_authorization_key: str | None = os.getenv("SALUTE_SPEECH_AUTHORIZATION_KEY")
     salute_speech_scope: str = os.getenv("SALUTE_SPEECH_SCOPE", "SALUTE_SPEECH_PERS")

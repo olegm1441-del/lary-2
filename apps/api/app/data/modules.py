@@ -22,12 +22,12 @@ MODULES = [
     {
         "slug": "salary",
         "status": "active",
-        "title": "Расчет зарплаты и обоснования",
-        "task_title": "Рассчитать зарплату",
+        "title": "Рассчитать зарплату и обоснование",
+        "task_title": "Рассчитать зарплату и обоснование",
         "duration": "5-8 минут",
         "competition": "ПФКИ",
         "output_formats": ["docx"],
-        "fields": ["role", "region", "functionality", "months", "employee_count", "employment_percent", "employment_hours", "calendar_items", "cofunding"],
+        "fields": ["region", "cofinance_source", "positions"],
     },
     {
         "slug": "support-letter",
