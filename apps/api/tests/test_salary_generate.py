@@ -134,6 +134,64 @@ class SalaryGenerateTest(unittest.TestCase):
         self.assertNotIn("Позиция 1", body["plain_text"])
         self.assertNotIn("Позиция 2", body["plain_text"])
 
+    def test_generate_uses_position_level_cofinance_sources(self):
+        coordinator = SalarySourceResult(
+            source="gorodrabot",
+            status="ok",
+            query_role="координатор проекта",
+            region="Свердловская область",
+            salary_value=70_000,
+            salary_type="mean",
+            source_url="https://gorodrabot.ru/1",
+        )
+        organizer = SalarySourceResult(
+            source="trudvsem",
+            status="ok",
+            query_role="организатор мероприятий",
+            region="Свердловская область",
+            salary_value=80_000,
+            salary_type="vacancy_sample_median",
+            source_url="https://trudvsem.ru/2",
+        )
+
+        def fake_sources(role, region, year=None):
+            return [organizer] if "организатор" in role else [coordinator]
+
+        payload = {
+            "region": "Свердловская область",
+            "positions": [
+                {
+                    "role_title": "координатор проекта",
+                    "staff_count": 1,
+                    "duration_months": 4,
+                    "workload_mode": "percent",
+                    "workload_value": 40,
+                    "functionality": "",
+                    "calendar_events": "1",
+                    "cofinance_source": "own_legal_entity_funds",
+                },
+                {
+                    "role_title": "организатор мероприятий",
+                    "staff_count": 1,
+                    "duration_months": 3,
+                    "workload_mode": "percent",
+                    "workload_value": 50,
+                    "functionality": "",
+                    "calendar_events": "2",
+                    "cofinance_source": "partner_letter_funds",
+                },
+            ],
+        }
+
+        client = TestClient(app)
+        with patch("app.services.salary_calculator.collect_production_salary_source_results", side_effect=fake_sources):
+            response = client.post("/api/modules/salary/generate", json=payload)
+
+        self.assertEqual(response.status_code, 200)
+        text = response.json()["plain_text"]
+        self.assertIn("Источник софинансирования: собственные средства юридического лица.", text)
+        self.assertIn("Источник софинансирования: привлеченные средства согласно письму поддержки.", text)
+
     def test_generate_selects_highest_eligible_source_not_first(self):
         lower = SalarySourceResult(
             source="gorodrabot",

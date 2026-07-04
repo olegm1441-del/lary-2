@@ -63,12 +63,13 @@ class SalaryPositionInput(BaseModel):
     workload_value: float
     functionality: str = ""
     calendar_events: str = ""
+    cofinance_source: CofinanceSource | None = None
 
 
 class SalaryGenerateRequest(BaseModel):
     region: str = Field(..., min_length=1)
     source_scope: SourceScope = "all"
-    cofinance_source: CofinanceSource
+    cofinance_source: CofinanceSource | None = None
     positions: list[SalaryPositionInput] = Field(default_factory=list)
 
 
@@ -139,9 +140,10 @@ def generate_salary_result(payload: SalaryGenerateRequest) -> SalaryGenerationOu
     _validate_salary_request(payload)
     positions: list[SalaryPositionOutput] = []
     warnings: list[str] = []
-    cofinance_text = COFINANCE_LABELS[payload.cofinance_source]
 
     for position in payload.positions:
+        cofinance_key = position.cofinance_source or payload.cofinance_source
+        cofinance_text = COFINANCE_LABELS[cofinance_key]  # type: ignore[index]
         source_results = collect_production_salary_source_results(
             position.role_title,
             payload.region,
@@ -272,12 +274,13 @@ def _validate_salary_request(payload: SalaryGenerateRequest) -> None:
         raise ValueError("Выберите регион расчета.")
     if payload.source_scope not in {"all", "aggregators", "official", "active"}:
         raise ValueError("Выберите базу расчета.")
-    if payload.cofinance_source not in COFINANCE_LABELS:
-        raise ValueError("Выберите источник софинансирования.")
     if not payload.positions:
         raise ValueError("Добавьте хотя бы одну должность.")
 
     for position in payload.positions:
+        cofinance_key = position.cofinance_source or payload.cofinance_source
+        if cofinance_key not in COFINANCE_LABELS:
+            raise ValueError("Выберите источник софинансирования для каждой должности.")
         if not position.role_title.strip():
             raise ValueError("Укажите должность в проекте.")
         if position.staff_count < 1:
