@@ -11,6 +11,7 @@ from docx import Document
 from app.services.support_letter import (
     SupportLetterGenerationError,
     SupportLetterValidationError,
+    _extract_json_field,
     build_support_letter_document,
     normalize_cofinance,
     normalize_partner_name,
@@ -30,6 +31,18 @@ VALID_PAYLOAD = {
     "support_details": "разместит 5 публикаций в социальных сетях и предоставит 100 футболок для победителей и участников финального мероприятия",
     "cofinance_block": "600000",
     "signatory": "Генеральный директор ООО \"Лютики\" Иванов Иван Иванович",
+}
+
+RAILWAY_REPRO_PAYLOAD = {
+    "contest": "pfki",
+    "project_title": "Домик в деревне",
+    "partner_name": 'ООО "Лютики"',
+    "partner_intro_block": "региональный поставщик футболок",
+    "value_keywords": "пенсионеры; Республика Татарстан; социальная поддержка; участие жителей; помощь людям старшего поколения",
+    "support_types": ["Информационная", "Организационная"],
+    "support_details": "разместит публикации о проекте и поможет с организацией встречи участников",
+    "cofinance_block": "30000",
+    "signatory": "Генеральный директор И.И. Иванов",
 }
 
 
@@ -232,6 +245,45 @@ class SupportLetterServiceTest(unittest.TestCase):
         text = docx_text(result.docx_bytes)
         self.assertNotIn("<br/>", text)
         self.assertIn("1. Проект помогает детям проявлять себя творчески.", text)
+
+    def test_json_field_accepts_fenced_and_prefixed_ai_response(self):
+        raw = """
+        Готовый блок:
+        ``` json
+        {"ai_support_block": "Информационная поддержка: готовы разместить публикации о проекте. Организационная поддержка: готовы помочь с организацией встречи участников."}
+        ```
+        """
+
+        value = _extract_json_field(raw, "ai_support_block", 900)
+
+        self.assertIn("Информационная поддержка", value)
+        self.assertIn("Организационная поддержка", value)
+
+    def test_railway_repro_payload_generates_valid_docx_without_placeholders(self):
+        ai_value = {
+            "ai_value_block": "Видим необходимость проекта в следующем:\n1. Проект помогает людям старшего поколения участвовать в общественной жизни.\n2. Проект усиливает социальную поддержку и коммуникацию жителей.\n3. Проект создает понятный формат участия для территории.\nВидим особенным этот проект для нашей территории Республики Татарстан.",
+        }
+        ai_support = {
+            "ai_support_block": "Информационная поддержка: готовы разместить публикации о проекте на своих информационных площадках. Это поможет донести информацию до участников.\nОрганизационная поддержка: готовы помочь с организацией встречи участников. Это позволит провести встречу аккуратно и понятно для аудитории.",
+        }
+
+        with patch(
+            "app.services.support_letter.generate_with_gigachat",
+            side_effect=[
+                f"```json\n{json.dumps(ai_value, ensure_ascii=False)}\n```",
+                f"Ответ:\n``` json\n{json.dumps(ai_support, ensure_ascii=False)}\n```",
+            ],
+        ):
+            result = build_support_letter_document(RAILWAY_REPRO_PAYLOAD)
+
+        self.assertGreater(len(result.docx_bytes), 10_000)
+        with ZipFile(BytesIO(result.docx_bytes)) as archive:
+            self.assertIn("word/document.xml", archive.namelist())
+        text = docx_text(result.docx_bytes)
+        self.assertNotRegex(text, r"{{|}}|PARTNER_|AI_")
+        self.assertIn("ООО «Лютики»", text)
+        self.assertIn("Домик в деревне", text)
+        self.assertIn("Оцениваем наш вклад в 30 000 рублей", text)
 
 
 if __name__ == "__main__":

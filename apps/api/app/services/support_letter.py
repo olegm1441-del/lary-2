@@ -402,17 +402,7 @@ def _build_support_prompt(payload: NormalizedSupportLetterPayload) -> str:
 
 
 def _extract_json_field(raw: str, key: str, max_length: int) -> str:
-    text = str(raw or "").strip()
-    if text.startswith("```"):
-        text = re.sub(r"^```(?:json)?", "", text, flags=re.IGNORECASE).strip()
-        text = re.sub(r"```$", "", text).strip()
-
-    start = text.find("{")
-    end = text.rfind("}")
-    if start >= 0 and end > start:
-        text = text[start : end + 1]
-
-    data = json.loads(text)
+    data = json.loads(_extract_json_object_text(raw))
     value = data.get(key)
     if not isinstance(value, str):
         raise ValueError(f"Missing JSON key: {key}")
@@ -423,6 +413,20 @@ def _extract_json_field(raw: str, key: str, max_length: int) -> str:
     if len(cleaned) > max_length:
         raise ValueError(f"JSON field is too long: {key}")
     return cleaned.rstrip()
+
+
+def _extract_json_object_text(raw: str) -> str:
+    text = str(raw or "").strip()
+    fenced = re.search(r"```(?:\s*json)?\s*(\{.*?\})\s*```", text, flags=re.IGNORECASE | re.DOTALL)
+    if fenced:
+        return fenced.group(1).strip()
+
+    start = text.find("{")
+    end = text.rfind("}")
+    if start >= 0 and end > start:
+        return text[start : end + 1].strip()
+
+    return text
 
 
 def _clean_docx_block(value: str) -> str:
