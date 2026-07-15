@@ -75,7 +75,10 @@ class SalaryPositionOutput(BaseModel):
     workload_value: float
     salary_value: int
     source: str
+    source_title: str | None = None
+    source_year: int | None = None
     source_url: str | None = None
+    attempt_stage: str | None = None
     amount: int
     formula: str
     text: str
@@ -137,6 +140,7 @@ def generate_salary_result(payload: SalaryGenerateRequest) -> SalaryGenerationOu
     for position in payload.positions:
         cofinance_key = position.cofinance_source or payload.cofinance_source
         cofinance_text = COFINANCE_LABELS[cofinance_key]  # type: ignore[index]
+        attempt_stage = "active_sources"
         source_results = collect_production_salary_source_results(
             position.role_title,
             payload.region,
@@ -154,12 +158,13 @@ def generate_salary_result(payload: SalaryGenerateRequest) -> SalaryGenerationOu
                 selected, alias_warnings = choose_highest_eligible_salary(alias_results, "active", original_role=position.role_title, allowed_sources=production_source_names())
                 warnings.extend(alias_warnings)
                 if selected:
+                    attempt_stage = "ai_alias_backend_search"
                     break
 
         if not selected:
             raise ValueError(SOFT_NO_SALARY_ERROR)
 
-        positions.append(_calculate_position(position, payload.region, selected, cofinance_text))
+        positions.append(_calculate_position(position, payload.region, selected, cofinance_text, attempt_stage=attempt_stage))
 
     total_amount = sum(item.amount for item in positions)
     plain_text = _compose_plain_text(payload.region, positions, total_amount)
@@ -280,7 +285,7 @@ def _validate_salary_request(payload: SalaryGenerateRequest) -> None:
             raise ValueError("Укажите количество часов за весь проект.")
 
 
-def _calculate_position(position: SalaryPositionInput, region: str, source: SalarySourceResult, cofinance_text: str) -> SalaryPositionOutput:
+def _calculate_position(position: SalaryPositionInput, region: str, source: SalarySourceResult, cofinance_text: str, *, attempt_stage: str = "active_sources") -> SalaryPositionOutput:
     salary = int(source.salary_value or 0)
     if position.workload_mode == "percent":
         raw = Decimal(salary) * Decimal(str(position.workload_value)) / Decimal(100) * Decimal(str(position.duration_months)) * Decimal(position.staff_count)
@@ -329,7 +334,10 @@ def _calculate_position(position: SalaryPositionInput, region: str, source: Sala
         workload_value=position.workload_value,
         salary_value=salary,
         source=source.source,
+        source_title=source_title,
+        source_year=source.year,
         source_url=source.source_url,
+        attempt_stage=attempt_stage,
         amount=amount,
         formula=formula,
         text="\n".join(text_lines),
