@@ -44,7 +44,7 @@ def fetch_trudvsem_salary_sample(role: str, region: str, year: int | None = None
         salary_value=stats.median,
         salary_type="vacancy_sample_median",
         sample_size=stats.sample_size,
-        source_url=source_url,
+        source_url=str(response.url),
         notes="Работа России показывает вакансии работодателей; формат API может отличаться по регионам и должностям.",
     )
 
@@ -80,4 +80,3 @@ def _extract_vacancy_items(payload: dict) -> list[dict]:
 
 def _result(status: str, role: str, region: str, year: int | None, source_url: str, notes: str | None = None) -> SalarySourceResult:
     return SalarySourceResult(source="trudvsem", status=status, query_role=role, region=region, year=year, source_url=source_url, notes=notes)
-

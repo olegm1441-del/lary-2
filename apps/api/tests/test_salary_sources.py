@@ -16,6 +16,7 @@ from app.services.salary_sources.aggregator import build_salary_role_queries, ch
 from app.services.salary_sources.gorodrabot import parse_gorodrabot_salary_page  # noqa: E402
 from app.services.salary_sources.hh import calculate_hh_salary_stats  # noqa: E402
 from app.services.salary_sources.models import SalarySourceResult  # noqa: E402
+from app.services.salary_sources.trudvsem import fetch_trudvsem_salary_sample  # noqa: E402
 
 
 class SalarySourcesTest(unittest.TestCase):
@@ -167,6 +168,28 @@ class SalarySourcesTest(unittest.TestCase):
         hh_fetch.assert_not_called()
         rosstat_fetch.assert_not_called()
         rabota_fetch.assert_not_called()
+
+    def test_trudvsem_success_uses_actual_opendata_api_url(self):
+        class FakeResponse:
+            status_code = 200
+            url = "https://opendata.trudvsem.ru/api/v1/vacancies?text=dvornik&region=tatarstan&limit=100"
+
+            def json(self):
+                return {
+                    "results": {
+                        "vacancies": [
+                            {"vacancy": {"salary_min": 20_000, "salary_max": 30_000}},
+                            {"vacancy": {"salary_min": 40_000, "salary_max": 50_000}},
+                        ]
+                    }
+                }
+
+        with patch("app.services.salary_sources.trudvsem.httpx.get", return_value=FakeResponse()):
+            result = fetch_trudvsem_salary_sample("дворник", "Республика Татарстан", 2025)
+
+        self.assertEqual(result.status, "ok")
+        self.assertEqual(result.source_url, FakeResponse.url)
+        self.assertTrue(result.source_url.startswith("https://opendata.trudvsem.ru/api/v1/vacancies"))
 
     def test_salary_probe_endpoint_is_available_in_test_env(self):
         client = TestClient(app)
