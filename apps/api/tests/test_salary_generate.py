@@ -299,7 +299,7 @@ class SalaryGenerateTest(unittest.TestCase):
             ],
         )
 
-        def fake_sources(role, region, year=None):
+        def fake_sources(role, region, year=None, **kwargs):
             return [alias_source] if role == "координатор проекта" else no_data
 
         client = TestClient(app)
@@ -631,6 +631,7 @@ class SalaryGenerateTest(unittest.TestCase):
 
         self.assertEqual(response.status_code, 400)
         self.assertIn("Не удалось найти подтвержденные данные", response.json()["detail"]["message"])
+        self.assertEqual(response.json()["detail"]["error_code"], "SALARY_SOURCE_NO_CONFIRMED_RESULT")
 
     def test_salary_source_error_does_not_consume_free_attempt(self):
         client = TestClient(app)

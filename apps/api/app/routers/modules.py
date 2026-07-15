@@ -4,7 +4,7 @@ from app.core.config import settings
 from app.data.modules import get_module, get_modules
 from app.schemas.modules import ModuleItem, ModulesResponse, ModuleValidationRequest, ModuleValidationResponse
 from app.services.account_store import ModuleAccessError, get_request_context, prepare_module_access, record_module_run_success
-from app.services.salary_calculator import SalaryGenerateRequest, SalaryGenerateResponse, create_salary_run
+from app.services.salary_calculator import SalaryGenerateRequest, SalaryGenerateResponse, SalaryGenerationError, create_salary_run
 from app.services.salary_sources.aggregator import probe_salary_sources
 from app.services.salary_sources.models import SalaryProbeRequest, SalaryProbeResponse
 from app.services.module_validation import validate_module_inputs
@@ -44,6 +44,8 @@ def salary_generate(payload: SalaryGenerateRequest, request: Request, response: 
 
     try:
         run, generated = create_salary_run(payload)
+    except SalaryGenerationError as exc:
+        raise HTTPException(status_code=400, detail={"message": str(exc), "error_code": exc.error_code}) from exc
     except ValueError as exc:
         raise HTTPException(status_code=400, detail={"message": str(exc)}) from exc
 

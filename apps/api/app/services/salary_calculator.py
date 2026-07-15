@@ -24,6 +24,7 @@ CofinanceSource = Literal["own_legal_entity_funds", "partner_letter_funds"]
 
 CALENDAR_MANUAL_NOTE = "УКАЖИТЕ НОМЕРА МЕРОПРИЯТИЙ КАЛЕНДАРНОГО ПЛАНА"
 SOFT_NO_SALARY_ERROR = "Не удалось найти подтвержденные данные по этой должности в выбранном регионе. Черновик сохранен. Уточните название должности и повторите расчет."
+SALARY_SOURCE_NO_CONFIRMED_RESULT = "SALARY_SOURCE_NO_CONFIRMED_RESULT"
 COFINANCE_LABELS = {
     "own_legal_entity_funds": "собственные средства юридического лица",
     "partner_letter_funds": "привлеченные средства согласно письму поддержки",
@@ -46,6 +47,12 @@ SOURCE_TYPE_LABELS = {
     "official_region_mean": "официальный региональный показатель средней зарплаты",
     "manual": "зарплатный ориентир",
 }
+
+
+class SalaryGenerationError(ValueError):
+    def __init__(self, message: str, error_code: str):
+        super().__init__(message)
+        self.error_code = error_code
 
 
 class SalaryPositionInput(BaseModel):
@@ -153,8 +160,8 @@ def generate_salary_result(payload: SalaryGenerateRequest) -> SalaryGenerationOu
                 role_title=position.role_title,
                 region=payload.region,
                 role_query_variants=build_salary_role_queries(position.role_title),
-            ):
-                alias_results = collect_production_salary_source_results(alias, payload.region, year=_default_salary_year())
+            )[:2]:
+                alias_results = collect_production_salary_source_results(alias, payload.region, year=_default_salary_year(), max_role_queries=1)
                 selected, alias_warnings = choose_highest_eligible_salary(alias_results, "active", original_role=position.role_title, allowed_sources=production_source_names())
                 warnings.extend(alias_warnings)
                 if selected:
@@ -162,7 +169,7 @@ def generate_salary_result(payload: SalaryGenerateRequest) -> SalaryGenerationOu
                     break
 
         if not selected:
-            raise ValueError(SOFT_NO_SALARY_ERROR)
+            raise SalaryGenerationError(SOFT_NO_SALARY_ERROR, SALARY_SOURCE_NO_CONFIRMED_RESULT)
 
         positions.append(_calculate_position(position, payload.region, selected, cofinance_text, attempt_stage=attempt_stage))
 

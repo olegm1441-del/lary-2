@@ -28,7 +28,7 @@ ROLE_SYNONYMS = {
 
 ACTIVE_PRODUCTION_SALARY_SOURCES = ("gorodrabot", "trudvsem")
 PRODUCTION_ACTIVE_SOURCE_NAMES = ACTIVE_PRODUCTION_SALARY_SOURCES
-MAX_PRODUCTION_ROLE_QUERIES = 4
+MAX_PRODUCTION_ROLE_QUERIES = 3
 
 
 def normalize_role_title(role: str) -> str:
@@ -83,9 +83,10 @@ def production_source_names() -> set[str]:
     return set(PRODUCTION_ACTIVE_SOURCE_NAMES)
 
 
-def collect_production_salary_source_results(role: str, region: str, year: int | None = None) -> list[SalarySourceResult]:
+def collect_production_salary_source_results(role: str, region: str, year: int | None = None, max_role_queries: int = MAX_PRODUCTION_ROLE_QUERIES) -> list[SalarySourceResult]:
     actual_year = year or 2025
-    queries = build_salary_role_queries(role)[:MAX_PRODUCTION_ROLE_QUERIES] or [role]
+    query_limit = max(1, int(max_role_queries or MAX_PRODUCTION_ROLE_QUERIES))
+    queries = build_salary_role_queries(role)[:query_limit] or [role]
     probes = [
         ("gorodrabot", lambda: _probe_role_query_list(fetch_gorodrabot_salary, queries, role, region, actual_year, min_sample_size=None)),
         ("trudvsem", lambda: _probe_role_query_list(fetch_trudvsem_salary_sample, queries, role, region, actual_year, min_sample_size=None)),

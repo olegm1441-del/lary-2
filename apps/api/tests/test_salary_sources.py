@@ -176,6 +176,32 @@ class SalarySourcesTest(unittest.TestCase):
         rosstat_fetch.assert_not_called()
         rabota_fetch.assert_not_called()
 
+    def test_production_source_collection_limits_role_queries_per_source(self):
+        from app.services.salary_sources.aggregator import collect_production_salary_source_results
+
+        def no_data(role, region, year):
+            return SalarySourceResult(source="gorodrabot", status="no_data", query_role=role, region=region, year=year)
+
+        with patch("app.services.salary_sources.aggregator.fetch_gorodrabot_salary", side_effect=no_data) as gorodrabot_fetch, \
+            patch("app.services.salary_sources.aggregator.fetch_trudvsem_salary_sample", side_effect=no_data) as trudvsem_fetch:
+            collect_production_salary_source_results("координатор проекта", "Свердловская область", 2025)
+
+        self.assertLessEqual(gorodrabot_fetch.call_count, 3)
+        self.assertLessEqual(trudvsem_fetch.call_count, 3)
+
+    def test_ai_alias_source_collection_can_use_exact_alias_only(self):
+        from app.services.salary_sources.aggregator import collect_production_salary_source_results
+
+        def no_data(role, region, year):
+            return SalarySourceResult(source="gorodrabot", status="no_data", query_role=role, region=region, year=year)
+
+        with patch("app.services.salary_sources.aggregator.fetch_gorodrabot_salary", side_effect=no_data) as gorodrabot_fetch, \
+            patch("app.services.salary_sources.aggregator.fetch_trudvsem_salary_sample", side_effect=no_data) as trudvsem_fetch:
+            collect_production_salary_source_results("координатор проекта", "Свердловская область", 2025, max_role_queries=1)
+
+        self.assertEqual(gorodrabot_fetch.call_count, 1)
+        self.assertEqual(trudvsem_fetch.call_count, 1)
+
     def test_trudvsem_success_uses_actual_opendata_api_url(self):
         class FakeResponse:
             status_code = 200
