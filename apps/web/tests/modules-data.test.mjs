@@ -329,7 +329,7 @@ test("salary page does not render duplicate intro card for salary module", () =>
   assert.equal(modulePage.includes("laryModule.slug !== \"salary\""), true);
   assert.equal(modulePage.includes("Заполните расчет по должностям"), false);
   assert.equal(modulePage.includes("Источники расчета"), true);
-  assert.equal(modulePage.includes("Лари использует GorodRabot и Trudvsem. В расчет попадает самый высокий подтвержденный показатель с доступной ссылкой на источник."), true);
+  assert.equal(modulePage.includes("Лари проверяет данные ГородРабот и портала «Работа России» и использует самый высокий подтвержденный показатель со ссылкой."), true);
   assert.equal(modulePage.includes("официальная статистика"), false);
 });
 

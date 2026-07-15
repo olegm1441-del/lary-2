@@ -94,7 +94,7 @@ export default async function ModulePage({ params, searchParams }: { params: Pro
               </InfoCallout>
               {laryModule.slug === "salary" ? (
                 <InfoCallout title="Источники расчета">
-                  Лари использует GorodRabot и Trudvsem. В расчет попадает самый высокий подтвержденный показатель с доступной ссылкой на источник.
+                  Лари проверяет данные ГородРабот и портала «Работа России» и использует самый высокий подтвержденный показатель со ссылкой.
                 </InfoCallout>
               ) : null}
             </div>
