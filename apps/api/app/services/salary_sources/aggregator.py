@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import re
 from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor
 
 from app.services.salary_sources.gorodrabot import fetch_gorodrabot_salary
 from app.services.salary_sources.hh import fetch_hh_salary_sample
@@ -21,6 +22,7 @@ ROLE_SYNONYMS = {
 
 ACTIVE_PRODUCTION_SALARY_SOURCES = ("gorodrabot", "trudvsem")
 PRODUCTION_ACTIVE_SOURCE_NAMES = ACTIVE_PRODUCTION_SALARY_SOURCES
+MAX_PRODUCTION_ROLE_QUERIES = 5
 
 
 def normalize_role_title(role: str) -> str:
@@ -76,10 +78,14 @@ def production_source_names() -> set[str]:
 
 def collect_production_salary_source_results(role: str, region: str, year: int | None = None) -> list[SalarySourceResult]:
     actual_year = year or 2025
-    return [
-        _safe_probe("gorodrabot", lambda: _probe_role_queries(fetch_gorodrabot_salary, role, region, actual_year, min_sample_size=None)),
-        _safe_probe("trudvsem", lambda: _probe_role_queries(fetch_trudvsem_salary_sample, role, region, actual_year, min_sample_size=None)),
+    queries = build_salary_role_queries(role)[:MAX_PRODUCTION_ROLE_QUERIES] or [role]
+    probes = [
+        ("gorodrabot", lambda: _probe_role_query_list(fetch_gorodrabot_salary, queries, role, region, actual_year, min_sample_size=None)),
+        ("trudvsem", lambda: _probe_role_query_list(fetch_trudvsem_salary_sample, queries, role, region, actual_year, min_sample_size=None)),
     ]
+    with ThreadPoolExecutor(max_workers=len(probes)) as executor:
+        futures = [executor.submit(_safe_probe, source, callback) for source, callback in probes]
+        return [future.result() for future in futures]
 
 
 def collect_salary_source_results(role: str, region: str, source_scope: str, year: int | None = None) -> list[SalarySourceResult]:
@@ -143,6 +149,17 @@ def _probe_role_queries(
     min_sample_size: int | None,
 ) -> SalarySourceResult:
     queries = build_salary_role_queries(role) or [role]
+    return _probe_role_query_list(adapter, queries, role, region, year, min_sample_size)
+
+
+def _probe_role_query_list(
+    adapter: Callable[[str, str, int], SalarySourceResult],
+    queries: list[str],
+    role: str,
+    region: str,
+    year: int,
+    min_sample_size: int | None,
+) -> SalarySourceResult:
     first_result: SalarySourceResult | None = None
     for index, query in enumerate(queries):
         result = adapter(query, region, year)
