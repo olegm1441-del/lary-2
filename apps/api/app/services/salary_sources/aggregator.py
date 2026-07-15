@@ -19,7 +19,8 @@ ROLE_SYNONYMS = {
     "администратор": ["администратор проекта", "координатор проекта", "администратор мероприятий"],
 }
 
-PRODUCTION_ACTIVE_SOURCE_NAMES = ("gorodrabot", "trudvsem")
+ACTIVE_PRODUCTION_SALARY_SOURCES = ("gorodrabot", "trudvsem")
+PRODUCTION_ACTIVE_SOURCE_NAMES = ACTIVE_PRODUCTION_SALARY_SOURCES
 
 
 def normalize_role_title(role: str) -> str:
@@ -61,12 +62,12 @@ def build_salary_role_queries(role: str) -> list[str]:
 
 def source_names_for_scope(source_scope: str) -> set[str]:
     if source_scope == "active":
-        return production_source_names() | {"ai_salary_fallback"}
+        return production_source_names()
     if source_scope == "aggregators":
-        return {"gorodrabot", "hh", "trudvsem", "ai_salary_fallback"}
+        return {"gorodrabot", "hh", "trudvsem"}
     if source_scope == "official":
-        return {"rosstat", "ai_salary_fallback"}
-    return {"gorodrabot", "hh", "trudvsem", "rosstat", "ai_salary_fallback"}
+        return {"rosstat"}
+    return {"gorodrabot", "hh", "trudvsem", "rosstat"}
 
 
 def production_source_names() -> set[str]:
@@ -113,14 +114,15 @@ def choose_recommended(results: list[SalarySourceResult], original_role: str | N
 
     recommended = _ok_with_salary(by_source.get("gorodrabot"))
     if recommended:
-        warnings.append("GorodRabot показывает зарплатные предложения в вакансиях, а не фактически выплаченную заработную плату.")
+        warnings.append("ГородРабот показывает зарплатные предложения в вакансиях, а не фактически выплаченную заработную плату.")
         _append_adjacent_warning(warnings, recommended, original_role)
         return recommended, warnings
 
     for source in ("hh", "trudvsem"):
         result = _ok_with_salary(by_source.get(source))
         if result and (result.sample_size or 0) >= 10:
-            warnings.append(f"{source.upper() if source == 'hh' else 'Trudvsem'} показывает выборку вакансий, а не среднюю зарплату по году.")
+            source_title = "HH" if source == "hh" else "Работа России"
+            warnings.append(f"{source_title} показывает выборку вакансий, а не среднюю зарплату по году.")
             _append_adjacent_warning(warnings, result, original_role)
             return result, warnings
 

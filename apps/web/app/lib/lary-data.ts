@@ -13,7 +13,7 @@ export type ModuleField = {
 export const FIELD_KEYS_BY_MODULE: Record<string, string[]> = {
   "social-research": ["region", "direction", "target_group", "problem", "details"],
   "legal-acts": ["program_level", "region", "direction", "target_group", "details"],
-  salary: ["region", "cofinance_source", "positions"],
+  salary: ["region", "positions"],
   "support-letter": [
     "contest",
     "project_title",

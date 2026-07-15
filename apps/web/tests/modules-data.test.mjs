@@ -53,7 +53,7 @@ test("each module has enough UI metadata for first MVP screens", () => {
     assert.ok(Array.isArray(laryModule.outputFormats));
     assert.ok(laryModule.outputFormats.length >= 1);
     assert.ok(Array.isArray(laryModule.fields));
-    assert.ok(laryModule.fields.length >= (laryModule.slug === "salary" ? 3 : 4));
+    assert.ok(laryModule.fields.length >= (laryModule.slug === "salary" ? 2 : 4));
     assert.ok(Array.isArray(laryModule.resultActions));
     assert.ok(laryModule.resultActions.length >= 3);
   }
@@ -256,7 +256,7 @@ test("salary module uses the multi-position calculation workflow", () => {
   const moduleRunner = readFileSync(join(root, "app/components/module-runner.tsx"), "utf8");
 
   const salaryLabels = salary.fields.map((field) => field.label);
-  assert.deepEqual(salaryLabels, ["Регион", "Софинансирование", "Позиции расчета"]);
+  assert.deepEqual(salaryLabels, ["Регион", "Позиции расчета"]);
   assert.equal(salary.promise.includes("Лари найдет зарплатный ориентир"), true);
   assert.equal(salary.resultPreview.includes("DOCX и текст результата на странице."), true);
 
@@ -271,6 +271,8 @@ test("salary module uses the multi-position calculation workflow", () => {
     "Дублировать",
     "Удалить",
     "Часы за весь проект на одного сотрудника",
+    "Софинансирование",
+    "name={`cofinance_source-${position.id}`}",
     "Скачать DOCX",
     "Скопировать",
     "Рассчитать заново",
@@ -301,10 +303,12 @@ test("salary module uses the multi-position calculation workflow", () => {
     "unavailable",
     "not_implemented",
     "type=\"number\"",
+    "updateDraft(\"cofinance_source\"",
   ]) {
     assert.equal(salaryRunner.includes(forbidden), false, `salary runner should not expose ${forbidden}`);
   }
 
+  assert.equal(salaryRunner.indexOf("Мероприятия календарного плана") < salaryRunner.indexOf("Софинансирование"), true);
   assert.equal(salaryRunner.includes("inputMode=\"numeric\""), true);
   assert.equal(salaryRunner.includes("inputMode=\"decimal\""), true);
   assert.equal(salaryRunner.includes("[overflow-wrap:anywhere]"), true);

@@ -6,10 +6,8 @@ from datetime import date
 from decimal import Decimal, ROUND_HALF_UP
 from pathlib import Path
 from typing import Callable, Literal
-from urllib.parse import urlparse
 from uuid import uuid4
 
-import httpx
 from pydantic import BaseModel, Field
 
 from app.core.config import settings
@@ -25,11 +23,7 @@ WorkloadMode = Literal["percent", "hours_total"]
 CofinanceSource = Literal["own_legal_entity_funds", "partner_letter_funds"]
 
 CALENDAR_MANUAL_NOTE = "УКАЖИТЕ НОМЕРА МЕРОПРИЯТИЙ КАЛЕНДАРНОГО ПЛАНА"
-SOFT_NO_SALARY_ERROR = "Не получилось автоматически найти зарплатный ориентир. Данные сохранены. Попробуйте изменить должность или регион и запустить расчет еще раз."
-ALLOWED_FALLBACK_DOMAINS = {"gorodrabot.ru", "hh.ru", "trudvsem.ru", "rosstat.gov.ru", "fedstat.ru"}
-OFFICIAL_FALLBACK_DOMAINS = {"rosstat.gov.ru", "fedstat.ru"}
-PRODUCTION_FALLBACK_DOMAINS = {"gorodrabot.ru", "trudvsem.ru"}
-
+SOFT_NO_SALARY_ERROR = "Не удалось найти подтвержденные данные по этой должности в выбранном регионе. Черновик сохранен. Уточните название должности и повторите расчет."
 COFINANCE_LABELS = {
     "own_legal_entity_funds": "собственные средства юридического лица",
     "partner_letter_funds": "привлеченные средства согласно письму поддержки",
@@ -38,11 +32,10 @@ COFINANCE_LABELS = {
 MONTHLY_HOURS_NORM = Decimal(166)
 
 SOURCE_LABELS = {
-    "gorodrabot": "GorodRabot",
+    "gorodrabot": "ГородРабот",
     "hh": "HH",
-    "trudvsem": "Trudvsem",
+    "trudvsem": "Работа России",
     "rosstat": "Росстат/ЕМИСС",
-    "ai_salary_fallback": "резервный поиск по открытым источникам",
 }
 
 SOURCE_TYPE_LABELS = {
@@ -63,12 +56,13 @@ class SalaryPositionInput(BaseModel):
     workload_value: float
     functionality: str = ""
     calendar_events: str = ""
+    cofinance_source: CofinanceSource | None = None
 
 
 class SalaryGenerateRequest(BaseModel):
     region: str = Field(..., min_length=1)
     source_scope: SourceScope = "all"
-    cofinance_source: CofinanceSource
+    cofinance_source: CofinanceSource | None = None
     positions: list[SalaryPositionInput] = Field(default_factory=list)
 
 
@@ -139,9 +133,10 @@ def generate_salary_result(payload: SalaryGenerateRequest) -> SalaryGenerationOu
     _validate_salary_request(payload)
     positions: list[SalaryPositionOutput] = []
     warnings: list[str] = []
-    cofinance_text = COFINANCE_LABELS[payload.cofinance_source]
 
     for position in payload.positions:
+        cofinance_key = position.cofinance_source or payload.cofinance_source
+        cofinance_text = COFINANCE_LABELS[cofinance_key]  # type: ignore[index]
         source_results = collect_production_salary_source_results(
             position.role_title,
             payload.region,
@@ -150,15 +145,16 @@ def generate_salary_result(payload: SalaryGenerateRequest) -> SalaryGenerationOu
         selected, source_warnings = choose_highest_eligible_salary(source_results, payload.source_scope, original_role=position.role_title, allowed_sources=production_source_names())
         warnings.extend(source_warnings)
         if not selected:
-            fallback = request_ai_salary_fallback(
+            for alias in request_ai_role_aliases(
                 role_title=position.role_title,
                 region=payload.region,
-                source_scope="active",
                 role_query_variants=build_salary_role_queries(position.role_title),
-                allowed_domains=PRODUCTION_FALLBACK_DOMAINS,
-            )
-            if fallback:
-                selected = fallback
+            ):
+                alias_results = collect_production_salary_source_results(alias, payload.region, year=_default_salary_year())
+                selected, alias_warnings = choose_highest_eligible_salary(alias_results, "active", original_role=position.role_title, allowed_sources=production_source_names())
+                warnings.extend(alias_warnings)
+                if selected:
+                    break
 
         if not selected:
             raise ValueError(SOFT_NO_SALARY_ERROR)
@@ -193,42 +189,35 @@ def choose_highest_eligible_salary(
     return selected, _unique(warnings)
 
 
-def request_ai_salary_fallback(
+def request_ai_role_aliases(
     *,
     role_title: str,
     region: str,
-    source_scope: str,
     role_query_variants: list[str],
     ai_generate: Callable[[str], str] = generate_with_gigachat,
-    url_checker: Callable[[str], bool] | None = None,
-    allowed_domains: set[str] | None = None,
-) -> SalarySourceResult | None:
+) -> list[str]:
     if ai_generate is generate_with_gigachat and not settings.gigachat_credentials:
-        return None
+        return []
 
-    system_prompt = _salary_fallback_system_prompt()
-    user_prompt = _salary_fallback_user_prompt(role_title, region, source_scope, role_query_variants)
+    system_prompt = _salary_alias_system_prompt()
+    user_prompt = _salary_alias_user_prompt(role_title, region, role_query_variants)
     prompts = [
         f"{system_prompt}\n\n{user_prompt}",
-        f"{system_prompt}\n\nПредыдущий ответ был невалидным. Верни валидный JSON строго по схеме.\n\n{user_prompt}",
+        f"{system_prompt}\n\nПредыдущий ответ был невалидным. Верни строго JSON вида {{\"search_roles\":[\"...\"]}} без markdown.\n\n{user_prompt}",
     ]
 
-    checker = url_checker or _fallback_url_reachable
     for prompt in prompts:
         try:
             raw = ai_generate(prompt)
         except (AiRouterError, Exception):  # noqa: BLE001 - fallback must never break generation.
-            return None
+            return []
         parsed = _parse_json_object(raw)
-        if not parsed:
+        aliases = _validate_ai_role_aliases(parsed)
+        if not aliases:
             continue
-        scope_domains = allowed_domains or (OFFICIAL_FALLBACK_DOMAINS if source_scope == "official" else ALLOWED_FALLBACK_DOMAINS)
-        result = _validate_ai_salary_payload(parsed, checker, scope_domains)
-        if result:
-            return result
-        if parsed.get("status") == "no_data":
-            return None
-    return None
+        existing = {item.strip().lower().replace("ё", "е") for item in role_query_variants + [role_title]}
+        return [alias for alias in aliases if alias.strip().lower().replace("ё", "е") not in existing][:4]
+    return []
 
 
 def request_ai_text_composition(
@@ -272,12 +261,13 @@ def _validate_salary_request(payload: SalaryGenerateRequest) -> None:
         raise ValueError("Выберите регион расчета.")
     if payload.source_scope not in {"all", "aggregators", "official", "active"}:
         raise ValueError("Выберите базу расчета.")
-    if payload.cofinance_source not in COFINANCE_LABELS:
-        raise ValueError("Выберите источник софинансирования.")
     if not payload.positions:
         raise ValueError("Добавьте хотя бы одну должность.")
 
     for position in payload.positions:
+        cofinance_key = position.cofinance_source or payload.cofinance_source
+        if cofinance_key not in COFINANCE_LABELS:
+            raise ValueError("Выберите источник софинансирования для каждой должности.")
         if not position.role_title.strip():
             raise ValueError("Укажите должность в проекте.")
         if position.staff_count < 1:
@@ -373,76 +363,57 @@ def _is_eligible_salary_result(result: SalarySourceResult, allowed_sources: set[
         return False
     if not isinstance(result.salary_value, int) or result.salary_value <= 0:
         return False
-    if result.source != "ai_salary_fallback" and not result.source_url:
-        return False
-    if result.source == "ai_salary_fallback" and result.confidence == "low":
+    if not result.source_url:
         return False
     return True
 
 
-def _validate_ai_salary_payload(payload: dict, url_checker: Callable[[str], bool], allowed_domains: set[str]) -> SalarySourceResult | None:
-    if payload.get("status") != "ok":
-        return None
-    source_url = str(payload.get("source_url") or "")
-    if not source_url.startswith("https://") or not _is_allowed_fallback_url(source_url, allowed_domains):
-        return None
-    if not url_checker(source_url):
-        return None
-    try:
-        salary_value = int(payload.get("salary_value"))
-    except (TypeError, ValueError):
-        return None
-    if salary_value <= 0:
-        return None
-    confidence = str(payload.get("confidence") or "medium")
-    if confidence not in {"high", "medium", "low"}:
-        confidence = "medium"
-    salary_type = str(payload.get("salary_type") or "vacancy_sample_median")
-    if salary_type not in {"mean", "median", "mode", "vacancy_sample_median", "official_region_mean", "manual"}:
-        salary_type = "vacancy_sample_median"
+def _validate_ai_role_aliases(parsed: dict | None) -> list[str]:
+    if not parsed:
+        return []
+    raw_roles = parsed.get("search_roles")
+    if not isinstance(raw_roles, list):
+        return []
+    result: list[str] = []
+    seen: set[str] = set()
+    for item in raw_roles:
+        if not isinstance(item, str):
+            continue
+        role = " ".join(item.strip().lower().replace("ё", "е").split())
+        role = re.sub(r"\s*[-–—]\s*", "-", role)
+        if len(role) < 3 or len(role) > 80:
+            continue
+        if re.search(r"\d|https?://|руб|₽", role, flags=re.IGNORECASE):
+            continue
+        if role not in seen:
+            seen.add(role)
+            result.append(role)
+        if len(result) >= 4:
+            break
+    return result
 
-    return SalarySourceResult(
-        source="ai_salary_fallback",
-        status="ok",
-        query_role=str(payload.get("query_role") or ""),
-        matched_role=str(payload.get("matched_role") or payload.get("query_role") or ""),
-        region=str(payload.get("region") or ""),
-        year=_safe_int(payload.get("year")),
-        salary_value=salary_value,
-        salary_type=salary_type,  # type: ignore[arg-type]
-        source_url=source_url,
-        notes=str(payload.get("notes") or ""),
-        confidence=confidence,  # type: ignore[arg-type]
+
+def _salary_alias_system_prompt() -> str:
+    return (
+        "Ты нормализуешь название проектной должности для поиска зарплатных вакансий в России.\n"
+        "Верни только 1–4 реально употребимых названия профессии на русском языке. "
+        "Не придумывай зарплаты, ссылки, работодателей и статистику.\n"
+        "Сохрани профессиональный смысл исходной должности. Сначала укажи максимально точный вариант, затем смежные.\n"
+        "Верни строго JSON без markdown:\n{\"search_roles\":[\"...\"]}"
     )
 
 
-def _salary_fallback_system_prompt() -> str:
+def _salary_alias_user_prompt(role_title: str, region: str, role_query_variants: list[str]) -> str:
     return (
-        "Ты помогаешь backend-сервису найти зарплатный ориентир для расчета бюджета проекта. "
-        "Верни только валидный JSON по схеме. Никакого текста вне JSON.\n"
-        "Тебе нельзя выдумывать данные. Если ты не можешь указать проверяемый источник и ссылку, верни status=\"no_data\".\n"
-        "Используй только открытые источники зарплат/вакансий из допустимых доменов: gorodrabot.ru, hh.ru, trudvsem.ru, rosstat.gov.ru, fedstat.ru.\n"
-        "Нельзя использовать форумы, статьи без методики, агрегаторы без ссылки на страницу выдачи или источники без публичной проверки.\n"
-        "Если находишь данные по смежной должности, обязательно укажи matched_role и notes.\n"
-        "Верни строго JSON: {\"status\":\"ok|no_data\",\"source\":\"ai_salary_fallback\",\"source_name\":\"...\",\"source_url\":\"https://...\","
-        "\"query_role\":\"...\",\"matched_role\":\"...\",\"region\":\"...\",\"year\":2025,\"salary_value\":123456,"
-        "\"salary_type\":\"mean|median|vacancy_sample_median|official_region_mean\",\"confidence\":\"high|medium|low\",\"notes\":\"...\"}"
-    )
-
-
-def _salary_fallback_user_prompt(role_title: str, region: str, source_scope: str, role_query_variants: list[str]) -> str:
-    return (
-        "Найди зарплатный ориентир для расчета оплаты труда в проекте.\n"
-        f"Входные данные:\n- Должность в проекте: {role_title}\n- Регион: {region}\n- Тип источников: {source_scope}\n"
-        f"- Допустимые варианты поиска должности: {role_query_variants}\n"
+        "Подбери поисковые названия должности для backend-поиска зарплатных вакансий.\n"
+        f"Входные данные:\n- Должность в проекте: {role_title}\n- Регион: {region}\n"
+        f"- Уже проверенные варианты: {role_query_variants}\n\n"
         "Требования:\n"
-        "1. Верни одно число salary_value в рублях в месяц.\n"
-        "2. Выбирай наиболее высокий подтвержденный показатель из найденных допустимых источников.\n"
-        "3. Если источник дает данные по смежной должности, укажи matched_role и объясни это в notes.\n"
-        "4. Если данные только по региону, а не по должности, salary_type должен быть official_region_mean.\n"
-        "5. Если не можешь указать проверяемую ссылку, верни status=\"no_data\".\n"
-        "6. Никакого текста вне JSON.\n"
-        "Верни только JSON по заданной схеме."
+        "1. Не возвращай зарплаты, суммы, ссылки, статистику и названия работодателей.\n"
+        "2. Верни 1–4 названия должности, которые реально встречаются в вакансиях.\n"
+        "3. Не меняй профессиональную область должности.\n"
+        "4. Никакого текста вне JSON.\n"
+        "Верни только JSON:\n{\"search_roles\":[\"...\"]}"
     )
 
 
@@ -610,22 +581,6 @@ def _parse_json_object(raw: str) -> dict | None:
             return None
 
 
-def _fallback_url_reachable(url: str) -> bool:
-    try:
-        response = httpx.head(url, timeout=5.0, follow_redirects=True)
-        if response.status_code < 400:
-            return True
-        response = httpx.get(url, timeout=5.0, follow_redirects=True)
-        return response.status_code < 400
-    except httpx.HTTPError:
-        return False
-
-
-def _is_allowed_fallback_url(url: str, allowed_domains: set[str] = ALLOWED_FALLBACK_DOMAINS) -> bool:
-    host = (urlparse(url).hostname or "").lower()
-    return any(host == domain or host.endswith(f".{domain}") for domain in allowed_domains)
-
-
 def _functionality_or_default(role_title: str, functionality: str) -> str:
     cleaned = functionality.strip()
     if len(cleaned) >= 30:
@@ -687,18 +642,6 @@ def _source_period(source: SalarySourceResult) -> str:
     return f"{source.year} год" if source.year else "актуальный доступный период"
 
 
-def _source_note(source: SalarySourceResult) -> str | None:
-    if source.source == "gorodrabot":
-        return "GorodRabot показывает зарплатные предложения по вакансиям, а не фактически выплаченную заработную плату."
-    if source.source == "hh":
-        return "HH показывает выборку вакансий с указанной зарплатой, а не среднюю фактически выплаченную зарплату."
-    if source.source == "trudvsem":
-        return "Trudvsem показывает вакансии работодателей; показатель нужно проверить перед подачей заявки."
-    if source.salary_type == "official_region_mean":
-        return "Использован официальный региональный показатель, а не статистика по конкретной должности."
-    return None
-
-
 def _salary_filename(payload: SalaryGenerateRequest) -> str:
     total_staff = sum(max(0, int(position.staff_count)) for position in payload.positions) or 1
     role = payload.positions[0].role_title if payload.positions else "должность"
@@ -729,13 +672,6 @@ def _number(value: float) -> str:
     if float(value).is_integer():
         return str(int(value))
     return str(value).replace(".", ",")
-
-
-def _safe_int(value) -> int | None:
-    try:
-        return int(value)
-    except (TypeError, ValueError):
-        return None
 
 
 def _unique(items: list[str]) -> list[str]:

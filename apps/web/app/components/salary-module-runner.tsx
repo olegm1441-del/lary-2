@@ -23,11 +23,11 @@ type SalaryPositionDraft = {
   workload_value: string;
   functionality: string;
   calendar_events: string;
+  cofinance_source: CofinanceSource | "";
 };
 
 type SalaryDraft = {
   region: string;
-  cofinance_source: CofinanceSource | "";
   positions: SalaryPositionDraft[];
 };
 
@@ -145,7 +145,7 @@ export function SalaryModuleRunner({ module }: { module: LaryModule }) {
       window.dispatchEvent(new CustomEvent(USAGE_UPDATED_EVENT));
     } catch (error) {
       setState("error");
-      setMessage(error instanceof Error ? error.message : "Не получилось автоматически найти зарплатный ориентир. Данные сохранены. Попробуйте изменить должность или регион и запустить расчет еще раз.");
+      setMessage(error instanceof Error ? error.message : "Не удалось найти подтвержденные данные по этой должности в выбранном регионе. Черновик сохранен. Уточните название должности и повторите расчет.");
     }
   }
 
@@ -342,23 +342,6 @@ export function SalaryModuleRunner({ module }: { module: LaryModule }) {
             {!draft.region.trim() ? <InlineError>Выберите регион расчета.</InlineError> : null}
           </FieldBlock>
 
-          <FieldBlock label="Софинансирование" required>
-            <div className="grid gap-3 sm:grid-cols-2">
-              {COFINANCE_OPTIONS.map((option) => (
-                <label key={option.value} className={`flex min-h-14 cursor-pointer items-center gap-3 rounded-2xl border p-4 ${draft.cofinance_source === option.value ? "border-blue-800 bg-blue-50" : "border-slate-300 bg-white"}`}>
-                  <input
-                    type="radio"
-                    name="cofinance_source"
-                    value={option.value}
-                    checked={draft.cofinance_source === option.value}
-                    onChange={(event) => updateDraft("cofinance_source", event.target.value as CofinanceSource)}
-                  />
-                  <span className="font-semibold">{option.label}</span>
-                </label>
-              ))}
-            </div>
-            {!draft.cofinance_source ? <InlineError>Выберите источник софинансирования.</InlineError> : null}
-          </FieldBlock>
         </div>
       </section>
 
@@ -534,6 +517,24 @@ function PositionCard({
         <FieldBlock label="Мероприятия календарного плана" hint="Если неизвестно, оставьте пустым.">
           <input className={inputClassName} value={position.calendar_events} onChange={(event) => onChange({ calendar_events: event.target.value })} placeholder="Например: 1.1–1.4, 2.1–2.3, 3.1" />
         </FieldBlock>
+
+        <FieldBlock label="Софинансирование" required>
+          <div className="grid gap-3 sm:grid-cols-2">
+            {COFINANCE_OPTIONS.map((option) => (
+              <label key={option.value} className={`flex min-h-14 cursor-pointer items-center gap-3 rounded-2xl border p-4 ${position.cofinance_source === option.value ? "border-blue-800 bg-blue-50" : "border-slate-300 bg-white"}`}>
+                <input
+                  type="radio"
+                  name={`cofinance_source-${position.id}`}
+                  value={option.value}
+                  checked={position.cofinance_source === option.value}
+                  onChange={(event) => onChange({ cofinance_source: event.target.value as CofinanceSource })}
+                />
+                <span className="font-semibold">{option.label}</span>
+              </label>
+            ))}
+          </div>
+          {!position.cofinance_source ? <InlineError>Выберите источник софинансирования для этой должности.</InlineError> : null}
+        </FieldBlock>
       </div>
     </article>
   );
@@ -643,10 +644,10 @@ function InlineError({ children }: { children: React.ReactNode }) {
 function validateDraft(draft: SalaryDraft) {
   const errors: string[] = [];
   if (!draft.region.trim()) errors.push("Выберите регион расчета.");
-  if (!draft.cofinance_source) errors.push("Выберите источник софинансирования.");
   if (!draft.positions.length) errors.push("Добавьте хотя бы одну должность.");
 
   draft.positions.forEach((position) => {
+    if (!position.cofinance_source) errors.push("Выберите источник софинансирования для каждой должности.");
     if (!position.role_title.trim()) errors.push("Укажите должность в проекте.");
     if (toNumber(position.staff_count) < 1) errors.push("Количество сотрудников должно быть не меньше 1.");
     if (toNumber(position.duration_months) <= 0) errors.push("Укажите срок работы в месяцах.");
@@ -664,7 +665,6 @@ function validateDraft(draft: SalaryDraft) {
 function toApiPayload(draft: SalaryDraft) {
   return {
     region: draft.region.trim(),
-    cofinance_source: draft.cofinance_source,
     positions: draft.positions.map((position) => ({
       role_title: position.role_title.trim(),
       staff_count: toNumber(position.staff_count),
@@ -673,20 +673,22 @@ function toApiPayload(draft: SalaryDraft) {
       workload_value: toNumber(position.workload_value),
       functionality: position.functionality.trim(),
       calendar_events: position.calendar_events.trim(),
+      cofinance_source: position.cofinance_source,
     })),
   };
 }
 
 function normalizeDraft(source: Partial<SalaryDraft>): SalaryDraft {
-  const positions = Array.isArray(source.positions) && source.positions.length ? source.positions.map(normalizePosition) : [defaultPosition()];
+  const legacyCofinance = (source as Partial<SalaryDraft> & { cofinance_source?: string }).cofinance_source;
+  const positions = Array.isArray(source.positions) && source.positions.length ? source.positions.map((position) => normalizePosition(position, legacyCofinance)) : [defaultPosition()];
   return {
     region: typeof source.region === "string" ? source.region : "",
-    cofinance_source: source.cofinance_source === "own_legal_entity_funds" || source.cofinance_source === "partner_letter_funds" ? source.cofinance_source : "",
     positions,
   };
 }
 
-function normalizePosition(source: Partial<SalaryPositionDraft>): SalaryPositionDraft {
+function normalizePosition(source: Partial<SalaryPositionDraft>, legacyCofinance?: string): SalaryPositionDraft {
+  const cofinance_source = source.cofinance_source || legacyCofinance;
   return {
     id: source.id || draftId(),
     role_title: source.role_title || "",
@@ -696,13 +698,13 @@ function normalizePosition(source: Partial<SalaryPositionDraft>): SalaryPosition
     workload_value: source.workload_value || "",
     functionality: source.functionality || "",
     calendar_events: source.calendar_events || "",
+    cofinance_source: cofinance_source === "own_legal_entity_funds" || cofinance_source === "partner_letter_funds" ? cofinance_source : "",
   };
 }
 
 function defaultDraft(): SalaryDraft {
   return {
     region: "",
-    cofinance_source: "",
     positions: [defaultPosition()],
   };
 }
@@ -727,6 +729,7 @@ function defaultPosition(): SalaryPositionDraft {
     workload_value: "",
     functionality: "",
     calendar_events: "",
+    cofinance_source: "",
   };
 }
 
