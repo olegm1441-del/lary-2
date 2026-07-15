@@ -11,7 +11,7 @@ def fetch_trudvsem_salary_sample(role: str, region: str, year: int | None = None
     api_url = "https://opendata.trudvsem.ru/api/v1/vacancies"
     params = {"text": role, "region": region, "limit": 100}
     try:
-        response = httpx.get(api_url, params=params, headers={"User-Agent": USER_AGENT}, timeout=10.0)
+        response = httpx.get(api_url, params=params, headers={"User-Agent": USER_AGENT}, timeout=5.0)
     except httpx.TimeoutException:
         return _result("unavailable", role, region, year, source_url, notes="Trudvsem API не ответил за 10 секунд.")
     except httpx.HTTPError as exc:

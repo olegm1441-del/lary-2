@@ -18,11 +18,17 @@ ROLE_SYNONYMS = {
     "куратор": ["куратор проекта", "координатор проекта", "руководитель проекта"],
     "режиссер": ["режиссер", "постановщик", "режиссер-постановщик", "художественный руководитель"],
     "администратор": ["администратор проекта", "координатор проекта", "администратор мероприятий"],
+    "маркетолог": ["маркетолог", "специалист по маркетингу", "менеджер по маркетингу", "менеджер по digital-маркетингу"],
+    "smm": ["smm-специалист", "смм-специалист", "специалист по социальным сетям", "контент-менеджер"],
+    "смм": ["смм-специалист", "smm-специалист", "специалист по социальным сетям", "контент-менеджер"],
+    "художник": ["художник-постановщик", "сценограф", "художник театра", "художник-декоратор"],
+    "звукорежиссер": ["звукорежиссер", "звукооператор", "инженер по звуку", "специалист по звуку"],
+    "методист": ["методист", "методист культурного проекта", "специалист по методической работе", "координатор образовательных программ"],
 }
 
 ACTIVE_PRODUCTION_SALARY_SOURCES = ("gorodrabot", "trudvsem")
 PRODUCTION_ACTIVE_SOURCE_NAMES = ACTIVE_PRODUCTION_SALARY_SOURCES
-MAX_PRODUCTION_ROLE_QUERIES = 5
+MAX_PRODUCTION_ROLE_QUERIES = 4
 
 
 def normalize_role_title(role: str) -> str:
@@ -49,7 +55,8 @@ def build_salary_role_queries(role: str) -> list[str]:
         if "-" in cleaned:
             queries.extend(part for part in cleaned.split("-") if part)
 
-    for key, synonyms in ROLE_SYNONYMS.items():
+    for key in sorted(ROLE_SYNONYMS, key=len, reverse=True):
+        synonyms = ROLE_SYNONYMS[key]
         if key in cleaned:
             queries.extend(synonyms)
             break

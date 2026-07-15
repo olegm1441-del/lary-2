@@ -27,7 +27,7 @@ def fetch_gorodrabot_salary(role: str, region: str, year: int) -> SalarySourceRe
     profession_slug = slugify_ru(role)
     source_url = f"https://{region_slug}.gorodrabot.ru/salaries/{profession_slug}?y={year}"
     try:
-        response = httpx.get(source_url, headers={"User-Agent": USER_AGENT}, timeout=10.0, follow_redirects=True)
+        response = httpx.get(source_url, headers={"User-Agent": USER_AGENT}, timeout=5.0, follow_redirects=True)
     except httpx.TimeoutException:
         return _result("unavailable", role, region, year, source_url, notes="GorodRabot не ответил за 10 секунд.")
     except httpx.HTTPError as exc:
@@ -94,4 +94,3 @@ def _result(status: str, role: str, region: str, year: int, source_url: str, not
         source_url=source_url,
         notes=notes,
     )
-

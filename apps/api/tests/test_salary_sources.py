@@ -57,6 +57,13 @@ class SalarySourcesTest(unittest.TestCase):
         self.assertIn("организатор мероприятий", queries)
         self.assertEqual(len(queries), len(set(queries)))
 
+    def test_build_salary_role_queries_includes_common_creative_and_marketing_aliases(self):
+        self.assertIn("менеджер по digital-маркетингу", build_salary_role_queries("маркетолог"))
+        self.assertIn("специалист по социальным сетям", build_salary_role_queries("SMM-специалист"))
+        self.assertIn("сценограф", build_salary_role_queries("художник-постановщик"))
+        self.assertIn("звукооператор", build_salary_role_queries("звукорежиссер"))
+        self.assertIn("специалист по методической работе", build_salary_role_queries("методист культурного проекта"))
+
     def test_choose_recommended_falls_back_when_gorodrabot_blocked(self):
         gorodrabot = SalarySourceResult(source="gorodrabot", status="blocked", query_role="координатор", region="Свердловская область")
         hh = SalarySourceResult(
