@@ -64,6 +64,18 @@ class SalarySourcesTest(unittest.TestCase):
         self.assertIn("звукооператор", build_salary_role_queries("звукорежиссер"))
         self.assertIn("специалист по методической работе", build_salary_role_queries("методист культурного проекта"))
 
+    def test_build_salary_role_queries_prioritizes_live_verified_adjacent_roles(self):
+        self.assertLess(
+            build_salary_role_queries("координатор проекта").index("ведущий координатор"),
+            build_salary_role_queries("координатор проекта").index("организатор мероприятий"),
+        )
+        self.assertLess(
+            build_salary_role_queries("маркетолог").index("менеджер по digital-маркетингу"),
+            build_salary_role_queries("маркетолог").index("менеджер по маркетингу"),
+        )
+        self.assertIn("кинорежиссер", build_salary_role_queries("режиссер-постановщик")[:4])
+        self.assertIn("дизайнер-декоратор", build_salary_role_queries("художник-постановщик")[:4])
+
     def test_choose_recommended_falls_back_when_gorodrabot_blocked(self):
         gorodrabot = SalarySourceResult(source="gorodrabot", status="blocked", query_role="координатор", region="Свердловская область")
         hh = SalarySourceResult(
