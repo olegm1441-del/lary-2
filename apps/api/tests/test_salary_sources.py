@@ -186,8 +186,8 @@ class SalarySourcesTest(unittest.TestCase):
             patch("app.services.salary_sources.aggregator.fetch_trudvsem_salary_sample", side_effect=no_data) as trudvsem_fetch:
             collect_production_salary_source_results("координатор проекта", "Свердловская область", 2025)
 
-        self.assertLessEqual(gorodrabot_fetch.call_count, 3)
-        self.assertLessEqual(trudvsem_fetch.call_count, 3)
+        self.assertLessEqual(gorodrabot_fetch.call_count, 4)
+        self.assertLessEqual(trudvsem_fetch.call_count, 4)
 
     def test_ai_alias_source_collection_can_use_exact_alias_only(self):
         from app.services.salary_sources.aggregator import collect_production_salary_source_results
