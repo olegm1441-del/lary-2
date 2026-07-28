@@ -1,4 +1,6 @@
 from gigachat import GigaChat
+from gigachat.models import Chat, Messages, MessagesRole
+from pydantic import BaseModel
 
 from app.core.config import settings
 
@@ -38,6 +40,32 @@ def generate_with_gigachat(prompt: str) -> str:
         max_retries=settings.gigachat_max_retries,
     ) as client:
         response = client.chat(prompt)
+
+    return extract_gigachat_text(response)
+
+
+def generate_json_with_gigachat(prompt: str, schema: type[BaseModel]) -> str:
+    """Request schema-constrained JSON for document modules with large nested responses."""
+    if not settings.gigachat_credentials:
+        raise AiRouterError(
+            "GIGACHAT_CREDENTIALS is not set. Put GigaChat Authorization Key into Railway Variables."
+        )
+
+    payload = Chat(
+        messages=[Messages(role=MessagesRole.USER, content=prompt)],
+        temperature=0.05,
+        max_tokens=8000,
+        response_format={"type": "json_schema", "schema": schema, "strict": True},
+    )
+    with GigaChat(
+        credentials=settings.gigachat_credentials,
+        scope=settings.gigachat_scope,
+        model=settings.gigachat_model,
+        verify_ssl_certs=settings.gigachat_verify_ssl_certs,
+        timeout=settings.gigachat_timeout,
+        max_retries=settings.gigachat_max_retries,
+    ) as client:
+        response = client.chat(payload)
 
     return extract_gigachat_text(response)
 

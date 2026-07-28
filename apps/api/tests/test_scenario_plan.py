@@ -196,6 +196,19 @@ class ScenarioPlanContractTest(unittest.TestCase):
         self.assertEqual(result.output.document_title, output_payload()["document_title"])
         self.assertEqual(len(calls), 2)
 
+    def test_default_generator_requests_scenario_json_schema(self):
+        with tempfile.TemporaryDirectory() as directory:
+            with patch(
+                "app.services.scenario_plan.ai_router.generate_json_with_gigachat",
+                return_value=json.dumps(output_payload(), ensure_ascii=False),
+            ) as generate:
+                build_scenario_plan_document(
+                    INPUTS,
+                    output_path=Path(directory) / "scenario.docx",
+                )
+
+        self.assertIs(generate.call_args.args[1], ScenarioPlanOutput)
+
     def test_document_is_readable_and_uses_tables(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "scenario.docx"

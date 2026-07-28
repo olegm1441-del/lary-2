@@ -171,7 +171,9 @@ def build_scenario_plan_document(
     output_path: Path | None = None,
     ai_generator: Callable[[str], str] | None = None,
 ) -> ScenarioPlanDocument:
-    ai_generator = ai_generator or ai_router.generate_with_gigachat
+    ai_generator = ai_generator or (
+        lambda prompt: ai_router.generate_json_with_gigachat(prompt, ScenarioPlanOutput)
+    )
     prompt = _build_prompt(inputs)
     error: Exception | None = None
     for attempt in range(2):
@@ -198,6 +200,8 @@ def _build_prompt(inputs: dict) -> str:
         "должны быть описаны отдельно. Для каждого дня нужны регистрация, содержательная программа, перерыв и завершение. "
         "Для съёмочного сценария вместо регистрации используй сбор команды или инструктаж. "
         "Временные блоки не пересекаются; duration_minutes равен разнице start и end. Отрази все ограничения пользователя. "
+        "Не оставляй обязательные строки пустыми: если техника не нужна, напиши «Не требуется»; "
+        "для каждого блока укажи ответственного из команды пользователя или нейтральную проектную роль без нового имени. "
         "Верни только JSON без markdown по схеме: "
         '{"document_title":"...","concept":"...","participants":"...","beneficiary_audience":"...",'
         '"capacity_summary":"...","days":[{"day_number":1,"day_title":"...",'
