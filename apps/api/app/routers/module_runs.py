@@ -9,6 +9,12 @@ from app.services.module_engine import create_module_run, improve_run
 from app.services.file_generators import generate_docx, generate_pdf, generate_pptx
 from app.services.account_store import ModuleAccessError, get_request_context, load_persisted_run, prepare_module_access, record_module_run_success, save_result_for_email
 from app.services.run_store import run_store
+from app.services.product_registry import (
+    ProfileNotReadyError,
+    UnknownContestError,
+    UnknownModuleError,
+    get_product_registry,
+)
 
 router = APIRouter(prefix="/api/module-runs", tags=["Module runs"])
 
@@ -31,6 +37,7 @@ DOWNLOAD_TITLES = {
 @router.post("", response_model=ModuleRunCreateResponse)
 def create_run(payload: ModuleRunCreateRequest, request: Request, response: Response):
     context = get_request_context(request, response)
+    profile = _resolve_ready_profile(payload.module_slug, payload.contest_slug, payload.profile_version)
     try:
         access = prepare_module_access(payload.module_slug, context)
     except ModuleAccessError as exc:
@@ -39,6 +46,9 @@ def create_run(payload: ModuleRunCreateRequest, request: Request, response: Resp
         run = create_module_run(payload.module_slug, payload.inputs, payload.presentation_variant)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail={"message": str(exc)}) from exc
+    run.contest_slug = payload.contest_slug
+    run.profile_version = profile.profile_version if profile else None
+    run.project_id = payload.project_id
     record_module_run_success(run, access, payload.inputs)
     return ModuleRunCreateResponse(
         run_id=run.run_id,
@@ -47,6 +57,9 @@ def create_run(payload: ModuleRunCreateRequest, request: Request, response: Resp
         title=run.title,
         message="Результат подготовлен. Можно скачать файл или сохранить работу.",
         downloads=run.downloads,
+        contest_slug=run.contest_slug,
+        profile_version=run.profile_version,
+        project_id=run.project_id,
     )
 
 
@@ -111,7 +124,34 @@ def _result(run_id: str) -> ModuleRunResultResponse:
         summary=run.summary,
         sections=run.sections,
         downloads=run.downloads,
+        contest_slug=run.contest_slug,
+        profile_version=run.profile_version,
+        project_id=run.project_id,
     )
+
+
+def _resolve_ready_profile(module_slug: str, contest_slug: str, requested_version: str | None):
+    if not settings.product_registry_runtime_enabled:
+        return None
+    registry = get_product_registry()
+    try:
+        profile = registry.require_ready_profile(module_slug, contest_slug)
+    except UnknownModuleError as exc:
+        raise HTTPException(status_code=404, detail={"message": "Такая задача не найдена.", "error_code": "UNKNOWN_MODULE"}) from exc
+    except UnknownContestError as exc:
+        raise HTTPException(status_code=404, detail={"message": "Такой конкурс не найден.", "error_code": "UNKNOWN_CONTEST"}) from exc
+    except ProfileNotReadyError as exc:
+        code = "MODULE_CONTEST_PROFILE_PREPARING" if exc.status == "preparing" else "MODULE_CONTEST_PROFILE_DISABLED"
+        raise HTTPException(
+            status_code=409,
+            detail={"message": "Для этого конкурса модуль пока готовится.", "error_code": code},
+        ) from exc
+    if requested_version and requested_version != profile.profile_version:
+        raise HTTPException(
+            status_code=409,
+            detail={"message": "Версия формы изменилась. Обновите страницу и попробуйте снова.", "error_code": "PROFILE_VERSION_MISMATCH"},
+        )
+    return profile
 
 
 def _load_run(run_id: str):

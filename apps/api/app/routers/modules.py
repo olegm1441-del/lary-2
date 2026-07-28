@@ -9,10 +9,12 @@ from app.services.salary_sources.aggregator import probe_salary_sources
 from app.services.salary_sources.models import SalaryProbeRequest, SalaryProbeResponse
 from app.services.module_validation import validate_module_inputs
 from app.services.product_registry import (
+    ProfileNotReadyError,
     UnknownContestError,
     UnknownModuleError,
     get_product_registry,
 )
+from app.routers.module_runs import _resolve_ready_profile
 
 router = APIRouter(prefix="/api/modules", tags=["Modules"])
 
@@ -75,6 +77,9 @@ def validate_inputs(slug: str, payload: ModuleValidationRequest):
 @router.post("/salary/generate", response_model=SalaryGenerateResponse)
 def salary_generate(payload: SalaryGenerateRequest, request: Request, response: Response):
     context = get_request_context(request, response)
+    profile = _resolve_ready_profile("salary", payload.contest_slug, payload.profile_version)
+    if profile:
+        payload.profile_version = profile.profile_version
     try:
         access = prepare_module_access("salary", context)
     except ModuleAccessError as exc:
