@@ -2,6 +2,9 @@ import Link from "next/link";
 import { MobileMenu } from "./mobile-menu";
 import { ModuleAttemptStatus } from "./module-attempt-status";
 import type { LaryModule, ModuleField } from "../lib/lary-data";
+import { ContestChips } from "./contest-chips";
+import { RunBalance } from "./run-balance";
+import { hasRealExample } from "../lib/product-registry";
 
 const navItems = [
   { label: "Модули", href: "/modules" },
@@ -23,7 +26,7 @@ export function Header() {
           </span>
           <span className="min-w-0">
             <span className="block text-2xl font-bold leading-6">Лари</span>
-            <span className="block truncate text-sm text-slate-500 max-[420px]:hidden">помощник по заявке ПФКИ</span>
+            <span className="block truncate text-sm text-slate-500 max-[640px]:hidden">AI-помощник по составлению грантовых заявок</span>
           </span>
         </Link>
 
@@ -36,6 +39,7 @@ export function Header() {
         </nav>
 
         <div className="flex shrink-0 items-center gap-3">
+          <RunBalance />
           <MobileMenu items={mobileNavItems} />
           <Link href="/account" className="hidden rounded-2xl px-4 py-3 text-base font-semibold text-blue-800 hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-blue-700 sm:inline-flex">
             Войти
@@ -56,7 +60,7 @@ export function Footer() {
         <div>
           <p className="text-2xl font-bold">Лари</p>
           <p className="mt-3 max-w-xl text-base leading-7 text-slate-300">
-            Модульный сервис для подготовки рабочих материалов к заявке ПФКИ. Лари помогает собрать документы, но не обещает победу в конкурсе.
+            Лари — AI-помощник по составлению грантовых заявок. Сервис помогает собрать рабочие документы, но не обещает победу в конкурсе.
           </p>
           <div className="mt-5 text-sm leading-6 text-slate-400">
             <p>ИП Сумин Александр Николаевич</p>
@@ -115,8 +119,9 @@ export function Section({ eyebrow, title, children, className = "", id }: { eyeb
   );
 }
 
-export function ModuleCard({ module, compact = false }: { module: LaryModule; compact?: boolean }) {
-  const href = module.status === "active" ? `/m/${module.slug}` : `/m/${module.slug}`;
+export function ModuleCard({ module, compact = false, projectId, projectContest }: { module: LaryModule; compact?: boolean; projectId?: string; projectContest?: string }) {
+  const contextQuery = projectId && projectContest ? `?contest=${encodeURIComponent(projectContest)}&project_id=${encodeURIComponent(projectId)}` : "";
+  const href = `/m/${module.slug}${contextQuery}`;
 
   return (
     <article className="group flex h-full min-w-0 max-w-full flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white p-6 shadow-sm transition hover:-translate-y-1 hover:border-blue-200 hover:shadow-lg">
@@ -134,8 +139,9 @@ export function ModuleCard({ module, compact = false }: { module: LaryModule; co
       <div className="mt-5 flex flex-wrap gap-2">
         <Badge>{module.duration}</Badge>
         <Badge>{module.outputFormats.join(" + ")}</Badge>
-        <Badge>{module.competition}</Badge>
       </div>
+      <p className="mt-4 text-sm font-semibold uppercase tracking-wide text-slate-500">Подходит для</p>
+      <ContestChips contests={module.supportedContests} />
       {!compact && module.status === "active" ? <ModuleAttemptStatus moduleSlug={module.slug} /> : null}
       <div className="mt-6 grid gap-3 sm:grid-cols-2">
         <Link
@@ -144,13 +150,17 @@ export function ModuleCard({ module, compact = false }: { module: LaryModule; co
         >
           {module.status === "active" ? "Начать" : "Сообщить, когда модуль будет готов"}
         </Link>
-        {module.status === "active" ? (
+        {module.status === "active" && hasRealExample(module.slug, "pfki") ? (
           <Link
-            href={`/m/${module.slug}?example=1`}
+            href={`/m/${module.slug}?contest=${encodeURIComponent(projectContest || "pfki")}&example=1${projectId ? `&project_id=${encodeURIComponent(projectId)}` : ""}`}
             className="inline-flex min-h-12 w-full items-center justify-center whitespace-normal rounded-2xl border border-slate-300 bg-white px-5 py-3 text-center text-base font-semibold text-slate-900 hover:border-blue-300 hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-blue-700 focus:ring-offset-2"
           >
             Посмотреть пример
           </Link>
+        ) : module.status === "active" ? (
+          <span className="inline-flex min-h-12 items-center justify-center rounded-2xl border border-slate-200 px-5 py-3 text-center text-sm font-semibold text-slate-500">
+            Пример для этого конкурса пока готовится
+          </span>
         ) : null}
       </div>
     </article>
@@ -210,14 +220,14 @@ export function ApiStatePanel() {
   );
 }
 
-export function WorkPanel({ module }: { module: LaryModule }) {
+export function WorkPanel({ module, contestName = "Конкурс не выбран" }: { module: LaryModule; contestName?: string }) {
   return (
     <aside className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm lg:sticky lg:top-28">
       <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">Моя работа</p>
       <div className="mt-4 grid gap-4 text-base">
         <div>
           <p className="text-slate-500">Конкурс</p>
-          <p className="font-bold text-green-800">{module.competition} выбрано</p>
+          <p className="font-bold text-green-800">{contestName}</p>
         </div>
         <div>
           <p className="text-slate-500">Результат</p>

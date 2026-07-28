@@ -1,7 +1,13 @@
+import path from "node:path";
 import type { NextConfig } from "next";
 
+const repositoryRoot = path.resolve(__dirname, "../..");
+
 const nextConfig: NextConfig = {
-  /* config options here */
+  outputFileTracingRoot: repositoryRoot,
+  turbopack: {
+    root: repositoryRoot,
+  },
 };
 
 export default nextConfig;

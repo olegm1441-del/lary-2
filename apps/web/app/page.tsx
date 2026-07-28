@@ -11,12 +11,12 @@ export default function Home() {
       <section className="bg-white">
         <div className="mx-auto grid max-w-7xl gap-10 px-5 py-16 sm:px-8 lg:grid-cols-[1.05fr_0.95fr] lg:items-center lg:py-20">
           <div>
-            <p className="text-base font-semibold uppercase tracking-wide text-blue-800">Помощник для документов заявки ПФКИ</p>
+            <p className="text-base font-semibold uppercase tracking-wide text-blue-800">Лари — AI-помощник по составлению грантовых заявок</p>
             <h1 className="mt-4 max-w-4xl text-[44px] font-bold leading-[1.08] tracking-tight text-slate-950 sm:text-5xl lg:text-6xl">
-              Соберите рабочие документы для заявки ПФКИ быстрее и без лишних ошибок
+              Подготовьте рабочие документы для грантовой заявки
             </h1>
             <p className="mt-6 max-w-3xl text-xl leading-9 text-slate-700">
-              Выберите задачу, ответьте на несколько вопросов и скачайте редактируемый DOCX или PPTX. По одному бесплатному запуску для каждой задачи.
+              Выберите конкурс и задачу, ответьте на несколько вопросов и скачайте редактируемый DOCX или PPTX. По одному бесплатному запуску для каждой задачи.
             </p>
             <div className="mt-8 flex flex-col gap-4 sm:flex-row">
               <PrimaryLink href="/modules">Выбрать задачу</PrimaryLink>
@@ -92,7 +92,7 @@ export default function Home() {
           </div>
           <div className="rounded-3xl border-2 border-blue-800 p-6">
             <p className="text-2xl font-bold">Пакет 6 запусков</p>
-            <p className="mt-3 text-lg leading-8 text-slate-700">Удобно для подготовки комплекта материалов по заявке ПФКИ.</p>
+            <p className="mt-3 text-lg leading-8 text-slate-700">Удобно для подготовки комплекта материалов по одной грантовой заявке.</p>
           </div>
           <div className="rounded-3xl border border-slate-200 p-6">
             <p className="text-2xl font-bold">Промокод</p>

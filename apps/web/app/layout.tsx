@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Лари — модульный помощник для заявки ПФКИ",
-  description: "Соберите документы, письма, расчеты, презентации и сценарные планы для заявки ПФКИ.",
+  title: "Лари — AI-помощник по составлению грантовых заявок",
+  description: "Соберите документы, письма, расчеты, презентации и сценарные планы для грантовой заявки.",
 };
 
 export default function RootLayout({

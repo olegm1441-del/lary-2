@@ -1,4 +1,5 @@
 import modulesData from "../data/modules.json";
+import { getPublicModules, getSupportedContests, type Contest } from "./product-registry";
 
 export type ModuleStatus = "active" | "coming_soon";
 
@@ -80,9 +81,24 @@ export type LaryModule = {
   aiHints: string[];
   resultPreview: string[];
   resultActions: string[];
+  supportedContests: Contest[];
 };
 
-export const modules = modulesData as LaryModule[];
+const legacyModules = modulesData as Omit<LaryModule, "supportedContests">[];
+const productModules = new Map(getPublicModules().map((module) => [module.slug, module]));
+export const modules = legacyModules.map((legacy) => {
+  const product = productModules.get(legacy.slug);
+  return {
+    ...legacy,
+    status: product?.status === "active" ? "active" : "coming_soon",
+    taskTitle: product?.title || legacy.taskTitle,
+    promise: product?.promise || legacy.promise,
+    duration: product?.duration || legacy.duration,
+    outputFormats: product?.output_formats || legacy.outputFormats,
+    competition: "",
+    supportedContests: getSupportedContests(legacy.slug),
+  } satisfies LaryModule;
+});
 
 export function getActiveModules() {
   return modules.filter((module) => module.status === "active");
