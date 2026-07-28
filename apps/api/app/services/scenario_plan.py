@@ -235,6 +235,19 @@ def _parse_scenario_json(raw: str) -> dict:
     parsed = repair_json_loads(_extract_json(raw))
     if not isinstance(parsed, dict):
         raise ValueError("AI не вернул JSON-объект.")
+    days = parsed.get("days")
+    if isinstance(days, list) and days and isinstance(days[-1], dict):
+        tail = days[-1]
+        root_section_keys = {"preparation_steps", "logistics", "constraints_reflected"}
+        if (
+            "day_number" not in tail
+            and set(tail).issubset(root_section_keys)
+            and set(tail).intersection({"preparation_steps", "logistics"})
+        ):
+            for key in root_section_keys:
+                if key in tail and key not in parsed:
+                    parsed[key] = tail[key]
+            days.pop()
     return parsed
 
 

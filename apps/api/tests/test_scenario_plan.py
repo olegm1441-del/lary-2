@@ -204,6 +204,26 @@ class ScenarioPlanContractTest(unittest.TestCase):
         self.assertEqual(parsed["document_title"], "Сценарный план")
         self.assertEqual(parsed["concept"], "Рабочая концепция")
 
+    def test_repaired_root_sections_are_lifted_out_of_days_tail(self):
+        parsed = _parse_scenario_json(
+            json.dumps(
+                {
+                    "days": [
+                        {"day_number": 1, "day_title": "День 1", "blocks": []},
+                        {
+                            "preparation_steps": [{"period": "До старта"}],
+                            "logistics": [{"item": "Вход"}],
+                            "constraints_reflected": ["Проектор"],
+                        },
+                    ]
+                },
+                ensure_ascii=False,
+            )
+        )
+        self.assertEqual(len(parsed["days"]), 1)
+        self.assertEqual(parsed["preparation_steps"][0]["period"], "До старта")
+        self.assertEqual(parsed["logistics"][0]["item"], "Вход")
+
     def test_default_generator_requests_scenario_json_schema(self):
         with tempfile.TemporaryDirectory() as directory:
             with patch(
