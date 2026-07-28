@@ -2,6 +2,10 @@ export function moduleDraftKey(moduleSlug: string, contestSlug: string, projectI
   return `lary:draft:v2:${moduleSlug}:${contestSlug}:${projectId || "anonymous"}`;
 }
 
+export function moduleResultStateKey(moduleSlug: string, contestSlug: string, projectId?: string | null) {
+  return `lary:result-state:v1:${moduleSlug}:${contestSlug}:${projectId || "anonymous"}`;
+}
+
 export function migrateLegacyDraft<T>(
   storage: Pick<Storage, "getItem" | "setItem" | "removeItem">,
   moduleSlug: string,
@@ -34,4 +38,3 @@ function safeParse<T>(raw: string): T | null {
     return null;
   }
 }
-

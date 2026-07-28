@@ -126,12 +126,19 @@ export function ModuleCard({ module, compact = false, projectId, projectContest 
     moduleSlug: module.slug,
     contestSlug: projectContest,
     projectId,
+    intent: "start",
   });
   const hasContextExample = projectContest ? hasRealExample(module.slug, projectContest) : false;
   const hasAnyExample = getPublicContests().some((contest) => hasRealExample(module.slug, contest.slug));
   const exampleHref = projectContest
-    ? buildModuleRoute({ moduleSlug: module.slug, contestSlug: projectContest, projectId, example: "1" })
-    : buildModuleRoute({ moduleSlug: module.slug, projectId, intent: "example" });
+    ? buildModuleRoute({
+        moduleSlug: module.slug,
+        contestSlug: projectContest,
+        projectId,
+        intent: "example",
+        realExampleContests: hasContextExample ? [projectContest] : [],
+      })
+    : buildModuleRoute({ moduleSlug: module.slug, projectId, intent: "example", realExampleContests: getPublicContests().filter((contest) => hasRealExample(module.slug, contest.slug)).map((contest) => contest.slug) });
 
   return (
     <article className="group flex h-full min-w-0 max-w-full flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white p-6 shadow-sm transition hover:-translate-y-1 hover:border-blue-200 hover:shadow-lg">

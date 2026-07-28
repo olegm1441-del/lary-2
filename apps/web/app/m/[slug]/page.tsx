@@ -50,7 +50,7 @@ export default async function ModulePage({
   const realExampleContests = getPublicContests()
     .filter((contest) => hasRealExample(laryModule.slug, contest.slug))
     .map((contest) => contest.slug);
-  const showRunner = profile?.status === "ready" && query.mode === "start" && !showExample;
+  const showRunner = profile?.status === "ready" && (query.mode === "start" || query.intent === "start") && !showExample;
   const formTitle =
     laryModule.slug === "support-letter"
       ? "Заполните данные партнера и вклада"
@@ -122,7 +122,7 @@ export default async function ModulePage({
               <h2 className="text-3xl font-bold text-slate-950">Для этого конкурса модуль пока готовится.</h2>
               <p className="mt-3 text-lg leading-8 text-slate-700">Выберите другой конкурс, чтобы продолжить сейчас.</p>
               <div className="mt-6 flex flex-col gap-3 sm:flex-row">
-                <Link href={buildModuleRoute({ moduleSlug: laryModule.slug, projectId: query.project_id, changeContest: true })} className="inline-flex min-h-12 items-center justify-center rounded-2xl bg-blue-800 px-5 py-3 text-base font-semibold text-white">
+                <Link href={buildModuleRoute({ moduleSlug: laryModule.slug, projectId: query.project_id, intent: query.intent, changeContest: true })} className="inline-flex min-h-12 items-center justify-center rounded-2xl bg-blue-800 px-5 py-3 text-base font-semibold text-white">
                   Выбрать другой конкурс
                 </Link>
                 <Link href="/modules" className="inline-flex min-h-12 items-center justify-center rounded-2xl border border-slate-300 bg-white px-5 py-3 text-base font-semibold text-slate-900">
@@ -139,11 +139,11 @@ export default async function ModulePage({
                 <p className="text-base font-semibold uppercase tracking-wide text-blue-800">{selectedContest.name}</p>
                 <h2 className="mt-2 text-3xl font-bold">Как продолжить?</h2>
                 <div className="mt-6 grid gap-3 sm:grid-cols-2">
-                  <Link href={buildModuleRoute({ moduleSlug: laryModule.slug, contestSlug: selectedContest.slug, projectId: query.project_id, mode: "start" })} className="inline-flex min-h-14 items-center justify-center rounded-2xl bg-blue-800 px-5 py-4 text-lg font-semibold text-white">
+                  <Link href={buildModuleRoute({ moduleSlug: laryModule.slug, contestSlug: selectedContest.slug, projectId: query.project_id, mode: "start", intent: "start" })} className="inline-flex min-h-14 items-center justify-center rounded-2xl bg-blue-800 px-5 py-4 text-lg font-semibold text-white">
                     Запустить модуль
                   </Link>
                   {hasRealExample(laryModule.slug, selectedContest.slug) ? (
-                    <Link href={buildModuleRoute({ moduleSlug: laryModule.slug, contestSlug: selectedContest.slug, projectId: query.project_id, example: "1" })} className="inline-flex min-h-14 items-center justify-center rounded-2xl border border-blue-800 bg-white px-5 py-4 text-lg font-semibold text-blue-900">
+                    <Link href={buildModuleRoute({ moduleSlug: laryModule.slug, contestSlug: selectedContest.slug, projectId: query.project_id, example: "1", intent: "example", realExampleContests })} className="inline-flex min-h-14 items-center justify-center rounded-2xl border border-blue-800 bg-white px-5 py-4 text-lg font-semibold text-blue-900">
                       Посмотреть пример
                     </Link>
                   ) : (
@@ -152,7 +152,7 @@ export default async function ModulePage({
                     </span>
                   )}
                 </div>
-                <Link href={buildModuleRoute({ moduleSlug: laryModule.slug, projectId: query.project_id, changeContest: true })} className="mt-5 inline-flex min-h-11 items-center text-base font-semibold text-blue-800 hover:underline">
+                <Link href={buildModuleRoute({ moduleSlug: laryModule.slug, projectId: query.project_id, intent: query.intent, changeContest: true })} className="mt-5 inline-flex min-h-11 items-center text-base font-semibold text-blue-800 hover:underline">
                   Выбрать другой конкурс
                 </Link>
               </section>

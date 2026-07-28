@@ -7,7 +7,7 @@ MODULES = [
         "duration": "4-7 минут",
         "competition": "ПФКИ",
         "output_formats": ["docx"],
-        "fields": ["region", "direction", "target_group", "problem", "details"],
+        "fields": ["region", "direction", "target_group", "problem", "project_response", "constraints"],
     },
     {
         "slug": "legal-acts",
@@ -67,7 +67,17 @@ MODULES = [
         "duration": "6-10 минут",
         "competition": "ПФКИ",
         "output_formats": ["docx"],
-        "fields": ["scenario_type", "description", "duration", "preparation", "participants", "details"],
+        "fields": [
+            "scenario_type",
+            "event_title",
+            "event_idea",
+            "location",
+            "participants",
+            "beneficiary_audience",
+            "schedule",
+            "preparation",
+            "team_equipment_constraints",
+        ],
     },
     {
         "slug": "check-application",

@@ -1,6 +1,7 @@
 @import "tailwindcss";
 
 :root {
+  --sticky-header-offset: 7rem;
   --background: #ffffff;
   --foreground: #111827;
 }

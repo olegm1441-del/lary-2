@@ -12,7 +12,17 @@ REQUIRED_FIELDS: dict[str, set[str]] = {
     "salary": {"role", "region", "functionality", "months", "employee_count", "employment_percent", "cofunding"},
     "support-letter": {"value_keywords", "support_types", "support_details"},
     "presentation": {"project_description"},
-    "scenario-plan": {"scenario_type", "description", "duration", "preparation", "participants"},
+    "scenario-plan": {
+        "scenario_type",
+        "event_title",
+        "event_idea",
+        "location",
+        "participants",
+        "beneficiary_audience",
+        "schedule",
+        "preparation",
+        "team_equipment_constraints",
+    },
 }
 
 
@@ -22,82 +32,139 @@ def analyze_field_quality(module_slug: str, field_key: str, value: Any, form_con
         raise ValueError("Такой модуль пока недоступен.")
 
     context = {str(key): _string(value) for key, value in (form_context or {}).items()}
+    covered_by_fields = [key for key, context_value in context.items() if context_value and key != field_key]
     text = _string(value)
     field_key = str(field_key)
 
     if module_slug == "legal-acts" and field_key == "region" and _is_regional_legal_search(context.get("program_level", "")) and not text:
-        return _error("Для региональных документов нужен регион.")
+        return _error("Для региональных документов нужен регион.", covered_by_fields=covered_by_fields)
 
     if module_slug == "scenario-plan" and field_key == "scenario_type" and not text:
-        return _error("Выберите вид сценарного плана.")
+        return _error("Выберите вид сценарного плана.", covered_by_fields=covered_by_fields)
 
     if not text:
         if module_slug == "support-letter" and field_key == "value_keywords":
-            return _error("Добавьте ключевые смыслы проекта: для кого, где и почему проект важен.")
+            return _error("Добавьте ключевые смыслы проекта: для кого, где и почему проект важен.", covered_by_fields=covered_by_fields)
         if module_slug == "support-letter" and field_key == "support_types":
-            return _error("Выберите хотя бы один вид поддержки.")
+            return _error("Выберите хотя бы один вид поддержки.", covered_by_fields=covered_by_fields)
         if module_slug == "support-letter" and field_key == "support_details":
-            return _error("Опишите, что именно делает партнер.")
+            return _error("Опишите, что именно делает партнер.", covered_by_fields=covered_by_fields)
         if field_key in REQUIRED_FIELDS.get(module_slug, set()):
-            return _error("Заполните это поле, чтобы запустить.")
-        return _success()
+            return _error("Заполните это поле, чтобы запустить.", covered_by_fields=covered_by_fields)
+        return _success(covered_by_fields)
 
-    if field_key in {"problem", "description", "project_description", "functionality", "details"} and _word_count(text) < 10:
+    if field_key in {"problem", "event_idea", "project_description", "functionality", "constraints", "team_equipment_constraints"} and _word_count(text) < 10:
+        if field_key == "problem":
+            return _warning(
+                "Добавьте, как проявляется проблема или к какому последствию она приводит.",
+                [
+                    _suggest("add_consequence", "Добавить последствие", "Это ограничивает доступ целевой группы к подходящим возможностям участия."),
+                    _dismiss(),
+                ],
+                covered_by_fields,
+            )
         return _warning(
-            "Добавьте 1–2 детали: кто участвует, где проходит проект и что нужно подтвердить.",
-            ["Добавить территорию", "Оставить так"],
+            "Добавьте 1–2 смысловые детали, которые относятся именно к этому полю.",
+            [_suggest("add_detail", "Добавить деталь", "Уточните наблюдаемое проявление и ожидаемый результат."), _dismiss()],
+            covered_by_fields,
         )
 
     if field_key == "target_group":
         if _is_broad_target_group(text):
             return _warning(
-                "Уточните возраст, статус и территорию. Например: молодежь 18–25 лет из Екатеринбурга.",
-                ["Добавить возраст", "Добавить территорию"],
+                "Уточните возраст и социальный статус участников.",
+                [_suggest("add_age", "Добавить возраст", "12–22 лет"), _suggest("add_status", "Уточнить статус", "учащиеся и молодые специалисты"), _dismiss()],
+                covered_by_fields,
             )
         if not _has_age(text):
-            return _warning("Добавьте возраст или диапазон. Например: подростки 12–17 лет.", ["Добавить возраст", "Оставить так"])
+            return _warning(
+                "Добавьте возраст или диапазон. Например: подростки 12–17 лет.",
+                [_suggest("add_age", "Добавить возраст", "12–17 лет"), _dismiss()],
+                covered_by_fields,
+            )
 
-    if field_key in {"problem", "description", "project_description"} and not _has_territory(text, context):
-        return _warning("Добавьте территорию: регион, город, район или площадку.", ["Добавить территорию", "Оставить так"])
+    if field_key in {"problem", "event_idea", "project_description"} and not _has_territory(text, context):
+        return _warning(
+            "Укажите территорию в отдельном поле «Регион».",
+            [_dismiss()],
+            covered_by_fields,
+        )
 
     if module_slug == "salary":
         if field_key == "employee_count" and _to_float(text) <= 0:
-            return _error("Количество сотрудников должно быть больше нуля.")
+            return _error("Количество сотрудников должно быть больше нуля.", covered_by_fields=covered_by_fields)
         if field_key == "employment_percent" and (_to_float(text) <= 0 or _to_float(text) > 100):
-            return _error("Занятость одного сотрудника не может быть больше 100%.")
+            return _error("Занятость одного сотрудника не может быть больше 100%.", covered_by_fields=covered_by_fields)
         if field_key == "months" and _to_float(text) <= 0:
-            return _error("Срок работы должен быть больше нуля.")
+            return _error("Срок работы должен быть больше нуля.", covered_by_fields=covered_by_fields)
         if field_key == "functionality" and _word_count(text) < 10:
-            return _warning("Опишите 2–3 обязанности: что делает специалист и к каким мероприятиям относится.")
+            return _warning("Опишите 2–3 обязанности: что делает специалист и к каким мероприятиям относится.", covered_by_fields=covered_by_fields)
 
     if module_slug == "support-letter":
         official_hint = _official_language_hint(field_key, text)
         if official_hint:
             return official_hint
         if field_key == "cofinance_block" and (not _has_digits(text) or _has_letters(text) or any(char in text for char in "₽.,;:")):
-            return _error("Введите оценку вклада только числом, без слова “рублей”.")
+            return _error("Введите оценку вклада только числом, без слова “рублей”.", covered_by_fields=covered_by_fields)
         if field_key in {"value_keywords", "support_details"} and _word_count(text) < 8:
-            return _warning("Добавьте 1–2 факта: для кого проект, что делает партнер и где это произойдет.")
+            return _warning("Добавьте 1–2 факта: для кого проект, что делает партнер и где это произойдет.", covered_by_fields=covered_by_fields)
 
     if module_slug == "presentation" and field_key == "project_description" and len(text) < 500:
-        return _warning("Материала мало. Можно запускать, но добавьте идею, аудиторию, сроки и результаты, если они есть.")
+        return _warning("Материала мало. Можно запускать, но добавьте идею, аудиторию, сроки и результаты, если они есть.", covered_by_fields=covered_by_fields)
 
-    if module_slug == "scenario-plan" and field_key == "participants" and not _has_digits(text):
-        return _warning("Добавьте количество участников или зрителей, если оно уже известно.")
+    if module_slug == "scenario-plan" and field_key in {"participants", "schedule"} and not _has_digits(text):
+        return _warning("Добавьте количество участников или зрителей, если оно уже известно.", covered_by_fields=covered_by_fields)
 
-    return _success()
-
-
-def _success() -> dict:
-    return {"status": "success", "should_block": False, "message": "", "chips": [], "rewrite_suggestion": None}
+    return _success(covered_by_fields)
 
 
-def _warning(message: str, chips: list[str] | None = None) -> dict:
-    return {"status": "warning", "should_block": False, "message": _limit(message), "chips": (chips or ["Оставить так"])[:3], "rewrite_suggestion": None}
+def _success(covered_by_fields: list[str] | None = None) -> dict:
+    return {
+        "status": "success",
+        "should_block": False,
+        "message": "",
+        "suggestions": [],
+        "covered_by_fields": covered_by_fields or [],
+        "rewrite_suggestion": None,
+    }
 
 
-def _error(message: str, chips: list[str] | None = None) -> dict:
-    return {"status": "error", "should_block": True, "message": _limit(message), "chips": (chips or [])[:3], "rewrite_suggestion": None}
+def _warning(
+    message: str,
+    suggestions: list[dict] | None = None,
+    covered_by_fields: list[str] | None = None,
+) -> dict:
+    return {
+        "status": "warning",
+        "should_block": False,
+        "message": _limit(message),
+        "suggestions": (suggestions or [_dismiss()])[:3],
+        "covered_by_fields": covered_by_fields or [],
+        "rewrite_suggestion": None,
+    }
+
+
+def _error(
+    message: str,
+    suggestions: list[dict] | None = None,
+    covered_by_fields: list[str] | None = None,
+) -> dict:
+    return {
+        "status": "error",
+        "should_block": True,
+        "message": _limit(message),
+        "suggestions": (suggestions or [])[:3],
+        "covered_by_fields": covered_by_fields or [],
+        "rewrite_suggestion": None,
+    }
+
+
+def _suggest(suggestion_id: str, label: str, text: str) -> dict:
+    return {"id": suggestion_id, "label": label, "operation": "suggest_text", "text": text}
+
+
+def _dismiss() -> dict:
+    return {"id": "keep_current", "label": "Оставить так", "operation": "dismiss", "text": ""}
 
 
 def _limit(message: str) -> str:

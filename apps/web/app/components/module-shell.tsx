@@ -55,6 +55,14 @@ export function ModuleShell({
   }, [effectiveSteps]);
 
   useEffect(() => {
+    const syncResultAvailability = () => setResultAvailable(Boolean(document.getElementById("result")));
+    syncResultAvailability();
+    const mutationObserver = new MutationObserver(syncResultAvailability);
+    mutationObserver.observe(document.body, { childList: true, subtree: true });
+    return () => mutationObserver.disconnect();
+  }, []);
+
+  useEffect(() => {
     function handleResultReady(event: Event) {
       const detail = (event as CustomEvent<ModuleResultReadyDetail>).detail;
       if (!detail || (moduleSlug && detail.moduleSlug !== moduleSlug)) return;
@@ -105,13 +113,14 @@ export function ModuleShell({
       </div>
 
       <div className="grid min-w-0 gap-8 lg:grid-cols-[220px_minmax(0,820px)] xl:grid-cols-[220px_minmax(0,820px)_260px]">
-        <nav aria-label="Этапы модуля" className="hidden lg:block">
-          <ol className="sticky top-28 grid gap-2">
+        <nav aria-label="Этапы модуля" className="hidden self-start lg:block">
+          <ol className="sticky top-[var(--sticky-header-offset,7rem)] grid gap-2">
             {effectiveSteps.map((step, index) => (
               <li key={step.id}>
                 <button
                   type="button"
                   disabled={step.disabled}
+                  aria-current={activeId === step.id ? "step" : undefined}
                   onClick={() => goTo(step)}
                   className={`min-h-11 w-full rounded-xl px-3 py-2 text-left text-base font-semibold ${
                     activeId === step.id ? "bg-blue-50 text-blue-900" : "text-slate-600 hover:bg-slate-100"
@@ -141,7 +150,7 @@ export function ModuleShell({
             <p className="text-2xl font-bold">Этапы</p>
             <div className="mt-4 grid gap-2">
               {effectiveSteps.map((step, index) => (
-                <button key={step.id} type="button" disabled={step.disabled} onClick={() => goTo(step)} className="min-h-12 rounded-2xl bg-slate-50 px-4 py-3 text-left text-base font-semibold disabled:text-slate-400">
+                <button key={step.id} type="button" disabled={step.disabled} aria-current={activeId === step.id ? "step" : undefined} onClick={() => goTo(step)} className="min-h-12 rounded-2xl bg-slate-50 px-4 py-3 text-left text-base font-semibold aria-[current=step]:bg-blue-50 aria-[current=step]:text-blue-900 disabled:text-slate-400">
                   {index + 1}. {step.label}
                 </button>
               ))}

@@ -100,12 +100,13 @@ export function ResultViewer({ runId, projectId }: { runId: string; projectId?: 
         ))}
       </div>
       <a
-        href={buildModuleRoute({
+        href={`${buildModuleRoute({
           moduleSlug: result.module_slug,
           contestSlug: result.contest_slug,
           mode: "start",
           projectId: projectId || result.project_id,
-        })}
+          intent: "start",
+        })}#data`}
         className="mt-6 inline-flex min-h-12 items-center rounded-2xl border border-blue-800 px-5 py-3 text-base font-semibold text-blue-800"
       >
         Вернуться к модулю

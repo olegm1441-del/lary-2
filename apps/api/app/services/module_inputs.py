@@ -7,7 +7,10 @@ FIELD_ALIASES = {
     "основное_направление": "direction",
     "целевая_группа": "target_group",
     "описание_проблемы": "problem",
-    "дополнительные_сведения": "details",
+    "что_изменит_проект": "project_response",
+    "ограничения_и_важные_условия": "constraints",
+    "дополнительные_сведения": "constraints",
+    "details": "constraints",
     "уровень_поиска": "program_level",
     "должность": "role",
     "функционал": "functionality",
@@ -40,10 +43,33 @@ FIELD_ALIASES = {
     "количество_слайдов": "slide_count",
     "структура_или_календарный_план": "calendar_plan",
     "тип_сценария": "scenario_type",
-    "краткое_описание": "description",
-    "длительность": "duration",
+    "название_мероприятия": "event_title",
+    "описание_идеи": "event_idea",
+    "краткое_описание": "event_idea",
+    "description": "event_idea",
+    "место_проведения": "location",
+    "целевая_аудитория_проекта": "beneficiary_audience",
+    "расписание_и_продолжительность": "schedule",
+    "длительность": "schedule",
+    "duration": "schedule",
     "подготовка": "preparation",
     "участники": "participants",
+    "команда,_оборудование_и_ограничения": "team_equipment_constraints",
+}
+
+MODULE_FIELD_ALIASES = {
+    "social-research": {
+        "details": "constraints",
+        "дополнительные_сведения": "constraints",
+    },
+    "scenario-plan": {
+        "description": "event_idea",
+        "краткое_описание": "event_idea",
+        "duration": "schedule",
+        "длительность": "schedule",
+        "details": "team_equipment_constraints",
+        "дополнительные_сведения": "team_equipment_constraints",
+    },
 }
 
 
@@ -57,7 +83,15 @@ def normalize_inputs(module_slug: str, inputs: dict | None) -> dict[str, Any]:
             continue
 
         key = str(raw_key)
-        canonical_key = key if key in canonical_fields else FIELD_ALIASES.get(_normalize_key(key), key)
+        normalized_key = _normalize_key(key)
+        canonical_key = (
+            key
+            if key in canonical_fields
+            else MODULE_FIELD_ALIASES.get(module_slug, {}).get(
+                normalized_key,
+                FIELD_ALIASES.get(normalized_key, key),
+            )
+        )
         if isinstance(raw_value, list):
             value = [str(item).strip() for item in raw_value if str(item).strip()]
             if not value:
@@ -74,7 +108,7 @@ def normalize_inputs(module_slug: str, inputs: dict | None) -> dict[str, Any]:
 
 
 def primary_project_label(inputs: dict[str, Any]) -> str:
-    for key in ("project_title", "title", "direction", "project_description", "description", "scenario_type", "role", "partner_name", "partner"):
+    for key in ("project_title", "event_title", "title", "direction", "project_description", "event_idea", "scenario_type", "role", "partner_name", "partner"):
         value = inputs.get(key)
         if value:
             return str(value)

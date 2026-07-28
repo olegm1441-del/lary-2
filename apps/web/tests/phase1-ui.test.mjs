@@ -80,7 +80,7 @@ test("module routes preserve project context and isolate example intent by conte
       },
       "pfki",
     ),
-    "/m/salary?contest=pfki&project_id=abc&example=1",
+    "/m/salary?contest=pfki&project_id=abc&example=1&intent=example",
   );
   assert.equal(
     buildModuleRoute(
@@ -92,7 +92,7 @@ test("module routes preserve project context and isolate example intent by conte
       },
       "fpg",
     ),
-    "/m/salary?contest=fpg&project_id=abc",
+    "/m/salary?contest=fpg&project_id=abc&intent=example",
   );
 });
 

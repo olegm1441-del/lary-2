@@ -93,6 +93,7 @@ export function ProjectContestSync({
               projectId: stableProjectId,
               mode,
               example,
+              intent,
               realExampleContests,
             }),
           );

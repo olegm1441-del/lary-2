@@ -41,6 +41,7 @@ export default async function ModulesPage({ searchParams }: { searchParams: Prom
                   moduleSlug,
                   contestSlug: query.project_contest,
                   projectId: query.project_id,
+                  intent: "start",
                 })}
                 className="min-h-11 rounded-2xl bg-white px-4 py-3 text-base font-semibold text-blue-900 hover:bg-blue-100"
               >

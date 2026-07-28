@@ -4,12 +4,17 @@ import { useRouter } from "next/navigation";
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getFieldKey, getFieldOptions, type LaryModule, type ModuleField } from "../lib/lary-data";
 import { apiUrl, readApiError } from "../lib/api-client";
-import { FieldAssistantHint, type FieldAssistantHintData } from "./field-assistant-hint";
+import {
+  FieldAssistantHint,
+  type FieldAssistantHintData,
+  type FieldAssistantSuggestion,
+} from "./field-assistant-hint";
 import { USAGE_UPDATED_EVENT } from "./module-attempt-status";
 import { SalaryModuleRunner } from "./salary-module-runner";
-import { migrateLegacyDraft, moduleDraftKey } from "../lib/module-drafts";
+import { migrateLegacyDraft, moduleDraftKey, moduleResultStateKey } from "../lib/module-drafts";
 import { emitModuleResultReady } from "../lib/module-flow";
 import { ResultViewer } from "./result-viewer";
+import { stableSubmissionFingerprint } from "../lib/submission-fingerprint";
 
 type RunState = "idle" | "submitting" | "error";
 type VoiceState = "idle" | "recording" | "uploading";
@@ -51,6 +56,9 @@ function GenericModuleRunner({ module, contestSlug, profileVersion, projectId }:
   const [scenarioHelper, setScenarioHelper] = useState("");
   const [usage, setUsage] = useState<UsagePayload | null>(null);
   const [resultRunId, setResultRunId] = useState<string | null>(null);
+  const [lastSubmittedPayload, setLastSubmittedPayload] = useState<Record<string, unknown> | null>(null);
+  const [lastSubmittedFingerprint, setLastSubmittedFingerprint] = useState<string | null>(null);
+  const [lastCompletedRunId, setLastCompletedRunId] = useState<string | null>(null);
 
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
@@ -71,6 +79,23 @@ function GenericModuleRunner({ module, contestSlug, profileVersion, projectId }:
     () => module.fields.map((field, fieldIndex) => getFieldKey(module.slug, fieldIndex, field.label)),
     [module.fields, module.slug],
   );
+  const currentSubmissionPayload = useMemo(
+    () => ({
+      module_slug: module.slug,
+      contest_slug: contestSlug,
+      profile_version: profileVersion || null,
+      project_id: projectId || null,
+      inputs: buildSubmissionInputs(module.slug, applyModuleDefaults(module.slug, values)),
+      presentation_variant: presentationVariant || null,
+    }),
+    [contestSlug, module.slug, presentationVariant, profileVersion, projectId, values],
+  );
+  const currentFingerprint = useMemo(
+    () => stableSubmissionFingerprint(currentSubmissionPayload),
+    [currentSubmissionPayload],
+  );
+  const resultMatchesCurrent = Boolean(resultRunId && lastSubmittedFingerprint === currentFingerprint);
+  const resultIsOutdated = Boolean(resultRunId && lastSubmittedFingerprint && lastSubmittedFingerprint !== currentFingerprint);
 
   const collectFieldHints = useCallback(
     (force: boolean, currentValues = values): FieldHintMap => {
@@ -97,8 +122,25 @@ function GenericModuleRunner({ module, contestSlug, profileVersion, projectId }:
         const raw = window.localStorage.getItem(key);
         const draft = raw ? JSON.parse(raw) : migrateLegacyDraft<Record<string, string>>(window.localStorage, module.slug, contestSlug, projectId) || {};
         setValues(applyModuleDefaults(module.slug, draft));
+        const savedResultRaw = window.localStorage.getItem(moduleResultStateKey(module.slug, contestSlug, projectId));
+        const savedResult = savedResultRaw ? JSON.parse(savedResultRaw) : null;
+        if (savedResult?.runId && savedResult?.fingerprint) {
+          setResultRunId(String(savedResult.runId));
+          setLastCompletedRunId(String(savedResult.runId));
+          setLastSubmittedFingerprint(String(savedResult.fingerprint));
+          setLastSubmittedPayload(savedResult.payload && typeof savedResult.payload === "object" ? savedResult.payload : null);
+        } else {
+          setResultRunId(null);
+          setLastSubmittedPayload(null);
+          setLastSubmittedFingerprint(null);
+          setLastCompletedRunId(null);
+        }
       } catch {
         setValues(applyModuleDefaults(module.slug, {}));
+        setResultRunId(null);
+        setLastSubmittedPayload(null);
+        setLastSubmittedFingerprint(null);
+        setLastCompletedRunId(null);
       }
       loadedDraftKeyRef.current = key;
       setTouchedFields({});
@@ -147,7 +189,7 @@ function GenericModuleRunner({ module, contestSlug, profileVersion, projectId }:
         .map((field, fieldIndex) => ({ field, key: getFieldKey(module.slug, fieldIndex, field.label) }))
         .find(({ key }) => {
           const value = String(values[key] || "").trim();
-          return !nextHints[key] && touchedFields[key] && ["details", "project_description", "description", "problem"].includes(key) && value.length > 80;
+          return !nextHints[key] && touchedFields[key] && ["constraints", "team_equipment_constraints", "project_description", "event_idea", "problem"].includes(key) && value.length > 80;
         });
 
       if (aiCandidate) {
@@ -166,6 +208,7 @@ function GenericModuleRunner({ module, contestSlug, profileVersion, projectId }:
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (resultMatchesCurrent || state === "submitting") return;
     setSubmitAttempted(true);
 
     const nextValues = applyModuleDefaults(module.slug, values);
@@ -182,6 +225,10 @@ function GenericModuleRunner({ module, contestSlug, profileVersion, projectId }:
     const freeAvailable = usage?.modules?.[module.slug]?.free_attempt_available ?? true;
     const paidRuns = usage?.paid_runs ?? 0;
     if (!freeAvailable && paidRuns <= 0) {
+      if (resultIsOutdated) {
+        router.push(`/pay?return=${encodeURIComponent(`/m/${module.slug}?contest=${contestSlug}&mode=start${projectId ? `&project_id=${projectId}` : ""}#data`)}`);
+        return;
+      }
       setState("error");
       setMessage("Для повторного запуска необходимо купить запуск модуля или применить промокод.");
       return;
@@ -212,6 +259,22 @@ function GenericModuleRunner({ module, contestSlug, profileVersion, projectId }:
 
       const payload = await response.json();
       setResultRunId(payload.run_id);
+      setLastCompletedRunId(payload.run_id);
+      setLastSubmittedPayload(currentSubmissionPayload);
+      const completedFingerprint = stableSubmissionFingerprint(currentSubmissionPayload);
+      setLastSubmittedFingerprint(completedFingerprint);
+      try {
+        window.localStorage.setItem(
+          moduleResultStateKey(module.slug, contestSlug, projectId),
+          JSON.stringify({
+            runId: payload.run_id,
+            fingerprint: completedFingerprint,
+            payload: currentSubmissionPayload,
+          }),
+        );
+      } catch {
+        // The completed backend run remains available even if local convenience state cannot be stored.
+      }
       setState("idle");
       setMessage("");
       window.dispatchEvent(new CustomEvent(USAGE_UPDATED_EVENT));
@@ -265,13 +328,14 @@ function GenericModuleRunner({ module, contestSlug, profileVersion, projectId }:
         status: "info",
         should_block: false,
         message: "Можно оставить пустым. Лари отметит место для ручной вставки, если это важно для результата.",
-        chips: ["Оставить пустым"],
+        suggestions: [{ id: "leave_empty", label: "Оставить пустым", operation: "dismiss", text: "" }],
+        covered_by_fields: [],
       },
     }));
   }
 
-  function applyHintChip(key: string, chip: string) {
-    if (chip === "Оставить так" || chip === "Оставить пустым") {
+  function applyHintSuggestion(key: string, suggestion: FieldAssistantSuggestion) {
+    if (suggestion.operation === "dismiss") {
       setFieldHints((current) => {
         const copy = { ...current };
         delete copy[key];
@@ -279,20 +343,9 @@ function GenericModuleRunner({ module, contestSlug, profileVersion, projectId }:
       });
       return;
     }
-    if (chip === "Добавить возраст") {
-      updateValue(key, appendText(values[key], "18–25 лет"));
-      return;
+    if (suggestion.operation === "suggest_text" && suggestion.text) {
+      updateValue(key, appendUniqueText(values[key], suggestion.text));
     }
-    if (chip === "Добавить территорию") {
-      const territory = values.region || values.region_value || "укажите город или регион";
-      updateValue(key, appendText(values[key], territory));
-      return;
-    }
-    if (chip === "Не знаю — помогите выбрать") {
-      fillUnknownField(key);
-      return;
-    }
-    updateValue(key, chip);
   }
 
   async function startVoice(key: string, label: string) {
@@ -551,7 +604,7 @@ function GenericModuleRunner({ module, contestSlug, profileVersion, projectId }:
               </>
             )}
 
-            <FieldAssistantHint hint={hint} onChip={(chip) => applyHintChip(key, chip)} />
+            <FieldAssistantHint hint={hint} onSuggestion={(suggestion) => applyHintSuggestion(key, suggestion)} />
 
             {isLongText ? (
               <div className="mt-3 flex flex-wrap gap-3">
@@ -595,13 +648,35 @@ function GenericModuleRunner({ module, contestSlug, profileVersion, projectId }:
       {voiceMessage ? <div className="rounded-2xl bg-blue-50 p-4 text-base leading-7 text-blue-950">{voiceMessage}</div> : null}
 
       <div className="rounded-3xl border border-slate-200 bg-white p-6">
-        <p className={`rounded-2xl p-4 text-base leading-7 ${qualityState.className}`}>{qualityState.message}</p>
+        <p className={`rounded-2xl p-4 text-base leading-7 ${
+          resultMatchesCurrent
+            ? "bg-slate-100 text-slate-700"
+            : resultIsOutdated
+              ? "bg-orange-50 text-orange-950"
+              : qualityState.className
+        }`}>
+          {resultMatchesCurrent
+            ? "Результат соответствует текущим данным."
+            : resultIsOutdated
+              ? "Вы изменили данные. Текущий результат относится к предыдущей версии."
+              : qualityState.message}
+        </p>
         <button
           type="submit"
-          disabled={state === "submitting"}
+          disabled={state === "submitting" || resultMatchesCurrent}
           className="mt-4 min-h-14 rounded-2xl bg-blue-800 px-6 py-4 text-lg font-semibold text-white shadow-sm hover:bg-blue-900 disabled:cursor-not-allowed disabled:bg-slate-400"
         >
-          {state === "submitting" ? (module.slug === "support-letter" ? "Готовим письмо поддержки..." : "Готовим результат...") : launchButtonLabel(module.slug, usage)}
+          {state === "submitting"
+            ? module.slug === "support-letter"
+              ? "Готовим письмо поддержки..."
+              : "Готовим результат..."
+            : resultMatchesCurrent
+              ? "Результат сформирован"
+              : resultIsOutdated
+                ? !(usage?.modules?.[module.slug]?.free_attempt_available ?? true) && (usage?.paid_runs ?? 0) <= 0
+                  ? "Купить запуск для обновления"
+                  : "Обновить результат"
+                : launchButtonLabel(module.slug, usage)}
         </button>
         {!(usage?.modules?.[module.slug]?.free_attempt_available ?? true) && (usage?.paid_runs ?? 0) <= 0 ? (
           <button
@@ -619,10 +694,11 @@ function GenericModuleRunner({ module, contestSlug, profileVersion, projectId }:
         ) : null}
       </div>
       {resultRunId ? (
-        <section id="result" aria-label="Результат работы">
+        <section id="result" aria-label="Результат работы" data-completed-run-id={lastCompletedRunId || undefined}>
           <ResultViewer runId={resultRunId} projectId={projectId} />
         </section>
       ) : null}
+      {lastSubmittedPayload ? <span className="sr-only">Снимок данных результата сохранён</span> : null}
     </form>
   );
 }
@@ -681,21 +757,37 @@ function getFieldQualityHint(
     return successHint();
   }
 
-  if (["problem", "description", "project_description", "functionality", "details"].includes(fieldKey) && countWords(trimmed) < 10) {
-    return warningHint("Добавьте 1–2 детали: кто участвует, где проходит проект и что нужно подтвердить.", ["Добавить территорию", "Оставить так"]);
+  if (["problem", "event_idea", "project_description", "functionality", "constraints", "team_equipment_constraints"].includes(fieldKey) && countWords(trimmed) < 10) {
+    if (fieldKey === "problem") {
+      return warningHint("Добавьте, как проявляется проблема или к какому последствию она приводит.", [
+        suggestText("add_consequence", "Добавить последствие", "Это ограничивает доступ целевой группы к подходящим возможностям участия."),
+        dismissSuggestion(),
+      ]);
+    }
+    return warningHint("Добавьте 1–2 смысловые детали, которые относятся именно к этому полю.", [
+      suggestText("add_detail", "Добавить деталь", "Уточните наблюдаемое проявление и ожидаемый результат."),
+      dismissSuggestion(),
+    ]);
   }
 
   if (fieldKey === "target_group") {
     if (isBroadTargetGroup(trimmed)) {
-      return warningHint("Уточните возраст, статус и территорию. Например: молодежь 18–25 лет из Екатеринбурга.", ["Добавить возраст", "Добавить территорию"]);
+      return warningHint("Уточните возраст и социальный статус участников.", [
+        suggestText("add_age", "Добавить возраст", "12–22 лет"),
+        suggestText("add_status", "Уточнить статус", "учащиеся и молодые специалисты"),
+        dismissSuggestion(),
+      ]);
     }
     if (!hasAge(trimmed)) {
-      return warningHint("Добавьте возраст или диапазон. Например: подростки 12–17 лет.", ["Добавить возраст", "Оставить так"]);
+      return warningHint("Добавьте возраст или диапазон. Например: подростки 12–17 лет.", [
+        suggestText("add_age", "Добавить возраст", "12–17 лет"),
+        dismissSuggestion(),
+      ]);
     }
   }
 
-  if (["problem", "description", "project_description"].includes(fieldKey) && !hasTerritory(trimmed, values)) {
-    return warningHint("Добавьте территорию: регион, город, район или площадку.", ["Добавить территорию", "Оставить так"]);
+  if (["problem", "event_idea", "project_description"].includes(fieldKey) && !hasTerritory(trimmed, values)) {
+    return warningHint("Укажите территорию в отдельном поле «Регион».", [dismissSuggestion()]);
   }
 
   if (moduleSlug === "salary") {
@@ -723,7 +815,7 @@ function getFieldQualityHint(
       return errorHint("Введите оценку вклада только числом, без слова “рублей”.");
     }
     if (["value_keywords", "support_details"].includes(fieldKey) && countWords(trimmed) < 8) {
-      return warningHint("Добавьте 1–2 факта: для кого проект, что делает партнер и где это произойдет.", ["Оставить так"]);
+      return warningHint("Добавьте 1–2 факта: для кого проект, что делает партнер и где это произойдет.", [dismissSuggestion()]);
     }
   }
 
@@ -732,7 +824,10 @@ function getFieldQualityHint(
   }
 
   if (moduleSlug === "scenario-plan" && fieldKey === "participants" && !hasDigits(trimmed)) {
-    return warningHint("Добавьте количество участников или зрителей, если оно уже известно.");
+    return warningHint("Добавьте количество команды, участников или зрителей, если оно уже известно.");
+  }
+  if (moduleSlug === "scenario-plan" && fieldKey === "schedule" && !hasDigits(trimmed)) {
+    return errorHint("Укажите число дней и границы времени.");
   }
 
   return successHint();
@@ -757,6 +852,18 @@ function getFormQualityState(module: LaryModule, fieldKeys: string[], values: Re
 
 function applyModuleDefaults(moduleSlug: string, source: Record<string, string>) {
   const values = { ...source };
+  if (moduleSlug === "social-research") {
+    values.constraints ||= values.details || "";
+    delete values.details;
+  }
+  if (moduleSlug === "scenario-plan") {
+    values.event_idea ||= values.description || "";
+    values.schedule ||= values.duration || "";
+    values.team_equipment_constraints ||= values.details || "";
+    delete values.description;
+    delete values.duration;
+    delete values.details;
+  }
   if (moduleSlug === "presentation") {
     values.presentation_variant ||= "grant_defense";
     values.visual_style ||= "Официальный";
@@ -769,7 +876,7 @@ function applyModuleDefaults(moduleSlug: string, source: Record<string, string>)
 }
 
 function voiceButtonLabel(fieldKey: string) {
-  return ["problem", "description", "project_description", "functionality"].includes(fieldKey) ? "Наговорить описание" : "Наговорить ответ";
+  return ["problem", "event_idea", "project_description", "functionality"].includes(fieldKey) ? "Наговорить описание" : "Наговорить ответ";
 }
 
 function launchButtonLabel(moduleSlug: string, usage: UsagePayload | null) {
@@ -819,30 +926,55 @@ function normalizeAssistantHint(payload: unknown): FieldAssistantHintData | null
     status,
     should_block: Boolean(candidate.should_block),
     message,
-    chips: Array.isArray(candidate.chips) ? candidate.chips.slice(0, 3).map(String) : [],
+    suggestions: Array.isArray(candidate.suggestions)
+      ? candidate.suggestions.slice(0, 3).map((item) => normalizeSuggestion(item)).filter((item): item is FieldAssistantSuggestion => Boolean(item))
+      : [],
+    covered_by_fields: Array.isArray(candidate.covered_by_fields) ? candidate.covered_by_fields.slice(0, 12).map(String) : [],
     rewrite_suggestion: typeof candidate.rewrite_suggestion === "string" ? candidate.rewrite_suggestion : null,
   };
 }
 
 function successHint(): FieldAssistantHintData {
-  return { status: "success", should_block: false, message: "", chips: [] };
+  return { status: "success", should_block: false, message: "", suggestions: [], covered_by_fields: [] };
 }
 
-function warningHint(message: string, chips: string[] = ["Оставить так"]): FieldAssistantHintData {
-  return { status: "warning", should_block: false, message: limitMessage(message), chips: chips.slice(0, 3) };
+function warningHint(message: string, suggestions: FieldAssistantSuggestion[] = [dismissSuggestion()]): FieldAssistantHintData {
+  return { status: "warning", should_block: false, message: limitMessage(message), suggestions: suggestions.slice(0, 3), covered_by_fields: [] };
 }
 
-function errorHint(message: string, chips: string[] = []): FieldAssistantHintData {
-  return { status: "error", should_block: true, message: limitMessage(message), chips: chips.slice(0, 3) };
+function errorHint(message: string, suggestions: FieldAssistantSuggestion[] = []): FieldAssistantHintData {
+  return { status: "error", should_block: true, message: limitMessage(message), suggestions: suggestions.slice(0, 3), covered_by_fields: [] };
 }
 
 function limitMessage(message: string) {
   return message.length > 140 ? `${message.slice(0, 137)}...` : message;
 }
 
-function appendText(current: string | undefined, addition: string) {
+function appendUniqueText(current: string | undefined, addition: string) {
   const base = String(current || "").trim();
+  if (base.toLocaleLowerCase("ru-RU").includes(addition.trim().toLocaleLowerCase("ru-RU"))) return base;
   return base ? `${base} ${addition}` : addition;
+}
+
+function dismissSuggestion(): FieldAssistantSuggestion {
+  return { id: "keep_current", label: "Оставить так", operation: "dismiss", text: "" };
+}
+
+function suggestText(id: string, label: string, text: string): FieldAssistantSuggestion {
+  return { id, label, operation: "suggest_text", text };
+}
+
+function normalizeSuggestion(value: unknown): FieldAssistantSuggestion | null {
+  if (!value || typeof value !== "object") return null;
+  const candidate = value as Partial<FieldAssistantSuggestion>;
+  const operation = candidate.operation === "suggest_text" || candidate.operation === "dismiss" ? candidate.operation : null;
+  if (!candidate.id || !candidate.label || !operation) return null;
+  return {
+    id: String(candidate.id),
+    label: String(candidate.label),
+    operation,
+    text: String(candidate.text || ""),
+  };
 }
 
 function countWords(value: string) {

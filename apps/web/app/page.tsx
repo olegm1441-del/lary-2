@@ -114,7 +114,7 @@ function QuickStartCard({ modules }: { modules: ReturnType<typeof getActiveModul
       <h2 className="mt-2 text-2xl font-bold">Что нужно сделать сегодня?</h2>
       <div className="mt-5 grid gap-3">
         {modules.slice(0, 4).map((module) => (
-          <Link key={module.slug} href={`/m/${module.slug}`} className="rounded-2xl border border-slate-200 p-4 text-left hover:border-blue-300 hover:bg-blue-50">
+          <Link key={module.slug} href={`/m/${module.slug}?intent=start`} className="rounded-2xl border border-slate-200 p-4 text-left hover:border-blue-300 hover:bg-blue-50">
             <span className="block text-lg font-bold text-slate-950">{module.taskTitle}</span>
             <span className="mt-1 block text-sm text-slate-600">{module.outputFormats.join(" + ")} · {module.duration}</span>
           </Link>

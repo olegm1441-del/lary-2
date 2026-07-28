@@ -12,7 +12,7 @@ export type ModuleField = {
 };
 
 export const FIELD_KEYS_BY_MODULE: Record<string, string[]> = {
-  "social-research": ["region", "direction", "target_group", "problem", "details"],
+  "social-research": ["region", "direction", "target_group", "problem", "project_response", "constraints"],
   "legal-acts": ["program_level", "region", "direction", "target_group", "details"],
   salary: ["region", "positions"],
   "support-letter": [
@@ -27,7 +27,17 @@ export const FIELD_KEYS_BY_MODULE: Record<string, string[]> = {
     "signatory",
   ],
   presentation: ["project_description", "visual_style", "slide_count", "calendar_plan", "details"],
-  "scenario-plan": ["scenario_type", "description", "duration", "preparation", "participants", "details"],
+  "scenario-plan": [
+    "scenario_type",
+    "event_title",
+    "event_idea",
+    "location",
+    "participants",
+    "beneficiary_audience",
+    "schedule",
+    "preparation",
+    "team_equipment_constraints",
+  ],
   "check-application": ["file", "competition", "focus_sections", "email"],
 };
 

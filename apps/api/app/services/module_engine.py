@@ -9,6 +9,8 @@ from app.services.file_generators import generate_docx, generate_pdf, generate_p
 from app.services.module_inputs import normalize_inputs, primary_project_label
 from app.services.run_store import StoredRun, run_store
 from app.services.support_letter import SupportLetterDocument, build_support_letter_document
+from app.services.social_research import build_social_research_document
+from app.services.scenario_plan import build_scenario_plan_document
 
 
 def create_module_run(module_slug: str, inputs: dict, presentation_variant: str | None = None) -> StoredRun:
@@ -21,6 +23,10 @@ def create_module_run(module_slug: str, inputs: dict, presentation_variant: str 
 
     if module_slug == "support-letter":
         return _create_support_letter_run(module, inputs)
+    if module_slug == "social-research":
+        return _create_social_research_run(module, inputs)
+    if module_slug == "scenario-plan":
+        return _create_scenario_plan_run(module, inputs)
 
     run_id = str(uuid4())
     title = _result_title(module, inputs)
@@ -62,6 +68,45 @@ def create_module_run(module_slug: str, inputs: dict, presentation_variant: str 
             sections=sections,
             downloads=downloads,
             files=files,
+        )
+    )
+
+
+def _create_social_research_run(module: dict, inputs: dict) -> StoredRun:
+    run_id = str(uuid4())
+    run_dir = Path(settings.file_storage_dir) / run_id
+    path = run_dir / "Анализ социальной значимости.docx"
+    document = build_social_research_document(inputs, output_path=path)
+    summary = "Доказательный материал собран из проверенных источников. Перед подачей сопоставьте выводы с фактическими данными проекта."
+    return run_store.save(
+        StoredRun(
+            run_id=run_id,
+            module_slug="social-research",
+            title=document.output.document_title,
+            status="completed",
+            summary=summary,
+            sections=document.sections,
+            downloads={"docx": f"/api/module-runs/{run_id}/download/docx"},
+            files={"docx": str(path)},
+        )
+    )
+
+
+def _create_scenario_plan_run(module: dict, inputs: dict) -> StoredRun:
+    run_id = str(uuid4())
+    run_dir = Path(settings.file_storage_dir) / run_id
+    path = run_dir / "Сценарный план.docx"
+    document = build_scenario_plan_document(inputs, output_path=path)
+    return run_store.save(
+        StoredRun(
+            run_id=run_id,
+            module_slug="scenario-plan",
+            title=document.output.document_title,
+            status="completed",
+            summary="Сценарный план проверен по таймингам и подготовлен для ручной сверки с календарным планом проекта.",
+            sections=document.sections,
+            downloads={"docx": f"/api/module-runs/{run_id}/download/docx"},
+            files={"docx": str(path)},
         )
     )
 

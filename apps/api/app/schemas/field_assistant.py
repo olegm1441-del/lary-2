@@ -1,6 +1,13 @@
 from pydantic import BaseModel, Field
 
 
+class FieldAssistantSuggestion(BaseModel):
+    id: str = Field(..., min_length=1, max_length=64)
+    label: str = Field(..., min_length=1, max_length=80)
+    operation: str = Field(..., pattern="^(suggest_text|dismiss)$")
+    text: str = Field(default="", max_length=240)
+
+
 class FieldAssistantRequest(BaseModel):
     module_slug: str = Field(..., min_length=2)
     field_key: str = Field(..., min_length=1)
@@ -13,5 +20,6 @@ class FieldAssistantResponse(BaseModel):
     status: str = Field(..., pattern="^(info|warning|error|success)$")
     should_block: bool
     message: str = Field(default="", max_length=140)
-    chips: list[str] = Field(default_factory=list, max_length=3)
+    suggestions: list[FieldAssistantSuggestion] = Field(default_factory=list, max_length=3)
+    covered_by_fields: list[str] = Field(default_factory=list, max_length=12)
     rewrite_suggestion: str | None = None

@@ -59,7 +59,23 @@ class ProfileGatedRunsTest(unittest.TestCase):
     def test_legacy_payload_defaults_to_pfki_ready_profile(self):
         profile = get_product_registry().require_ready_profile("social-research", "pfki")
         self.assertEqual(profile.profile_version, "1.0.0")
-        with patch.object(settings, "product_registry_runtime_enabled", True):
+        with patch.object(settings, "product_registry_runtime_enabled", True), patch(
+            "app.routers.module_runs.create_module_run"
+        ) as engine, patch("app.routers.module_runs.record_module_run_success"):
+            engine.return_value = type(
+                "Run",
+                (),
+                {
+                    "run_id": "run-social",
+                    "status": "completed",
+                    "module_slug": "social-research",
+                    "title": "Актуальность",
+                    "downloads": {"docx": "/download"},
+                    "contest_slug": "pfki",
+                    "profile_version": "1.0.0",
+                    "project_id": None,
+                },
+            )()
             response = self.client.post(
                 "/api/module-runs",
                 json={
