@@ -1,0 +1,74 @@
+[
+  {
+    "example_pack_id": "example.pfki.social-research.v1",
+    "module_slug": "social-research",
+    "contest_slug": "pfki",
+    "version": "1.0.0",
+    "input_summary": "Текущий пример ПФКИ из production UI.",
+    "preview_sections": ["Проблема", "Целевая группа", "Доказательства", "Вывод"],
+    "assets": [],
+    "notes_for_user": "Файл примера будет перенесен в versioned asset pack в фазе 2.",
+    "migration_status": "legacy_preview",
+    "updated_at": "2026-07-28"
+  },
+  {
+    "example_pack_id": "example.pfki.legal-acts.v1",
+    "module_slug": "legal-acts",
+    "contest_slug": "pfki",
+    "version": "1.0.0",
+    "input_summary": "Текущий пример ПФКИ из production UI.",
+    "preview_sections": ["Правовая основа", "Нормативные акты", "Применение"],
+    "assets": [],
+    "notes_for_user": "Файл примера будет перенесен в versioned asset pack в фазе 2.",
+    "migration_status": "legacy_preview",
+    "updated_at": "2026-07-28"
+  },
+  {
+    "example_pack_id": "example.pfki.salary.v1",
+    "module_slug": "salary",
+    "contest_slug": "pfki",
+    "version": "1.0.0",
+    "input_summary": "Текущий эталон расчета зарплаты ПФКИ.",
+    "preview_sections": ["Источник", "Функционал", "Формула", "Софинансирование"],
+    "assets": [],
+    "notes_for_user": "Файл примера будет перенесен в versioned asset pack в фазе 2.",
+    "migration_status": "legacy_preview",
+    "updated_at": "2026-07-28"
+  },
+  {
+    "example_pack_id": "example.pfki.support-letter.v1",
+    "module_slug": "support-letter",
+    "contest_slug": "pfki",
+    "version": "1.0.0",
+    "input_summary": "Текущий эталон письма поддержки ПФКИ.",
+    "preview_sections": ["Значимость", "Вклад партнера", "Подпись"],
+    "assets": [],
+    "notes_for_user": "Файл примера будет перенесен в versioned asset pack в фазе 2.",
+    "migration_status": "legacy_preview",
+    "updated_at": "2026-07-28"
+  },
+  {
+    "example_pack_id": "example.pfki.presentation.v1",
+    "module_slug": "presentation",
+    "contest_slug": "pfki",
+    "version": "1.0.0",
+    "input_summary": "Текущий пример презентации ПФКИ.",
+    "preview_sections": ["Проект", "Актуальность", "Календарный план", "Результаты"],
+    "assets": [],
+    "notes_for_user": "Gallery и versioned PPTX будут подготовлены после передачи шаблона.",
+    "migration_status": "legacy_preview",
+    "updated_at": "2026-07-28"
+  },
+  {
+    "example_pack_id": "example.pfki.scenario-plan.v1",
+    "module_slug": "scenario-plan",
+    "contest_slug": "pfki",
+    "version": "1.0.0",
+    "input_summary": "Текущий пример сценарного плана ПФКИ.",
+    "preview_sections": ["Подготовка", "Ход мероприятия", "Участники", "Результат"],
+    "assets": [],
+    "notes_for_user": "Файл примера будет перенесен в versioned asset pack в фазе 2.",
+    "migration_status": "legacy_preview",
+    "updated_at": "2026-07-28"
+  }
+]

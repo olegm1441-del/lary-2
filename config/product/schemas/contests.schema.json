@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://lary.pro/schemas/product/contests.schema.json",
+  "title": "LARI contest registry",
+  "type": "array",
+  "items": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": ["slug", "name", "short_name", "status", "official_url", "docs_version", "updated_at"],
+    "properties": {
+      "slug": {"type": "string", "pattern": "^[a-z][a-z0-9_]*$"},
+      "name": {"type": "string", "minLength": 1},
+      "short_name": {"type": "string", "minLength": 1},
+      "status": {"enum": ["active", "preparing", "hidden"]},
+      "official_url": {"type": "string", "format": "uri", "pattern": "^https://"},
+      "docs_version": {"type": ["string", "null"]},
+      "updated_at": {"type": "string", "format": "date"}
+    }
+  }
+}

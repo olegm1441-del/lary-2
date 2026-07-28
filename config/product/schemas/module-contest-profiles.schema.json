@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://lary.pro/schemas/product/module-contest-profiles.schema.json",
+  "title": "LARI module-contest profile matrix",
+  "type": "array",
+  "items": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "module_slug",
+      "contest_slug",
+      "status",
+      "card_visibility",
+      "form_schema_id",
+      "prompt_pack_id",
+      "result_schema_id",
+      "template_id",
+      "criteria_pack_id",
+      "example_pack_id",
+      "faq_pack_id",
+      "source_policy_id",
+      "profile_version"
+    ],
+    "properties": {
+      "module_slug": {"type": "string", "pattern": "^[a-z][a-z0-9-]*$"},
+      "contest_slug": {"type": "string", "pattern": "^[a-z][a-z0-9_]*$"},
+      "status": {"enum": ["ready", "preparing", "disabled"]},
+      "card_visibility": {"enum": ["visible", "hidden"]},
+      "form_schema_id": {"type": ["string", "null"]},
+      "prompt_pack_id": {"type": ["string", "null"]},
+      "result_schema_id": {"type": ["string", "null"]},
+      "template_id": {"type": ["string", "null"]},
+      "criteria_pack_id": {"type": ["string", "null"]},
+      "example_pack_id": {"type": ["string", "null"]},
+      "faq_pack_id": {"type": ["string", "null"]},
+      "source_policy_id": {"type": ["string", "null"]},
+      "profile_version": {"type": ["string", "null"]}
+    }
+  }
+}

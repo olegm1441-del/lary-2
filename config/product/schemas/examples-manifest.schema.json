@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://lary.pro/schemas/product/examples-manifest.schema.json",
+  "title": "LARI example pack manifest",
+  "type": "array",
+  "items": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "example_pack_id",
+      "module_slug",
+      "contest_slug",
+      "version",
+      "input_summary",
+      "preview_sections",
+      "assets",
+      "notes_for_user",
+      "migration_status",
+      "updated_at"
+    ],
+    "properties": {
+      "example_pack_id": {"type": "string", "minLength": 1},
+      "module_slug": {"type": "string", "minLength": 1},
+      "contest_slug": {"type": "string", "minLength": 1},
+      "version": {"type": "string", "minLength": 1},
+      "input_summary": {"type": "string"},
+      "preview_sections": {"type": "array", "items": {"type": "string"}},
+      "assets": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": ["format", "filename", "path", "size"],
+          "properties": {
+            "format": {"type": "string"},
+            "filename": {"type": "string"},
+            "path": {"type": "string"},
+            "size": {"type": "integer", "minimum": 0}
+          }
+        }
+      },
+      "notes_for_user": {"type": "string"},
+      "migration_status": {"enum": ["legacy_preview", "versioned_asset"]},
+      "updated_at": {"type": "string", "format": "date"}
+    }
+  }
+}

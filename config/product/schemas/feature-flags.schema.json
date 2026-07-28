@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://lary.pro/schemas/product/feature-flags.schema.json",
+  "title": "LARI product feature flags",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "UNIVERSAL_RUNS_ENABLED",
+    "MODULE_SPECIFIC_RUNS_ENABLED",
+    "SUBSCRIPTIONS_ENABLED",
+    "SUBSCRIPTION_3_DAYS_ENABLED",
+    "SUBSCRIPTION_7_DAYS_ENABLED",
+    "SUBSCRIPTION_30_DAYS_ENABLED"
+  ],
+  "properties": {
+    "UNIVERSAL_RUNS_ENABLED": {"type": "boolean"},
+    "MODULE_SPECIFIC_RUNS_ENABLED": {"type": "boolean"},
+    "SUBSCRIPTIONS_ENABLED": {"type": "boolean"},
+    "SUBSCRIPTION_3_DAYS_ENABLED": {"type": "boolean"},
+    "SUBSCRIPTION_7_DAYS_ENABLED": {"type": "boolean"},
+    "SUBSCRIPTION_30_DAYS_ENABLED": {"type": "boolean"}
+  }
+}

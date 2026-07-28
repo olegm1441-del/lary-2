@@ -1,0 +1,38 @@
+[
+  {
+    "slug": "pfki",
+    "name": "Президентский фонд культурных инициатив",
+    "short_name": "ПФКИ",
+    "status": "active",
+    "official_url": "https://xn--80aeeqaabljrdbg6a3ahhcl4ay9hsa.xn--p1ai/",
+    "docs_version": "legacy-pfki-mvp-0.1",
+    "updated_at": "2026-07-28"
+  },
+  {
+    "slug": "fpg",
+    "name": "Фонд президентских грантов",
+    "short_name": "ФПГ",
+    "status": "preparing",
+    "official_url": "https://xn--80afcdbalict6afooklqi5o.xn--p1ai/",
+    "docs_version": null,
+    "updated_at": "2026-07-28"
+  },
+  {
+    "slug": "rosmolodezh",
+    "name": "Росмолодёжь.Гранты",
+    "short_name": "Росмолодёжь",
+    "status": "preparing",
+    "official_url": "https://grants.myrosmol.ru/",
+    "docs_version": null,
+    "updated_at": "2026-07-28"
+  },
+  {
+    "slug": "first_grants",
+    "name": "Гранты Первых",
+    "short_name": "Гранты Первых",
+    "status": "preparing",
+    "official_url": "https://xn--80af5akm.xn--90acagbhgpca7c8c7f.xn--p1ai/",
+    "docs_version": null,
+    "updated_at": "2026-07-28"
+  }
+]
