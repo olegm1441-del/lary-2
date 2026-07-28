@@ -299,13 +299,13 @@ export function AccountWorkspace() {
         <section id="projects" className="min-w-0 max-w-full rounded-3xl border border-slate-200 bg-white p-5">
           <h2 className="text-2xl font-bold">Проекты</h2>
           <p className="mt-2 text-base leading-7 text-slate-700">Проект — необязательная папка для работ и файлов. Создайте его после первого результата или сейчас.</p>
-          <label className="mt-4 grid gap-2">
+          <label className="mt-4 grid min-w-0 gap-2">
             <span className="text-base font-semibold">Название проекта</span>
-            <input value={projectTitle} onChange={(event) => setProjectTitle(event.target.value)} placeholder="Например: Музейная заявка" className="min-h-14 rounded-2xl border border-slate-300 bg-slate-50 px-4 text-lg" />
+            <input value={projectTitle} onChange={(event) => setProjectTitle(event.target.value)} placeholder="Например: Музейная заявка" className="min-h-14 w-full min-w-0 rounded-2xl border border-slate-300 bg-slate-50 px-4 text-lg" />
           </label>
-          <label className="mt-4 grid gap-2">
+          <label className="mt-4 grid min-w-0 gap-2">
             <span className="text-base font-semibold">Конкурс проекта</span>
-            <select value={projectContest} onChange={(event) => setProjectContest(event.target.value)} className="min-h-14 rounded-2xl border border-slate-300 bg-slate-50 px-4 text-lg">
+            <select value={projectContest} onChange={(event) => setProjectContest(event.target.value)} className="min-h-14 w-full min-w-0 rounded-2xl border border-slate-300 bg-slate-50 px-4 text-lg">
               <option value="">Выберите конкурс</option>
               {getPublicContests().map((contest) => (
                 <option key={contest.slug} value={contest.slug}>{contest.name}</option>
