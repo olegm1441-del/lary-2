@@ -277,7 +277,7 @@ test("salary module uses the multi-position calculation workflow", () => {
     "Скопировать",
     "Рассчитать заново",
     "что именно изменить в функционале сотрудника?",
-    "lary.module_draft.salary.v2",
+    "moduleDraftKey(\"salary\", contestSlug, projectId)",
     "/api/modules/salary/generate",
     "Текст результата",
     "Формула: зарплата / 166 × часы × количество.",
@@ -441,10 +441,10 @@ test("P0 public copy and account gate match revision spec", () => {
   const securityPage = readFileSync(join(root, "app/security/page.tsx"), "utf8");
   const helpPage = readFileSync(join(root, "app/help/page.tsx"), "utf8");
 
-  assert.equal(homePage.includes("Помощник для документов заявки ПФКИ"), true);
+  assert.equal(homePage.includes("Лари — AI-помощник по составлению грантовых заявок"), true);
   assert.equal(homePage.includes("Модульный помощник для заявки ПФКИ"), false);
   assert.equal(homePage.includes("Лари 2.0 MVP 0.1"), false);
-  assert.equal(homePage.includes("Соберите рабочие документы для заявки ПФКИ быстрее и без лишних ошибок"), true);
+  assert.equal(homePage.includes("Подготовьте рабочие документы для грантовой заявки"), true);
   assert.equal(homePage.includes("Выберите задачу"), true);
   assert.equal(homePage.includes("По одному бесплатному запуску для каждой задачи"), true);
   assert.equal(homePage.includes("По одному бесплатному запуску в каждом модуле"), false);
@@ -453,7 +453,7 @@ test("P0 public copy and account gate match revision spec", () => {
   assert.equal(homePage.includes("Что нужно сделать сегодня?"), true);
   assert.equal(homePage.includes("text-[44px]"), true);
 
-  assert.equal(modulesPage.includes("Что нужно подготовить для заявки ПФКИ?"), true);
+  assert.equal(modulesPage.includes("Что нужно подготовить для грантовой заявки?"), true);
   assert.equal(modulesPage.includes("Выберите задачу. Каждый запуск дает один рабочий файл или разбор."), true);
   assert.equal(modulesPage.includes("фильтр по конкурсам"), false);
 
@@ -529,7 +529,7 @@ test("example result links render without the old explanatory caption", () => {
   const modulePage = readFileSync(join(root, "app/m/[slug]/page.tsx"), "utf8");
   const laryUi = readFileSync(join(root, "app/components/lary-ui.tsx"), "utf8");
 
-  assert.equal(laryUi.includes("?example=1"), true);
+  assert.equal(laryUi.includes("example=1"), true);
   assert.equal(modulePage.includes("пример, не настоящая заявка"), false);
   for (const slug of requiredActiveSlugs) {
     assert.equal(modulePage.includes(`"${slug}"`) || modulePage.includes(`${slug}:`), true, `example should include ${slug}`);
