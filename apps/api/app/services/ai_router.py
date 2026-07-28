@@ -54,7 +54,7 @@ def generate_json_with_gigachat(prompt: str, schema: type[BaseModel]) -> str:
     payload = Chat(
         messages=[Messages(role=MessagesRole.USER, content=prompt)],
         temperature=0.05,
-        max_tokens=8000,
+        max_tokens=16000,
         response_format={"type": "json_schema", "schema": schema, "strict": True},
     )
     with GigaChat(

@@ -97,8 +97,12 @@ def validate_scenario_plan_output(output: ScenarioPlanOutput, inputs: dict) -> S
         scenario_type = str(inputs.get("scenario_type") or "").casefold()
         entry_markers = ("сбор", "инструктаж", "подготов") if any(
             marker in scenario_type for marker in ("видео", "ролик", "фильм")
-        ) else ("регистрац",)
-        required_markers = (entry_markers, ("перерыв",), ("заверш",))
+        ) else ("регистрац", "сбор", "встреч")
+        required_markers = (
+            entry_markers,
+            ("перерыв",),
+            ("заверш", "закрыт", "подвед", "итог", "финал", "рефлекс", "обратн"),
+        )
         for alternatives in required_markers:
             marker = "/".join(alternatives)
             if not any(alternative in titles for alternative in alternatives):
@@ -200,6 +204,9 @@ def _build_prompt(inputs: dict) -> str:
         "Не придумывай площадки, даты, численность, команду или оборудование. Участники события и благополучатели проекта "
         "должны быть описаны отдельно. Для каждого дня нужны регистрация, содержательная программа, перерыв и завершение. "
         "Для съёмочного сценария вместо регистрации используй сбор команды или инструктаж. "
+        "Если в расписании указано N дней, верни ровно N объектов days. Для каждого дня дай ровно 4 блока: "
+        "регистрация или сбор, основная программа, перерыв, завершение или итоги. "
+        "В content используй одно короткое предложение до 200 символов. "
         "Временные блоки не пересекаются; duration_minutes равен разнице start и end. Отрази все ограничения пользователя. "
         "Не оставляй обязательные строки пустыми: если техника не нужна, напиши «Не требуется»; "
         "для каждого блока укажи ответственного из команды пользователя или нейтральную проектную роль без нового имени. "
@@ -248,7 +255,67 @@ def _parse_scenario_json(raw: str, inputs: dict | None = None) -> dict:
                 if key in tail and key not in parsed:
                     parsed[key] = tail[key]
             days.pop()
+    if isinstance(days, list):
+        for day in days:
+            if not isinstance(day, dict) or not isinstance(day.get("blocks"), list):
+                continue
+            for block in day["blocks"]:
+                if not isinstance(block, dict):
+                    continue
+                start, end = block.get("start"), block.get("end")
+                if not isinstance(start, str) or not isinstance(end, str):
+                    continue
+                try:
+                    start_minutes, end_minutes = _minutes(start), _minutes(end)
+                except (TypeError, ValueError):
+                    continue
+                if end_minutes > start_minutes:
+                    block["duration_minutes"] = end_minutes - start_minutes
     if inputs is not None:
+        schedule = str(inputs.get("schedule") or "")
+        schedule_window = _schedule_window(schedule)
+        if schedule_window is not None and isinstance(days, list):
+            for day in days:
+                if not isinstance(day, dict) or not isinstance(day.get("blocks"), list):
+                    continue
+                if len(day["blocks"]) == 4:
+                    _distribute_four_blocks(day["blocks"], *schedule_window)
+        schedule_end = _schedule_end(schedule)
+        if schedule_end is not None and isinstance(days, list):
+            for day in days:
+                if not isinstance(day, dict) or not isinstance(day.get("blocks"), list):
+                    continue
+                for block in day["blocks"]:
+                    if not isinstance(block, dict):
+                        continue
+                    try:
+                        start_minutes = _minutes(str(block.get("start") or ""))
+                        end_minutes = _minutes(str(block.get("end") or ""))
+                    except (TypeError, ValueError):
+                        continue
+                    if end_minutes > schedule_end and start_minutes < schedule_end:
+                        block["end"] = f"{schedule_end // 60:02d}:{schedule_end % 60:02d}"
+                        block["duration_minutes"] = schedule_end - start_minutes
+        location = str(inputs.get("location") or "").strip()
+        if isinstance(days, list):
+            for day in days:
+                if not isinstance(day, dict) or not isinstance(day.get("blocks"), list):
+                    continue
+                for block in day["blocks"]:
+                    if not isinstance(block, dict):
+                        continue
+                    if location:
+                        block["location"] = location
+                    elif not str(block.get("location") or "").strip():
+                        block["location"] = "Площадка мероприятия"
+                    if not str(block.get("responsible") or "").strip():
+                        block["responsible"] = "Команда проекта"
+                    if not str(block.get("technical_requirements") or "").strip():
+                        block["technical_requirements"] = "Не требуется"
+        for field in ("participants", "beneficiary_audience"):
+            user_value = str(inputs.get(field) or "").strip()
+            if user_value:
+                parsed[field] = user_value
         preparation = str(inputs.get("preparation") or "").strip()
         if not parsed.get("preparation_steps"):
             parsed["preparation_steps"] = [
@@ -258,19 +325,39 @@ def _parse_scenario_json(raw: str, inputs: dict | None = None) -> dict:
                     "responsible": "Команда проекта",
                 }
             ]
-        location = str(inputs.get("location") or "").strip()
+        else:
+            for step in parsed["preparation_steps"]:
+                if not isinstance(step, dict):
+                    continue
+                if len(str(step.get("period") or "").strip()) < 2:
+                    step["period"] = "До начала мероприятия"
+                if len(str(step.get("actions") or "").strip()) < 10:
+                    step["actions"] = preparation or "Подготовить площадку и проверить готовность программы."
+                if len(str(step.get("responsible") or "").strip()) < 2:
+                    step["responsible"] = "Команда проекта"
         constraints = str(inputs.get("team_equipment_constraints") or "").strip()
+        safe_logistics_requirement = f"Организовать работу на площадке «{location}»"
+        if constraints:
+            safe_logistics_requirement += f" с учётом условий: {constraints}"
+        safe_logistics_requirement = safe_logistics_requirement.rstrip(".") + "."
         if not parsed.get("logistics"):
-            requirement = f"Организовать работу на площадке «{location}»"
-            if constraints:
-                requirement += f" с учётом условий: {constraints}"
             parsed["logistics"] = [
                 {
                     "item": "Организация площадки",
-                    "requirement": requirement.rstrip(".") + ".",
+                    "requirement": safe_logistics_requirement,
                     "responsible": "Команда проекта",
                 }
             ]
+        else:
+            for item in parsed["logistics"]:
+                if not isinstance(item, dict):
+                    continue
+                if len(str(item.get("item") or "").strip()) < 2:
+                    item["item"] = "Организация площадки"
+                if len(str(item.get("requirement") or "").strip()) < 10:
+                    item["requirement"] = safe_logistics_requirement
+                if len(str(item.get("responsible") or "").strip()) < 2:
+                    item["responsible"] = "Команда проекта"
         if constraints and not parsed.get("constraints_reflected"):
             parsed["constraints_reflected"] = [
                 clause.strip()
@@ -288,6 +375,28 @@ def _expected_days(schedule: str) -> int | None:
 def _schedule_end(schedule: str) -> int | None:
     matches = re.findall(r"(?:до|–|-)\s*(\d{1,2}:\d{2})", schedule)
     return _minutes(matches[-1]) if matches else None
+
+
+def _schedule_window(schedule: str) -> tuple[int, int] | None:
+    matches = re.findall(r"\d{1,2}:\d{2}", schedule)
+    if len(matches) < 2:
+        return None
+    start, end = _minutes(matches[0]), _minutes(matches[-1])
+    return (start, end) if end - start >= 120 else None
+
+
+def _distribute_four_blocks(blocks: list[dict], start: int, end: int) -> None:
+    entry_end = min(start + 30, end - 90)
+    midpoint = start + (end - start) // 2
+    break_start = max(entry_end + 30, (midpoint // 30) * 30)
+    break_start = min(break_start, end - 60)
+    break_end = min(break_start + 30, end - 30)
+    boundaries = [start, entry_end, break_start, break_end, end]
+    for index, block in enumerate(blocks):
+        block_start, block_end = boundaries[index], boundaries[index + 1]
+        block["start"] = f"{block_start // 60:02d}:{block_start % 60:02d}"
+        block["end"] = f"{block_end // 60:02d}:{block_end % 60:02d}"
+        block["duration_minutes"] = block_end - block_start
 
 
 def _minutes(value: str) -> int:

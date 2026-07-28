@@ -168,6 +168,13 @@ class ScenarioPlanContractTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "регистрац"):
             validate_scenario_plan_output(ScenarioPlanOutput.model_validate(payload), INPUTS)
 
+    def test_operational_block_synonyms_are_accepted(self):
+        payload = output_payload()
+        for day in payload["days"]:
+            day["blocks"][0]["title"] = "Сбор и встреча участников"
+            day["blocks"][-1]["title"] = "Подведение итогов дня"
+        validate_scenario_plan_output(ScenarioPlanOutput.model_validate(payload), INPUTS)
+
     def test_participants_and_beneficiaries_stay_separate(self):
         payload = output_payload()
         payload["beneficiary_audience"] = payload["participants"]
@@ -226,16 +233,136 @@ class ScenarioPlanContractTest(unittest.TestCase):
 
     def test_missing_supplementary_sections_are_derived_only_from_inputs(self):
         parsed = _parse_scenario_json(
-            '{"days":[]}',
+            '{"days":[],"participants":{"артисты":20},"beneficiary_audience":["подростки"]}',
             {
                 "preparation": "14 дней на репетиции и монтаж площадки",
                 "location": "Дом культуры в Казани",
                 "team_equipment_constraints": "2 ведущих; проектор",
+                "participants": "20 артистов",
+                "beneficiary_audience": "Подростки 14–17 лет",
             },
         )
         self.assertIn("14 дней", parsed["preparation_steps"][0]["actions"])
         self.assertIn("Дом культуры в Казани", parsed["logistics"][0]["requirement"])
         self.assertEqual(parsed["constraints_reflected"], ["2 ведущих", "проектор"])
+        self.assertEqual(parsed["participants"], "20 артистов")
+        self.assertEqual(parsed["beneficiary_audience"], "Подростки 14–17 лет")
+
+    def test_duration_is_computed_from_block_times(self):
+        parsed = _parse_scenario_json(
+            json.dumps(
+                {
+                    "days": [
+                        {
+                            "day_number": 1,
+                            "day_title": "День 1",
+                            "blocks": [
+                                {
+                                    "start": "10:00",
+                                    "end": "10:30",
+                                    "duration_minutes": 10,
+                                }
+                            ],
+                        }
+                    ]
+                }
+            )
+        )
+        self.assertEqual(parsed["days"][0]["blocks"][0]["duration_minutes"], 30)
+
+    def test_missing_repeated_block_fields_use_safe_input_defaults(self):
+        parsed = _parse_scenario_json(
+            json.dumps(
+                {
+                    "days": [
+                        {
+                            "day_number": 1,
+                            "day_title": "День 1",
+                            "blocks": [
+                                {
+                                    "start": "10:00",
+                                    "end": "10:30",
+                                    "duration_minutes": 30,
+                                    "title": "Сбор",
+                                    "content": "Встреча участников проекта.",
+                                    "location": "Неподтверждённая главная сцена",
+                                }
+                            ],
+                        }
+                    ]
+                },
+                ensure_ascii=False,
+            ),
+            {"location": "Дом культуры в Казани"},
+        )
+        block = parsed["days"][0]["blocks"][0]
+        self.assertEqual(block["location"], "Дом культуры в Казани")
+        self.assertEqual(block["responsible"], "Команда проекта")
+        self.assertEqual(block["technical_requirements"], "Не требуется")
+
+    def test_short_supplementary_fields_use_safe_input_defaults(self):
+        parsed = _parse_scenario_json(
+            json.dumps(
+                {
+                    "days": [],
+                    "preparation_steps": [{"period": "", "actions": "Монтаж", "responsible": ""}],
+                    "logistics": [{"item": "Вход", "requirement": "Аренда", "responsible": ""}],
+                },
+                ensure_ascii=False,
+            ),
+            {
+                "preparation": "14 дней на репетиции и монтаж площадки",
+                "location": "Дом культуры в Казани",
+                "team_equipment_constraints": "Проектор",
+            },
+        )
+        self.assertIn("14 дней", parsed["preparation_steps"][0]["actions"])
+        self.assertGreaterEqual(len(parsed["logistics"][0]["requirement"]), 10)
+        self.assertEqual(parsed["logistics"][0]["responsible"], "Команда проекта")
+
+    def test_block_end_is_clamped_to_user_schedule(self):
+        parsed = _parse_scenario_json(
+            json.dumps(
+                {
+                    "days": [
+                        {
+                            "day_number": 1,
+                            "day_title": "День 1",
+                            "blocks": [
+                                {
+                                    "start": "17:30",
+                                    "end": "19:00",
+                                    "duration_minutes": 90,
+                                    "title": "Итоги",
+                                    "content": "Подведение итогов программы.",
+                                    "responsible": "Координатор",
+                                    "location": "Дом культуры",
+                                    "technical_requirements": "Не требуется",
+                                }
+                            ],
+                        }
+                    ]
+                }
+            ),
+            {"schedule": "с 10:00 до 18:00"},
+        )
+        block = parsed["days"][0]["blocks"][0]
+        self.assertEqual(block["end"], "18:00")
+        self.assertEqual(block["duration_minutes"], 30)
+
+    def test_four_block_day_is_distributed_inside_user_schedule(self):
+        payload = output_payload()
+        parsed = _parse_scenario_json(
+            json.dumps(payload, ensure_ascii=False),
+            {"schedule": "3 дня; ежедневно с 10:00 до 18:00"},
+        )
+        times = [
+            (block["start"], block["end"])
+            for block in parsed["days"][0]["blocks"]
+        ]
+        self.assertEqual(times[0][0], "10:00")
+        self.assertEqual(times[-1][1], "18:00")
+        self.assertTrue(all(end <= "18:00" for _, end in times))
 
     def test_default_generator_requests_scenario_json_schema(self):
         with tempfile.TemporaryDirectory() as directory:
