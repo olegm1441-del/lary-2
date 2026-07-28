@@ -180,7 +180,7 @@ def build_scenario_plan_document(
     for attempt in range(2):
         try:
             raw = ai_generator(prompt if attempt == 0 else _repair_prompt(prompt, error))
-            output = ScenarioPlanOutput.model_validate(_parse_scenario_json(raw))
+            output = ScenarioPlanOutput.model_validate(_parse_scenario_json(raw, inputs))
             validate_scenario_plan_output(output, inputs)
             break
         except Exception as exc:  # provider/parser details remain internal
@@ -231,7 +231,7 @@ def _extract_json(raw: str) -> str:
     return cleaned[start : end + 1]
 
 
-def _parse_scenario_json(raw: str) -> dict:
+def _parse_scenario_json(raw: str, inputs: dict | None = None) -> dict:
     parsed = repair_json_loads(_extract_json(raw))
     if not isinstance(parsed, dict):
         raise ValueError("AI не вернул JSON-объект.")
@@ -248,6 +248,35 @@ def _parse_scenario_json(raw: str) -> dict:
                 if key in tail and key not in parsed:
                     parsed[key] = tail[key]
             days.pop()
+    if inputs is not None:
+        preparation = str(inputs.get("preparation") or "").strip()
+        if not parsed.get("preparation_steps"):
+            parsed["preparation_steps"] = [
+                {
+                    "period": "До начала мероприятия",
+                    "actions": preparation or "Подготовить площадку и проверить готовность программы.",
+                    "responsible": "Команда проекта",
+                }
+            ]
+        location = str(inputs.get("location") or "").strip()
+        constraints = str(inputs.get("team_equipment_constraints") or "").strip()
+        if not parsed.get("logistics"):
+            requirement = f"Организовать работу на площадке «{location}»"
+            if constraints:
+                requirement += f" с учётом условий: {constraints}"
+            parsed["logistics"] = [
+                {
+                    "item": "Организация площадки",
+                    "requirement": requirement.rstrip(".") + ".",
+                    "responsible": "Команда проекта",
+                }
+            ]
+        if constraints and not parsed.get("constraints_reflected"):
+            parsed["constraints_reflected"] = [
+                clause.strip()
+                for clause in re.split(r"[;\n]", constraints)
+                if clause.strip()
+            ]
     return parsed
 
 

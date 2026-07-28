@@ -224,6 +224,19 @@ class ScenarioPlanContractTest(unittest.TestCase):
         self.assertEqual(parsed["preparation_steps"][0]["period"], "До старта")
         self.assertEqual(parsed["logistics"][0]["item"], "Вход")
 
+    def test_missing_supplementary_sections_are_derived_only_from_inputs(self):
+        parsed = _parse_scenario_json(
+            '{"days":[]}',
+            {
+                "preparation": "14 дней на репетиции и монтаж площадки",
+                "location": "Дом культуры в Казани",
+                "team_equipment_constraints": "2 ведущих; проектор",
+            },
+        )
+        self.assertIn("14 дней", parsed["preparation_steps"][0]["actions"])
+        self.assertIn("Дом культуры в Казани", parsed["logistics"][0]["requirement"])
+        self.assertEqual(parsed["constraints_reflected"], ["2 ведущих", "проектор"])
+
     def test_default_generator_requests_scenario_json_schema(self):
         with tempfile.TemporaryDirectory() as directory:
             with patch(
