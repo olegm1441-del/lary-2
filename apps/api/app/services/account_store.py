@@ -747,6 +747,32 @@ def get_projects(context: RequestContext) -> dict:
     }
 
 
+def update_project_contest(project_id: str, contest_slug: str, context: RequestContext) -> dict:
+    normalized_slug, display_name = _resolve_project_contest(None, contest_slug)
+    with _connect() as conn:
+        project = _fetchone(conn, "select * from projects where id = ?", (project_id,))
+        if not project:
+            raise KeyError("Проект не найден.")
+        if context.user_id:
+            allowed = project["user_id"] == context.user_id
+        else:
+            allowed = project["anon_session_id"] == context.anon_session_id
+        if not allowed:
+            raise PermissionError("Нет доступа к этому проекту.")
+        _execute(
+            conn,
+            "update projects set competition = ?, contest_slug = ?, updated_at = ? where id = ?",
+            (display_name, normalized_slug, _now(), project_id),
+        )
+        conn.commit()
+    return {
+        "project_id": project_id,
+        "title": project["title"],
+        "competition": display_name,
+        "contest_slug": normalized_slug,
+    }
+
+
 def attach_work_to_project(project_id: str, run_id: str, context: RequestContext) -> dict:
     with _connect() as conn:
         project = _fetchone(conn, "select * from projects where id = ?", (project_id,))

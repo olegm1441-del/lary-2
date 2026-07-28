@@ -4,6 +4,13 @@
 
 ### Phase 1: global shell + multi-contest
 
+- Статус Phase 1 возвращен в `in_review` до внешней production-проверки и пользовательского плейтеста.
+- Добавлена проверяемая build identity: скрытый web meta marker, HTTP header и безопасное поле `build_sha` в API `/health`.
+- Production contract вынесен в отдельную обязательную команду без silent skip, с `no-store`, no-cache headers и уникальными query parameters.
+- Contest context проекта автоматически подставляется в модуль, сохраняет `project_id`, обновляет `contest_slug` через project API и изолирует drafts по конкурсам.
+- Example CTA больше не подставляет PFKI без выбора конкурса и не показывает пример неподдерживаемого профиля.
+- Универсальный баланс запусков доступен в мобильной шапке; технические названия коммерческого учета пользователю не показываются.
+- Этап «Результат» становится доступен после успешной генерации, ведет к реальной секции `#result` и работает в desktop/mobile navigation.
 - Подключен валидируемый runtime `ProductRegistry` и безопасные public endpoints конкурсов, модулей и профилей.
 - Добавлены additive contest/profile/project columns, idempotent backfill legacy PFKI и сохранение contest context в проектах, работах и запусках.
 - Запуск блокируется до AI и списания, если module–contest profile не имеет статус `ready`.

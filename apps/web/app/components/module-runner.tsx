@@ -8,6 +8,8 @@ import { FieldAssistantHint, type FieldAssistantHintData } from "./field-assista
 import { USAGE_UPDATED_EVENT } from "./module-attempt-status";
 import { SalaryModuleRunner } from "./salary-module-runner";
 import { migrateLegacyDraft, moduleDraftKey } from "../lib/module-drafts";
+import { emitModuleResultReady } from "../lib/module-flow";
+import { ResultViewer } from "./result-viewer";
 
 type RunState = "idle" | "submitting" | "error";
 type VoiceState = "idle" | "recording" | "uploading";
@@ -48,6 +50,7 @@ function GenericModuleRunner({ module, contestSlug, profileVersion, projectId }:
   const [submitAttempted, setSubmitAttempted] = useState(false);
   const [scenarioHelper, setScenarioHelper] = useState("");
   const [usage, setUsage] = useState<UsagePayload | null>(null);
+  const [resultRunId, setResultRunId] = useState<string | null>(null);
 
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
@@ -208,13 +211,11 @@ function GenericModuleRunner({ module, contestSlug, profileVersion, projectId }:
       }
 
       const payload = await response.json();
-      try {
-        window.localStorage.removeItem(moduleDraftKey(module.slug, contestSlug, projectId));
-      } catch {
-        // ignore draft cleanup errors
-      }
+      setResultRunId(payload.run_id);
+      setState("idle");
+      setMessage("");
       window.dispatchEvent(new CustomEvent(USAGE_UPDATED_EVENT));
-      router.push(`/run/${payload.run_id}/result`);
+      emitModuleResultReady(module.slug, "result");
     } catch (error) {
       setState("error");
       setMessage(
@@ -617,6 +618,11 @@ function GenericModuleRunner({ module, contestSlug, profileVersion, projectId }:
           </p>
         ) : null}
       </div>
+      {resultRunId ? (
+        <section id="result" aria-label="Результат работы">
+          <ResultViewer runId={resultRunId} projectId={projectId} />
+        </section>
+      ) : null}
     </form>
   );
 }

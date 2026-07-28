@@ -11,6 +11,7 @@ type NavItem = {
 export function MobileMenu({ items }: { items: NavItem[] }) {
   const [open, setOpen] = useState(false);
   const panelRef = useRef<HTMLDivElement | null>(null);
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -19,7 +20,7 @@ export function MobileMenu({ items }: { items: NavItem[] }) {
     document.body.style.overflow = "hidden";
 
     function closeOnEscape(event: KeyboardEvent) {
-      if (event.key === "Escape") setOpen(false);
+      if (event.key === "Escape") close(true);
     }
 
     document.addEventListener("keydown", closeOnEscape);
@@ -29,13 +30,15 @@ export function MobileMenu({ items }: { items: NavItem[] }) {
     };
   }, [open]);
 
-  function close() {
+  function close(returnFocus = false) {
     setOpen(false);
+    if (returnFocus) window.requestAnimationFrame(() => triggerRef.current?.focus());
   }
 
   return (
     <div className="lg:hidden">
       <button
+        ref={triggerRef}
         type="button"
         aria-expanded={open}
         aria-controls="lary-mobile-menu"
@@ -50,7 +53,7 @@ export function MobileMenu({ items }: { items: NavItem[] }) {
         <div
           className="fixed inset-0 z-[100] bg-slate-950/25 px-4 pt-24"
           onMouseDown={(event) => {
-            if (event.target === event.currentTarget) close();
+            if (event.target === event.currentTarget) close(true);
           }}
         >
           <div
@@ -65,7 +68,7 @@ export function MobileMenu({ items }: { items: NavItem[] }) {
               <Link
                 key={item.href}
                 href={item.href}
-                onClick={close}
+                onClick={() => close()}
                 className="flex min-h-12 items-center rounded-2xl px-4 py-3 text-base font-semibold text-slate-900 hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-blue-700"
               >
                 {item.label}
@@ -73,7 +76,7 @@ export function MobileMenu({ items }: { items: NavItem[] }) {
             ))}
             <Link
               href="/modules"
-              onClick={close}
+              onClick={() => close()}
               className="mt-2 flex min-h-12 items-center justify-center rounded-2xl bg-blue-800 px-5 py-3 text-base font-semibold text-white hover:bg-blue-900 focus:outline-none focus:ring-2 focus:ring-blue-700 focus:ring-offset-2"
             >
               Начать

@@ -35,6 +35,21 @@ class ContestMigrationTest(unittest.TestCase):
         )
         self.assertEqual(response.status_code, 400)
 
+    def test_project_contest_can_be_changed_without_deleting_project(self):
+        created = self.client.post("/api/projects", json={"title": "Музей", "contest_slug": "pfki"}).json()
+
+        response = self.client.patch(
+            f"/api/projects/{created['project_id']}",
+            json={"contest_slug": "fpg"},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["project_id"], created["project_id"])
+        self.assertEqual(response.json()["contest_slug"], "fpg")
+        projects = self.client.get("/api/projects").json()["items"]
+        self.assertEqual(len(projects), 1)
+        self.assertEqual(projects[0]["contest_slug"], "fpg")
+
     def test_legacy_run_persists_pfki_context_and_profile_version(self):
         with patch.object(settings, "product_registry_runtime_enabled", True):
             response = self.client.post(

@@ -529,8 +529,10 @@ test("P2 public screens do not expose internal development markers", () => {
 test("example result links render without the old explanatory caption", () => {
   const modulePage = readFileSync(join(root, "app/m/[slug]/page.tsx"), "utf8");
   const laryUi = readFileSync(join(root, "app/components/lary-ui.tsx"), "utf8");
+  const moduleRoute = readFileSync(join(root, "app/lib/module-route.ts"), "utf8");
 
-  assert.equal(laryUi.includes("example=1"), true);
+  assert.equal(laryUi.includes("buildModuleRoute"), true);
+  assert.equal(moduleRoute.includes('params.set("example", "1")'), true);
   assert.equal(modulePage.includes("пример, не настоящая заявка"), false);
   for (const slug of requiredActiveSlugs) {
     assert.equal(modulePage.includes(`"${slug}"`) || modulePage.includes(`${slug}:`), true, `example should include ${slug}`);
@@ -613,4 +615,16 @@ test("web railway workspace file is valid for pnpm auto-detection", () => {
   const workspace = readFileSync(join(root, "pnpm-workspace.yaml"), "utf8");
   assert.equal(workspace.includes("packages:"), true);
   assert.equal(workspace.includes("- \".\""), true);
+});
+
+test("web publishes a non-visual build identity and disables stale HTML caching", () => {
+  const layout = readFileSync(join(root, "app/layout.tsx"), "utf8");
+  const nextConfig = readFileSync(join(root, "next.config.ts"), "utf8");
+  const buildInfo = readFileSync(join(root, "app/lib/build-info.ts"), "utf8");
+
+  assert.equal(layout.includes('"lari-build-sha"'), true);
+  assert.equal(layout.includes('dynamic = "force-dynamic"'), true);
+  assert.equal(nextConfig.includes("X-Lari-Build-Sha"), true);
+  assert.equal(buildInfo.includes("RAILWAY_GIT_COMMIT_SHA"), true);
+  assert.equal(buildInfo.includes('"local"'), true);
 });

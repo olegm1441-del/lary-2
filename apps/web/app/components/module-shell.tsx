@@ -1,11 +1,13 @@
 "use client";
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { MODULE_RESULT_READY_EVENT, type ModuleResultReadyDetail } from "../lib/module-flow";
 
 export type ModuleStep = { id: string; label: string; disabled?: boolean };
 
 export function ModuleShell({
   steps,
+  moduleSlug,
   children,
   utility,
   helpSlot,
@@ -14,6 +16,7 @@ export function ModuleShell({
   expertSlot,
 }: {
   steps: ModuleStep[];
+  moduleSlug?: string;
   children: ReactNode;
   utility?: ReactNode;
   helpSlot?: ReactNode;
@@ -22,12 +25,20 @@ export function ModuleShell({
   expertSlot?: ReactNode;
 }) {
   const [activeId, setActiveId] = useState(steps[0]?.id || "");
+  const [resultAvailable, setResultAvailable] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement | null>(null);
-  const activeIndex = Math.max(0, steps.findIndex((step) => step.id === activeId));
+  const effectiveSteps = useMemo(
+    () =>
+      steps.map((step) =>
+        step.id === "result" && resultAvailable ? { ...step, disabled: false } : step,
+      ),
+    [resultAvailable, steps],
+  );
+  const activeIndex = Math.max(0, effectiveSteps.findIndex((step) => step.id === activeId));
 
   useEffect(() => {
-    const elements = steps
+    const elements = effectiveSteps
       .map((step) => document.getElementById(step.id))
       .filter((element): element is HTMLElement => Boolean(element));
     const observer = new IntersectionObserver(
@@ -41,7 +52,21 @@ export function ModuleShell({
     );
     elements.forEach((element) => observer.observe(element));
     return () => observer.disconnect();
-  }, [steps]);
+  }, [effectiveSteps]);
+
+  useEffect(() => {
+    function handleResultReady(event: Event) {
+      const detail = (event as CustomEvent<ModuleResultReadyDetail>).detail;
+      if (!detail || (moduleSlug && detail.moduleSlug !== moduleSlug)) return;
+      setResultAvailable(true);
+      setActiveId("result");
+      window.setTimeout(() => {
+        document.getElementById(detail.resultId)?.scrollIntoView({ behavior: "smooth", block: "start" });
+      }, 50);
+    }
+    window.addEventListener(MODULE_RESULT_READY_EVENT, handleResultReady);
+    return () => window.removeEventListener(MODULE_RESULT_READY_EVENT, handleResultReady);
+  }, [moduleSlug]);
 
   useEffect(() => {
     if (!drawerOpen) return;
@@ -66,7 +91,7 @@ export function ModuleShell({
   return (
     <div className="mx-auto w-full max-w-7xl px-5 py-8 sm:px-8">
       <div className="mb-5 flex items-center justify-between rounded-2xl border border-slate-200 bg-white p-3 lg:hidden">
-        <span className="text-base font-semibold">Этап {activeIndex + 1} из {steps.length}</span>
+        <span className="text-base font-semibold">Этап {activeIndex + 1} из {effectiveSteps.length}</span>
         <button
           ref={triggerRef}
           type="button"
@@ -82,7 +107,7 @@ export function ModuleShell({
       <div className="grid min-w-0 gap-8 lg:grid-cols-[220px_minmax(0,820px)] xl:grid-cols-[220px_minmax(0,820px)_260px]">
         <nav aria-label="Этапы модуля" className="hidden lg:block">
           <ol className="sticky top-28 grid gap-2">
-            {steps.map((step, index) => (
+            {effectiveSteps.map((step, index) => (
               <li key={step.id}>
                 <button
                   type="button"
@@ -112,10 +137,10 @@ export function ModuleShell({
             }
           }}
         >
-          <div id="module-stages-drawer" role="dialog" aria-modal="true" aria-label="Этапы модуля" className="absolute inset-x-0 bottom-0 rounded-t-3xl bg-white p-5 shadow-2xl">
+          <div id="module-stages-drawer" role="dialog" aria-modal="true" aria-label="Этапы модуля" className="absolute inset-x-0 bottom-0 max-h-[calc(100dvh-1rem)] overflow-y-auto rounded-t-3xl bg-white p-5 shadow-2xl">
             <p className="text-2xl font-bold">Этапы</p>
             <div className="mt-4 grid gap-2">
-              {steps.map((step, index) => (
+              {effectiveSteps.map((step, index) => (
                 <button key={step.id} type="button" disabled={step.disabled} onClick={() => goTo(step)} className="min-h-12 rounded-2xl bg-slate-50 px-4 py-3 text-left text-base font-semibold disabled:text-slate-400">
                   {index + 1}. {step.label}
                 </button>
@@ -128,4 +153,3 @@ export function ModuleShell({
     </div>
   );
 }
-

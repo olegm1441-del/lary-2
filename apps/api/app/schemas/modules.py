@@ -195,6 +195,10 @@ class ProjectCreateResponse(BaseModel):
     contest_slug: str
 
 
+class ProjectUpdateRequest(BaseModel):
+    contest_slug: str = Field(..., min_length=2)
+
+
 class ProjectItem(BaseModel):
     project_id: str
     title: str

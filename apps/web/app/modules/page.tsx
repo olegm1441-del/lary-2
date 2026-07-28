@@ -1,5 +1,6 @@
 import { ModuleCard, PageShell, Section } from "../components/lary-ui";
 import { getActiveModules, getComingSoonModules } from "../lib/lary-data";
+import { buildModuleRoute } from "../lib/module-route";
 
 export const metadata = {
   title: "Модули Лари",
@@ -31,11 +32,22 @@ export default async function ModulesPage({ searchParams }: { searchParams: Prom
               ["Нужен документ от партнера", "/m/support-letter", "Письмо поддержки"],
               ["Нужно визуально показать проект", "/m/presentation", "Презентация"],
               ["Нужно описать мероприятие/постановку/ролик", "/m/scenario-plan", "Сценарный план"],
-            ].map(([question, href, label]) => (
-              <a key={href} href={href} className="min-h-11 rounded-2xl bg-white px-4 py-3 text-base font-semibold text-blue-900 hover:bg-blue-100">
+            ].map(([question, href, label]) => {
+              const moduleSlug = href.replace("/m/", "");
+              return (
+              <a
+                key={href}
+                href={buildModuleRoute({
+                  moduleSlug,
+                  contestSlug: query.project_contest,
+                  projectId: query.project_id,
+                })}
+                className="min-h-11 rounded-2xl bg-white px-4 py-3 text-base font-semibold text-blue-900 hover:bg-blue-100"
+              >
                 {question} → {label}
               </a>
-            ))}
+              );
+            })}
           </div>
         </div>
       </Section>

@@ -43,15 +43,17 @@
 - `salary-fpg-preparing-390-viewport.jpg`
 - Полная матрица full-page PNG находится в этой же папке.
 
-Production contract запускается отдельно после deploy:
+Production contract запускается отдельно после deploy и никогда не пропускается молча:
 
 ```bash
-PRODUCTION_BASE_URL=https://web-production-532a8.up.railway.app pnpm test
+PRODUCTION_BASE_URL=https://web-production-532a8.up.railway.app \
+EXPECTED_BUILD_SHA=<deployed-main-sha> \
+pnpm test:production-contract
 ```
 
-## Production evidence
+## Архивное production evidence
 
-Финальный runtime commit: `74864c23bb34176f1b50fb002e7ecaaf76d0f509`.
+Сведения ниже относятся к предыдущему прогону и не являются доказательством текущей приемки. Актуальная reconciliation, build identity, responsive screenshots и единый production SHA фиксируются в `docs/qa/phase-1-final/README.md` и финальном отчете задачи.
 
 - Web deployment `7dbaea66-a0da-4936-8660-aabf91282426`: `SUCCESS`.
 - API deployment с runtime flag `382e2f99-8c98-4fa8-9d92-37336c11dcec`: `SUCCESS`.

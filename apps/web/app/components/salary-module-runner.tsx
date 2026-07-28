@@ -5,6 +5,7 @@ import type { LaryModule } from "../lib/lary-data";
 import { apiUrl, readApiError } from "../lib/api-client";
 import { USAGE_UPDATED_EVENT } from "./module-attempt-status";
 import { migrateLegacyDraft, moduleDraftKey } from "../lib/module-drafts";
+import { emitModuleResultReady } from "../lib/module-flow";
 
 type UsagePayload = {
   paid_runs: number;
@@ -123,7 +124,6 @@ export function SalaryModuleRunner({ module, contestSlug, profileVersion, projec
   async function submit(event?: FormEvent<HTMLFormElement>, draftOverride?: SalaryDraft) {
     event?.preventDefault();
     setMessage("");
-    setResult(null);
 
     const activeDraft = draftOverride || draft;
     const errors = validateDraft(activeDraft);
@@ -158,6 +158,7 @@ export function SalaryModuleRunner({ module, contestSlug, profileVersion, projec
       if (!response.ok) throw new Error(await readApiError(response));
       const payload = await response.json();
       setResult(payload);
+      emitModuleResultReady("salary", "result");
       setState("idle");
       setMessage("");
       window.dispatchEvent(new CustomEvent(USAGE_UPDATED_EVENT));
@@ -569,7 +570,7 @@ function SalaryResultBlock({ result, onOpenRefinement }: { result: SalaryGenerat
   }
 
   return (
-    <section className="min-w-0 rounded-3xl border border-green-200 bg-green-50 p-6 text-green-950">
+    <section id="result" className="min-w-0 rounded-3xl border border-green-200 bg-green-50 p-6 text-green-950">
       <h3 className="text-3xl font-bold">Расчет готов</h3>
       <div className="mt-5 flex flex-wrap gap-3">
         {docx ? (

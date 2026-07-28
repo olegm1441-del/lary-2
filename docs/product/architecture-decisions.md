@@ -71,3 +71,12 @@
 - Причина: Railway исключает файлы выше настроенного service root, поэтому прямой monorepo import работает локально, но отсутствует в production image.
 - Альтернативы: сменить root обоих production services на корень monorepo; дублировать registry без проверки.
 - Последствия: contract test сравнивает parsed JSON каждого mirror с source registry; любое расхождение ломает CI/local verification.
+
+## ADR-009. Production build подтверждается публичным SHA-контрактом
+
+- Дата: 2026-07-28
+- Статус: принято
+- Решение: фактический commit production-сборки публикуется только как безопасный SHA в web meta marker `lari-build-sha`, HTTP header `X-Lari-Build-Sha` и API `/health.build_sha`.
+- Причина: deployment history и статический HTML могли выглядеть как разные версии из-за Next cache и не позволяли однозначно сопоставить публичный домен, web и API с `main`.
+- Альтернативы: доверять только Railway UI; хранить SHA вручную в коде или документации; проверять лишь видимый текст.
+- Последствия: production contract выполняется без cache, требует ожидаемый SHA и завершается ошибкой, если URL или SHA не заданы либо web, API и ожидаемый commit расходятся. Секреты и внутренние пути в build identity не публикуются.

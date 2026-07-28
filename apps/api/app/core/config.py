@@ -1,6 +1,15 @@
 import os
 
 
+def resolve_build_sha() -> str:
+    return (
+        os.getenv("RAILWAY_GIT_COMMIT_SHA")
+        or os.getenv("GIT_COMMIT_SHA")
+        or os.getenv("SOURCE_VERSION")
+        or "local"
+    ).strip()
+
+
 def default_file_storage_dir(app_env: str) -> str:
     return "/data/lary-generated" if app_env == "production" else "/tmp/lary-generated"
 
@@ -8,6 +17,7 @@ def default_file_storage_dir(app_env: str) -> str:
 class Settings:
     app_name: str = os.getenv("APP_NAME", "Лари")
     app_env: str = os.getenv("APP_ENV", "development")
+    build_sha: str = resolve_build_sha()
 
     cors_origins: str = os.getenv(
         "CORS_ORIGINS",

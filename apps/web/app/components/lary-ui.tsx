@@ -5,6 +5,8 @@ import type { LaryModule, ModuleField } from "../lib/lary-data";
 import { ContestChips } from "./contest-chips";
 import { RunBalance } from "./run-balance";
 import { hasRealExample } from "../lib/product-registry";
+import { getPublicContests } from "../lib/product-registry";
+import { buildModuleRoute } from "../lib/module-route";
 
 const navItems = [
   { label: "Модули", href: "/modules" },
@@ -24,7 +26,7 @@ export function Header() {
           <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-blue-800 text-xl font-bold text-white">
             L
           </span>
-          <span className="min-w-0">
+          <span className="min-w-0 max-[500px]:hidden">
             <span className="block text-2xl font-bold leading-6">Лари</span>
             <span className="block truncate text-sm text-slate-500 max-[640px]:hidden">AI-помощник по составлению грантовых заявок</span>
           </span>
@@ -44,7 +46,7 @@ export function Header() {
           <Link href="/account" className="hidden rounded-2xl px-4 py-3 text-base font-semibold text-blue-800 hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-blue-700 sm:inline-flex">
             Войти
           </Link>
-          <Link href="/modules" className="rounded-2xl bg-blue-800 px-4 py-3 text-base font-semibold text-white shadow-sm hover:bg-blue-900 focus:outline-none focus:ring-2 focus:ring-blue-700 focus:ring-offset-2 sm:px-5">
+          <Link href="/modules" className="hidden rounded-2xl bg-blue-800 px-4 py-3 text-base font-semibold text-white shadow-sm hover:bg-blue-900 focus:outline-none focus:ring-2 focus:ring-blue-700 focus:ring-offset-2 sm:inline-flex sm:px-5">
             Начать
           </Link>
         </div>
@@ -120,8 +122,16 @@ export function Section({ eyebrow, title, children, className = "", id }: { eyeb
 }
 
 export function ModuleCard({ module, compact = false, projectId, projectContest }: { module: LaryModule; compact?: boolean; projectId?: string; projectContest?: string }) {
-  const contextQuery = projectId && projectContest ? `?contest=${encodeURIComponent(projectContest)}&project_id=${encodeURIComponent(projectId)}` : "";
-  const href = `/m/${module.slug}${contextQuery}`;
+  const href = buildModuleRoute({
+    moduleSlug: module.slug,
+    contestSlug: projectContest,
+    projectId,
+  });
+  const hasContextExample = projectContest ? hasRealExample(module.slug, projectContest) : false;
+  const hasAnyExample = getPublicContests().some((contest) => hasRealExample(module.slug, contest.slug));
+  const exampleHref = projectContest
+    ? buildModuleRoute({ moduleSlug: module.slug, contestSlug: projectContest, projectId, example: "1" })
+    : buildModuleRoute({ moduleSlug: module.slug, projectId, intent: "example" });
 
   return (
     <article className="group flex h-full min-w-0 max-w-full flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white p-6 shadow-sm transition hover:-translate-y-1 hover:border-blue-200 hover:shadow-lg">
@@ -150,9 +160,9 @@ export function ModuleCard({ module, compact = false, projectId, projectContest 
         >
           {module.status === "active" ? "Начать" : "Посмотреть"}
         </Link>
-        {module.status === "active" && hasRealExample(module.slug, "pfki") ? (
+        {module.status === "active" && (projectContest ? hasContextExample : hasAnyExample) ? (
           <Link
-            href={`/m/${module.slug}?contest=${encodeURIComponent(projectContest || "pfki")}&example=1${projectId ? `&project_id=${encodeURIComponent(projectId)}` : ""}`}
+            href={exampleHref}
             className="inline-flex min-h-12 w-full items-center justify-center whitespace-normal rounded-2xl border border-slate-300 bg-white px-5 py-3 text-center text-base font-semibold text-slate-900 hover:border-blue-300 hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-blue-700 focus:ring-offset-2"
           >
             Посмотреть пример

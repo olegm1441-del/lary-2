@@ -11,7 +11,7 @@ def root():
     return {
         "status": "ok",
         "product": settings.app_name,
-        "env": settings.app_env,
+        "build_sha": settings.build_sha,
     }
 
 
@@ -19,8 +19,7 @@ def root():
 def health():
     return {
         "status": "ok",
-        "product": settings.app_name,
-        "env": settings.app_env,
+        "build_sha": settings.build_sha,
     }
 
 

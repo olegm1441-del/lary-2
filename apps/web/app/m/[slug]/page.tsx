@@ -7,6 +7,8 @@ import { getModuleBySlug, getModuleSlugs } from "../../lib/lary-data";
 import { ContestSelector } from "../../components/contest-selector";
 import { ModuleShell } from "../../components/module-shell";
 import { getModuleProfile, getPublicContests, hasRealExample } from "../../lib/product-registry";
+import { ProjectContestSync } from "../../components/project-contest-sync";
+import { buildModuleRoute } from "../../lib/module-route";
 
 export function generateStaticParams() {
   return getModuleSlugs().map((slug) => ({ slug }));
@@ -26,7 +28,14 @@ export default async function ModulePage({
   searchParams,
 }: {
   params: Promise<{ slug: string }>;
-  searchParams: Promise<{ example?: string; contest?: string; mode?: string; project_id?: string }>;
+  searchParams: Promise<{
+    example?: string;
+    contest?: string;
+    mode?: string;
+    project_id?: string;
+    intent?: string;
+    change_contest?: string;
+  }>;
 }) {
   const { slug } = await params;
   const query = await searchParams;
@@ -38,6 +47,9 @@ export default async function ModulePage({
   const showExample = query.example === "1";
   const selectedContest = query.contest ? getPublicContests().find((contest) => contest.slug === query.contest) : undefined;
   const profile = selectedContest ? getModuleProfile(laryModule.slug, selectedContest.slug) : undefined;
+  const realExampleContests = getPublicContests()
+    .filter((contest) => hasRealExample(laryModule.slug, contest.slug))
+    .map((contest) => contest.slug);
   const showRunner = profile?.status === "ready" && query.mode === "start" && !showExample;
   const formTitle =
     laryModule.slug === "support-letter"
@@ -47,6 +59,16 @@ export default async function ModulePage({
     laryModule.slug === "support-letter"
       ? "Пишите коротко и фактами. Лари соберет письмо по шаблону: отдельно подставит данные партнера, аккуратно сформулирует значимость проекта и опишет вклад партнера."
       : "Лари обработает ответы и подготовит рабочий файл для скачивания.";
+  const shellSteps = showExample && profile?.status === "ready"
+    ? [
+        { id: "contest", label: "Конкурс" },
+        { id: "example", label: "Пример" },
+      ]
+    : [
+        { id: "contest", label: "Конкурс" },
+        { id: "data", label: "Данные", disabled: profile?.status !== "ready" },
+        { id: "result", label: "Результат", disabled: true },
+      ];
 
   return (
     <PageShell>
@@ -71,21 +93,36 @@ export default async function ModulePage({
       </section>
 
       <ModuleShell
-        steps={[
-          { id: "contest", label: "Конкурс" },
-          { id: "data", label: "Данные", disabled: !showRunner },
-          { id: "result", label: "Результат", disabled: true },
-        ]}
+        moduleSlug={laryModule.slug}
+        steps={shellSteps}
         utility={selectedContest ? <WorkPanel module={laryModule} contestName={selectedContest.name} /> : null}
       >
+          <ProjectContestSync
+            moduleSlug={laryModule.slug}
+            projectId={query.project_id}
+            selectedContest={selectedContest?.slug}
+            mode={query.mode}
+            example={query.example}
+            intent={query.intent}
+            changeContest={query.change_contest === "1"}
+            realExampleContests={realExampleContests}
+          />
           {!selectedContest ? (
-            <ContestSelector contests={getPublicContests()} moduleSlug={laryModule.slug} />
+            <ContestSelector
+              contests={getPublicContests()}
+              moduleSlug={laryModule.slug}
+              projectId={query.project_id}
+              mode={query.mode}
+              example={query.example}
+              intent={query.intent}
+              realExampleContests={realExampleContests}
+            />
           ) : profile?.status !== "ready" ? (
             <div id="contest" className="rounded-3xl border border-orange-200 bg-orange-50 p-6">
               <h2 className="text-3xl font-bold text-slate-950">Для этого конкурса модуль пока готовится.</h2>
               <p className="mt-3 text-lg leading-8 text-slate-700">Выберите другой конкурс, чтобы продолжить сейчас.</p>
               <div className="mt-6 flex flex-col gap-3 sm:flex-row">
-                <Link href={`/m/${laryModule.slug}`} className="inline-flex min-h-12 items-center justify-center rounded-2xl bg-blue-800 px-5 py-3 text-base font-semibold text-white">
+                <Link href={buildModuleRoute({ moduleSlug: laryModule.slug, projectId: query.project_id, changeContest: true })} className="inline-flex min-h-12 items-center justify-center rounded-2xl bg-blue-800 px-5 py-3 text-base font-semibold text-white">
                   Выбрать другой конкурс
                 </Link>
                 <Link href="/modules" className="inline-flex min-h-12 items-center justify-center rounded-2xl border border-slate-300 bg-white px-5 py-3 text-base font-semibold text-slate-900">
@@ -94,33 +131,38 @@ export default async function ModulePage({
               </div>
             </div>
           ) : !showRunner && !showExample ? (
-            <section id="contest" className="rounded-3xl border border-blue-200 bg-blue-50 p-6">
-              <p className="text-base font-semibold uppercase tracking-wide text-blue-800">{selectedContest.name}</p>
-              <h2 className="mt-2 text-3xl font-bold">Как продолжить?</h2>
-              <div className="mt-6 grid gap-3 sm:grid-cols-2">
-                <Link href={`/m/${laryModule.slug}?contest=${selectedContest.slug}&mode=start`} className="inline-flex min-h-14 items-center justify-center rounded-2xl bg-blue-800 px-5 py-4 text-lg font-semibold text-white">
-                  Запустить модуль
-                </Link>
-                {hasRealExample(laryModule.slug, selectedContest.slug) ? (
-                  <Link href={`/m/${laryModule.slug}?contest=${selectedContest.slug}&example=1`} className="inline-flex min-h-14 items-center justify-center rounded-2xl border border-blue-800 bg-white px-5 py-4 text-lg font-semibold text-blue-900">
-                    Посмотреть пример
+            <>
+              <section id="contest" className="rounded-2xl border border-green-200 bg-green-50 p-4">
+                <p className="text-base font-semibold text-green-900">{selectedContest.name} выбран</p>
+              </section>
+              <section id="data" className="mt-6 rounded-3xl border border-blue-200 bg-blue-50 p-6">
+                <p className="text-base font-semibold uppercase tracking-wide text-blue-800">{selectedContest.name}</p>
+                <h2 className="mt-2 text-3xl font-bold">Как продолжить?</h2>
+                <div className="mt-6 grid gap-3 sm:grid-cols-2">
+                  <Link href={buildModuleRoute({ moduleSlug: laryModule.slug, contestSlug: selectedContest.slug, projectId: query.project_id, mode: "start" })} className="inline-flex min-h-14 items-center justify-center rounded-2xl bg-blue-800 px-5 py-4 text-lg font-semibold text-white">
+                    Запустить модуль
                   </Link>
-                ) : (
-                  <span className="inline-flex min-h-14 items-center justify-center rounded-2xl border border-slate-200 bg-white px-5 py-4 text-center text-base font-semibold text-slate-500">
-                    Пример для этого конкурса пока готовится
-                  </span>
-                )}
-              </div>
-              <Link href={`/m/${laryModule.slug}`} className="mt-5 inline-flex min-h-11 items-center text-base font-semibold text-blue-800 hover:underline">
-                Выбрать другой конкурс
-              </Link>
-            </section>
+                  {hasRealExample(laryModule.slug, selectedContest.slug) ? (
+                    <Link href={buildModuleRoute({ moduleSlug: laryModule.slug, contestSlug: selectedContest.slug, projectId: query.project_id, example: "1" })} className="inline-flex min-h-14 items-center justify-center rounded-2xl border border-blue-800 bg-white px-5 py-4 text-lg font-semibold text-blue-900">
+                      Посмотреть пример
+                    </Link>
+                  ) : (
+                    <span className="inline-flex min-h-14 items-center justify-center rounded-2xl border border-slate-200 bg-white px-5 py-4 text-center text-base font-semibold text-slate-500">
+                      Пример для этого конкурса пока готовится
+                    </span>
+                  )}
+                </div>
+                <Link href={buildModuleRoute({ moduleSlug: laryModule.slug, projectId: query.project_id, changeContest: true })} className="mt-5 inline-flex min-h-11 items-center text-base font-semibold text-blue-800 hover:underline">
+                  Выбрать другой конкурс
+                </Link>
+              </section>
+            </>
           ) : (
             <>
               <section id="contest" className="rounded-2xl border border-green-200 bg-green-50 p-4">
                 <p className="text-base font-semibold text-green-900">{selectedContest.name} выбран</p>
               </section>
-              <section id="data" className="mt-6">
+              <section id={showExample ? "example" : "data"} className="mt-6">
               {laryModule.slug !== "salary" ? (
                 <div className="rounded-3xl border border-slate-200 bg-white p-6">
                   <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">Ответьте на вопросы</p>
@@ -131,7 +173,6 @@ export default async function ModulePage({
               {showExample ? <ExampleResult slug={laryModule.slug} title={laryModule.taskTitle} /> : null}
               {showRunner ? <ModuleRunner module={laryModule} contestSlug={selectedContest.slug} profileVersion={profile.profile_version} projectId={query.project_id} /> : null}
               </section>
-              <section id="result" className="sr-only" aria-label="Результат будет доступен после запуска" />
             </>
           )}
           {selectedContest && profile?.status === "ready" && (showRunner || showExample) ? (

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { apiUrl, readApiError } from "../lib/api-client";
+import { buildModuleRoute } from "../lib/module-route";
 
 type ResultPayload = {
   run_id: string;
@@ -12,9 +13,10 @@ type ResultPayload = {
   sections: Array<{ title: string; body: string }>;
   downloads: Record<string, string>;
   contest_slug: string;
+  project_id?: string | null;
 };
 
-export function ResultViewer({ runId }: { runId: string }) {
+export function ResultViewer({ runId, projectId }: { runId: string; projectId?: string | null }) {
   const [result, setResult] = useState<ResultPayload | null>(null);
   const [error, setError] = useState("");
 
@@ -97,7 +99,15 @@ export function ResultViewer({ runId }: { runId: string }) {
           </section>
         ))}
       </div>
-      <a href={`/m/${result.module_slug}?contest=${result.contest_slug}&mode=start`} className="mt-6 inline-flex min-h-12 items-center rounded-2xl border border-blue-800 px-5 py-3 text-base font-semibold text-blue-800">
+      <a
+        href={buildModuleRoute({
+          moduleSlug: result.module_slug,
+          contestSlug: result.contest_slug,
+          mode: "start",
+          projectId: projectId || result.project_id,
+        })}
+        className="mt-6 inline-flex min-h-12 items-center rounded-2xl border border-blue-800 px-5 py-3 text-base font-semibold text-blue-800"
+      >
         Вернуться к модулю
       </a>
     </div>

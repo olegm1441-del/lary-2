@@ -8,7 +8,8 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "test": "node --test tests/*.test.mjs",
+    "test": "node --test tests/modules-data.test.mjs tests/phase1-ui.test.mjs",
+    "test:production-contract": "node --test tests/phase1-production-contract.test.mjs",
     "start": "next start",
     "lint": "eslint"
   },
