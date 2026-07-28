@@ -30,6 +30,8 @@ class Settings:
     vosk_auto_download: bool = os.getenv("VOSK_AUTO_DOWNLOAD", "false").lower() == "true"
     payment_provider_mode: str = os.getenv("PAYMENT_PROVIDER_MODE", "placeholder")
     payment_webhook_secret: str | None = os.getenv("PAYMENT_WEBHOOK_SECRET")
+    product_registry_runtime_enabled: bool = os.getenv("PRODUCT_REGISTRY_RUNTIME_ENABLED", "false").lower() == "true"
+    product_config_dir: str | None = os.getenv("PRODUCT_CONFIG_DIR")
 
     def cors_list(self) -> list[str]:
         if self.cors_origins.strip() == "*":
