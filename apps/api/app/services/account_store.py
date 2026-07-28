@@ -1149,11 +1149,12 @@ def _user_owner_key(user_id: str | None) -> str:
 
 
 def _set_cookie(response: Response, name: str, value: str, max_age: int) -> None:
+    is_production = settings.app_env == "production"
     response.set_cookie(
         key=name,
         value=value,
         max_age=max_age,
         httponly=True,
-        secure=settings.app_env == "production",
-        samesite="lax",
+        secure=is_production,
+        samesite="none" if is_production else "lax",
     )

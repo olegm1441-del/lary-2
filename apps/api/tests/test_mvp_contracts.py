@@ -199,6 +199,20 @@ class LaryMvpContractsTest(unittest.TestCase):
         )
         self.assertEqual(other_module.status_code, 200)
 
+    def test_production_cookie_supports_cross_origin_web_and_api_hosts(self):
+        original_env = settings.app_env
+        settings.app_env = "production"
+        try:
+            usage = self.client.get("/api/usage")
+        finally:
+            settings.app_env = original_env
+
+        cookie = usage.headers.get("set-cookie", "")
+        self.assertIn("anon_session_id", cookie)
+        self.assertIn("HttpOnly", cookie)
+        self.assertIn("Secure", cookie)
+        self.assertIn("SameSite=none", cookie)
+
     def test_promo_is_one_time_and_adds_paid_module_runs(self):
         promo = self.client.post("/api/promos/apply", json={"code": "LARY-START"})
         self.assertEqual(promo.status_code, 200)
