@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useState } from "react";
 import { apiUrl, readApiError } from "../lib/api-client";
+import { getPublicContests } from "../lib/product-registry";
 
 type WorkItem = {
   run_id: string;
@@ -20,11 +21,13 @@ type ProjectItem = {
   title: string;
   competition: string;
   works_count: number;
+  contest_slug?: string;
 };
 
 export function AccountWorkspace() {
   const [email, setEmail] = useState("");
   const [projectTitle, setProjectTitle] = useState("");
+  const [projectContest, setProjectContest] = useState("");
   const [works, setWorks] = useState<WorkItem[]>([]);
   const [projects, setProjects] = useState<ProjectItem[]>([]);
   const [mode, setMode] = useState("temporary");
@@ -98,7 +101,7 @@ export function AccountWorkspace() {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title, competition: "ПФКИ" }),
+        body: JSON.stringify({ title, contest_slug: projectContest || "pfki" }),
       });
       if (!projectResponse.ok) throw new Error(await readApiError(projectResponse));
       const project = await projectResponse.json();
@@ -124,6 +127,10 @@ export function AccountWorkspace() {
       setError("Укажите название проекта.");
       return;
     }
+    if (!projectContest) {
+      setError("Выберите конкурс проекта.");
+      return;
+    }
 
     setProjectMessage("");
     setMessage("");
@@ -133,7 +140,7 @@ export function AccountWorkspace() {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title, competition: "ПФКИ" }),
+        body: JSON.stringify({ title, contest_slug: projectContest }),
       });
       if (!projectResponse.ok) throw new Error(await readApiError(projectResponse));
       setProjectMessage("Проект создан. Его можно использовать для новых работ.");
@@ -296,6 +303,15 @@ export function AccountWorkspace() {
             <span className="text-base font-semibold">Название проекта</span>
             <input value={projectTitle} onChange={(event) => setProjectTitle(event.target.value)} placeholder="Например: Музейная заявка" className="min-h-14 rounded-2xl border border-slate-300 bg-slate-50 px-4 text-lg" />
           </label>
+          <label className="mt-4 grid gap-2">
+            <span className="text-base font-semibold">Конкурс проекта</span>
+            <select value={projectContest} onChange={(event) => setProjectContest(event.target.value)} className="min-h-14 rounded-2xl border border-slate-300 bg-slate-50 px-4 text-lg">
+              <option value="">Выберите конкурс</option>
+              {getPublicContests().map((contest) => (
+                <option key={contest.slug} value={contest.slug}>{contest.name}</option>
+              ))}
+            </select>
+          </label>
           <div className="mt-4 flex flex-wrap gap-3">
             <button type="button" onClick={() => void createProjectOnly()} className="min-h-14 rounded-2xl bg-blue-800 px-6 py-4 text-lg font-semibold text-white">
               Создать проект
@@ -312,6 +328,9 @@ export function AccountWorkspace() {
               <article key={project.project_id} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
                 <h3 className="text-lg font-bold">{project.title}</h3>
                 <p className="mt-1 text-base text-slate-700">{project.competition} · работ: {project.works_count}</p>
+                <a href={`/modules?project_id=${project.project_id}&project_contest=${project.contest_slug || "pfki"}`} className="mt-3 inline-flex min-h-11 items-center rounded-xl border border-blue-800 px-4 py-2 text-base font-semibold text-blue-800">
+                  Продолжить проект
+                </a>
               </article>
             ))}
           </div>

@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import type { LaryModule } from "../lib/lary-data";
 import { apiUrl, readApiError } from "../lib/api-client";
 import { USAGE_UPDATED_EVENT } from "./module-attempt-status";
+import { migrateLegacyDraft, moduleDraftKey } from "../lib/module-drafts";
 
 type UsagePayload = {
   paid_runs: number;
@@ -42,15 +43,14 @@ type SalaryGenerateResult = {
   warnings: string[];
 };
 
-const STORAGE_KEY = "lary.module_draft.salary.v2";
 const REGION_OPTIONS = ["Свердловская область", "Республика Татарстан", "Москва", "Санкт-Петербург", "Краснодарский край", "Нижегородская область"];
 const COFINANCE_OPTIONS: Array<{ value: CofinanceSource; label: string }> = [
   { value: "own_legal_entity_funds", label: "Собственные средства юридического лица" },
   { value: "partner_letter_funds", label: "Привлеченные средства согласно письму поддержки" },
 ];
 
-export function SalaryModuleRunner({ module }: { module: LaryModule }) {
-  const [draft, setDraft] = useState<SalaryDraft>(() => loadInitialDraft());
+export function SalaryModuleRunner({ module, contestSlug, profileVersion, projectId }: { module: LaryModule; contestSlug: string; profileVersion?: string | null; projectId?: string | null }) {
+  const [draft, setDraft] = useState<SalaryDraft>(() => defaultDraft());
   const [usage, setUsage] = useState<UsagePayload | null>(null);
   const [state, setState] = useState<"idle" | "submitting" | "error">("idle");
   const [message, setMessage] = useState("");
@@ -78,13 +78,26 @@ export function SalaryModuleRunner({ module }: { module: LaryModule }) {
   useEffect(() => {
     const timer = window.setTimeout(() => {
       try {
-        window.localStorage.setItem(STORAGE_KEY, JSON.stringify(draft));
+        const migrated = migrateLegacyDraft<SalaryDraft>(window.localStorage, "salary", contestSlug, projectId);
+        const raw = window.localStorage.getItem(moduleDraftKey("salary", contestSlug, projectId));
+        setDraft(normalizeDraft(raw ? JSON.parse(raw) : migrated || defaultDraft()));
+      } catch {
+        setDraft(defaultDraft());
+      }
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [contestSlug, projectId]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      try {
+        window.localStorage.setItem(moduleDraftKey("salary", contestSlug, projectId), JSON.stringify(draft));
       } catch {
         // Локальный черновик не является источником истины.
       }
     }, 250);
     return () => window.clearTimeout(timer);
-  }, [draft]);
+  }, [contestSlug, draft, projectId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -135,7 +148,12 @@ export function SalaryModuleRunner({ module }: { module: LaryModule }) {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(toApiPayload(activeDraft)),
+        body: JSON.stringify({
+          ...toApiPayload(activeDraft),
+          contest_slug: contestSlug,
+          profile_version: profileVersion,
+          project_id: projectId,
+        }),
       });
       if (!response.ok) throw new Error(await readApiError(response));
       const payload = await response.json();
@@ -707,16 +725,6 @@ function defaultDraft(): SalaryDraft {
     region: "",
     positions: [defaultPosition()],
   };
-}
-
-function loadInitialDraft(): SalaryDraft {
-  if (typeof window === "undefined") return defaultDraft();
-  try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
-    return raw ? normalizeDraft(JSON.parse(raw)) : defaultDraft();
-  } catch {
-    return defaultDraft();
-  }
 }
 
 function defaultPosition(): SalaryPositionDraft {

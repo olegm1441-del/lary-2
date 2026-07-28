@@ -7,6 +7,7 @@ import { apiUrl, readApiError } from "../lib/api-client";
 import { FieldAssistantHint, type FieldAssistantHintData } from "./field-assistant-hint";
 import { USAGE_UPDATED_EVENT } from "./module-attempt-status";
 import { SalaryModuleRunner } from "./salary-module-runner";
+import { migrateLegacyDraft, moduleDraftKey } from "../lib/module-drafts";
 
 type RunState = "idle" | "submitting" | "error";
 type VoiceState = "idle" | "recording" | "uploading";
@@ -18,13 +19,23 @@ type UsagePayload = {
 
 type FieldHintMap = Record<string, FieldAssistantHintData>;
 
-export function ModuleRunner({ module }: { module: LaryModule }) {
-  if (module.slug === "salary") return <SalaryModuleRunner module={module} />;
+export function ModuleRunner({
+  module,
+  contestSlug,
+  profileVersion,
+  projectId,
+}: {
+  module: LaryModule;
+  contestSlug: string;
+  profileVersion?: string | null;
+  projectId?: string | null;
+}) {
+  if (module.slug === "salary") return <SalaryModuleRunner module={module} contestSlug={contestSlug} profileVersion={profileVersion} projectId={projectId} />;
 
-  return <GenericModuleRunner module={module} />;
+  return <GenericModuleRunner module={module} contestSlug={contestSlug} profileVersion={profileVersion} projectId={projectId} />;
 }
 
-function GenericModuleRunner({ module }: { module: LaryModule }) {
+function GenericModuleRunner({ module, contestSlug, profileVersion, projectId }: { module: LaryModule; contestSlug: string; profileVersion?: string | null; projectId?: string | null }) {
   const router = useRouter();
   const [values, setValues] = useState<Record<string, string>>({});
   const [state, setState] = useState<RunState>("idle");
@@ -77,8 +88,9 @@ function GenericModuleRunner({ module }: { module: LaryModule }) {
   useEffect(() => {
     const timer = window.setTimeout(() => {
       try {
-        const raw = window.localStorage.getItem(`lary.module_draft.${module.slug}`);
-        const draft = raw ? JSON.parse(raw) : {};
+        const key = moduleDraftKey(module.slug, contestSlug, projectId);
+        const raw = window.localStorage.getItem(key);
+        const draft = raw ? JSON.parse(raw) : migrateLegacyDraft<Record<string, string>>(window.localStorage, module.slug, contestSlug, projectId) || {};
         setValues(applyModuleDefaults(module.slug, draft));
       } catch {
         setValues(applyModuleDefaults(module.slug, {}));
@@ -88,15 +100,15 @@ function GenericModuleRunner({ module }: { module: LaryModule }) {
       setSubmitAttempted(false);
     }, 0);
     return () => window.clearTimeout(timer);
-  }, [module.slug]);
+  }, [contestSlug, module.slug, projectId]);
 
   useEffect(() => {
     try {
-      window.localStorage.setItem(`lary.module_draft.${module.slug}`, JSON.stringify(values));
+      window.localStorage.setItem(moduleDraftKey(module.slug, contestSlug, projectId), JSON.stringify(values));
     } catch {
       // Draft persistence is a convenience only. Backend state remains authoritative.
     }
-  }, [module.slug, values]);
+  }, [contestSlug, module.slug, projectId, values]);
 
   useEffect(() => {
     let cancelled = false;
@@ -178,6 +190,9 @@ function GenericModuleRunner({ module }: { module: LaryModule }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           module_slug: module.slug,
+          contest_slug: contestSlug,
+          profile_version: profileVersion,
+          project_id: projectId,
           inputs: submissionInputs,
           presentation_variant: presentationVariant,
         }),
@@ -189,7 +204,7 @@ function GenericModuleRunner({ module }: { module: LaryModule }) {
 
       const payload = await response.json();
       try {
-        window.localStorage.removeItem(`lary.module_draft.${module.slug}`);
+        window.localStorage.removeItem(moduleDraftKey(module.slug, contestSlug, projectId));
       } catch {
         // ignore draft cleanup errors
       }
