@@ -48,3 +48,22 @@ Production contract запускается отдельно после deploy:
 ```bash
 PRODUCTION_BASE_URL=https://web-production-532a8.up.railway.app pnpm test
 ```
+
+## Production evidence
+
+Финальный runtime commit: `74864c23bb34176f1b50fb002e7ecaaf76d0f509`.
+
+- Web deployment `7dbaea66-a0da-4936-8660-aabf91282426`: `SUCCESS`.
+- API deployment с runtime flag `382e2f99-8c98-4fa8-9d92-37336c11dcec`: `SUCCESS`.
+- `PRODUCT_REGISTRY_RUNTIME_ENABLED=true`.
+- `FILE_STORAGE_DIR=/data/lary-generated`.
+- `/health` → 200.
+- `/api/contests` → четыре approved slugs.
+- PFKI salary profile → `ready`; FPG salary profile → `preparing`.
+- FPG run и profile-version mismatch → safe 409; usage до/после одинаковый.
+- Реальный PFKI salary run → completed; DOCX zip-valid и читается `python-docx`.
+- Реальный PFKI support-letter run → completed; DOCX без `{{...}}`, содержит партнера, проект и сумму.
+- Проект, attached work и `contest_slug=pfki` пережили API restart.
+- Durable DOCX `c04403a4-35b7-4991-91fc-d50388ca9133` пережил restart; SHA-256 до/после одинаковый: `2badbb728509ff6a1a13f45fd1952be162411df4ae6d6b8ded53450b753c8a16`.
+- Rollback `PRODUCT_REGISTRY_RUNTIME_ENABLED=false` проверен без удаления additive columns; после smoke flag возвращен в `true`.
+- Production browser QA: 390 px preparing, 390 px ready form и 1440 px catalog — 18 px body font, horizontal overflow отсутствует.

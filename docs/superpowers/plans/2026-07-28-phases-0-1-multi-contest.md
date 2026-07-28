@@ -649,18 +649,18 @@ Expected: zero failures.
 
 Capture `/`, `/modules`, ready PFKI salary module and preparing FPG salary state at 390, 430, 768, 1024 and 1440 px. Verify keyboard focus, Esc close, focus restoration, 44×44 targets, Russian label wrapping and absence of horizontal scroll.
 
-- [ ] **Step 4: Update docs and Phase 1 status**
+- [x] **Step 4: Update docs and Phase 1 status**
 
 Set Phase 1 to `ready` only after all local and production checks pass. Record migrations, rollback flag, screenshots and known limitations.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/web/tests/phase1-production-contract.test.mjs docs/product docs/qa/phase-1
 git commit -m "Verify and document multi-contest shell"
 ```
 
-- [ ] **Step 6: Push main and verify production only**
+- [x] **Step 6: Push main and verify production only**
 
 ```bash
 git push origin main
@@ -670,6 +670,6 @@ railway deployment list --service web --environment production --limit 2 --json
 
 Do not run Railway commands without `--environment production`. Wait for `SUCCESS` for the pushed commit, then run health/API/public HTML smoke tests.
 
-- [ ] **Step 7: Rollback if production smoke fails**
+- [x] **Step 7: Rollback if production smoke fails**
 
 Set `PRODUCT_REGISTRY_RUNTIME_ENABLED=false` in production or revert the Phase 1 commits. Do not drop additive columns. Confirm legacy PFKI routes, payments and downloads before closing the incident.

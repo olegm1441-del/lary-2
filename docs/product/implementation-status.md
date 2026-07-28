@@ -9,7 +9,7 @@
 | Фаза | Статус | Что входит | Условие перехода |
 | --- | --- | --- | --- |
 | 0. Foundation docs | ready | Master architecture, ADR, registry schemas, feature flags, migration plan, product docs | Registry tests проходят; пользовательское поведение не изменено |
-| 1. Global shell + multi-contest | ready | Брендинг, четыре конкурса, selector, matrix, безопасное состояние `preparing`, баланс, common shell, mobile navigation, draft v2 | Production smoke и PFKI regression пройдены; rollback flag проверен |
+| 1. Global shell + multi-contest | ready | Брендинг, четыре конкурса, selector, matrix, безопасное состояние `preparing`, баланс, common shell, mobile navigation, draft v2, durable files | Production smoke и PFKI regression пройдены; rollback flag и restart persistence проверены |
 | 2. Example/help/question marks | planned | Versioned examples, global help, module help, contextual question marks | Фаза 1 принята |
 | 3. Expert recommendations | planned | Consent, рекомендации, уточнения, TTL, redaction, admin | Фаза 2 принята |
 | 4. Salary | planned | Навигация позиций, partial calculation, competence, verified official source | Подтверждена региональная база Росстата |
