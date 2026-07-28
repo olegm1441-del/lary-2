@@ -8,6 +8,7 @@ from app.services.product_registry import (
     ProductRegistry,
     ProductRegistryError,
     ProfileNotReadyError,
+    _default_product_config,
 )
 
 
@@ -52,6 +53,13 @@ class ProductRegistryRuntimeTest(unittest.TestCase):
         serialized = json.dumps(payload, ensure_ascii=False)
         for forbidden in ("system_prompt", "credentials", "provider", "filesystem_path"):
             self.assertNotIn(forbidden, serialized)
+
+    def test_shallow_service_root_uses_packaged_registry_without_parent_indexing(self):
+        with tempfile.TemporaryDirectory() as directory:
+            service_root = Path(directory)
+            packaged = service_root / "product-config"
+            packaged.mkdir()
+            self.assertEqual(_default_product_config(service_root), packaged)
 
 
 if __name__ == "__main__":

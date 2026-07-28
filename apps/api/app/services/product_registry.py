@@ -174,10 +174,14 @@ class ProductRegistry:
 def product_config_dir() -> Path:
     if settings.product_config_dir:
         return Path(settings.product_config_dir).expanduser().resolve()
-    repository_config = Path(__file__).resolve().parents[4] / "config" / "product"
+    return _default_product_config(Path(__file__).resolve().parents[2])
+
+
+def _default_product_config(service_root: Path) -> Path:
+    repository_config = service_root.parent.parent / "config" / "product"
     if repository_config.is_dir():
         return repository_config
-    return Path(__file__).resolve().parents[2] / "product-config"
+    return service_root / "product-config"
 
 
 @lru_cache(maxsize=4)
