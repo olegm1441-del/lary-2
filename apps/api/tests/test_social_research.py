@@ -6,6 +6,8 @@ from pathlib import Path
 from unittest.mock import patch
 from zipfile import ZipFile
 
+import httpx
+
 os.environ.setdefault("APP_ENV", "test")
 
 from docx import Document
@@ -18,6 +20,7 @@ from app.services.social_research import (
     SocialResearchOutput,
     VerifiedSource,
     USER_FRIENDLY_SOURCE_ERROR,
+    _fetch_public_source,
     build_social_research_document,
     validate_social_research_output,
     validate_verified_sources,
@@ -105,6 +108,48 @@ class SocialResearchContractTest(unittest.TestCase):
                 source("source-1", url=duplicate),
                 source("source-2", url=duplicate),
             ])
+
+    def test_official_rosstat_source_retries_only_certificate_failure(self):
+        url = "https://66.rosstat.gov.ru/storage/mediabank/report.pdf"
+
+        class CertificateFailureClient:
+            def get(self, requested_url):
+                request = httpx.Request("GET", requested_url)
+                raise httpx.ConnectError(
+                    "[SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed",
+                    request=request,
+                )
+
+        class TrustedFallbackClient:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_):
+                return None
+
+            def get(self, requested_url):
+                return httpx.Response(200, content=b"%PDF-source", request=httpx.Request("GET", requested_url))
+
+        with patch("app.services.social_research.httpx.Client", return_value=TrustedFallbackClient()) as client_factory:
+            response = _fetch_public_source(CertificateFailureClient(), url)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.content, b"%PDF-source")
+        self.assertFalse(client_factory.call_args.kwargs["verify"])
+
+    def test_non_rosstat_certificate_failure_is_not_bypassed(self):
+        url = "https://example.org/report.pdf"
+
+        class CertificateFailureClient:
+            def get(self, requested_url):
+                request = httpx.Request("GET", requested_url)
+                raise httpx.ConnectError(
+                    "[SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed",
+                    request=request,
+                )
+
+        with self.assertRaises(httpx.ConnectError):
+            _fetch_public_source(CertificateFailureClient(), url)
 
     def test_ai_cannot_introduce_unknown_source_id(self):
         payload = output_payload()

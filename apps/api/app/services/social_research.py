@@ -23,6 +23,8 @@ from app.services import ai_router
 
 USER_FRIENDLY_SOURCE_ERROR = "Не удалось получить проверяемые источники. Черновик сохранён. Попробуйте повторить позже."
 USER_FRIENDLY_AI_ERROR = "Не удалось подготовить доказательный материал. Черновик сохранён. Попробуйте повторить позже."
+SOURCE_REQUEST_HEADERS = {"User-Agent": "LARI/0.1 (legacyinfo@yandex.ru)"}
+TRUSTED_SOURCE_HOSTS_WITH_BROKEN_CERTIFICATE_CHAIN = {"66.rosstat.gov.ru"}
 
 
 class SocialResearchGenerationError(ValueError):
@@ -156,11 +158,10 @@ def retrieve_verified_sources(inputs: dict) -> list[VerifiedSource]:
     ]
     verified: list[VerifiedSource] = []
     now = datetime.now(timezone.utc).isoformat()
-    headers = {"User-Agent": "LARI/0.1 (legacyinfo@yandex.ru)"}
-    with httpx.Client(follow_redirects=True, timeout=10.0, headers=headers) as client:
+    with httpx.Client(follow_redirects=True, timeout=10.0, headers=SOURCE_REQUEST_HEADERS) as client:
         for item in candidates:
             try:
-                response = client.get(item["url"])
+                response = _fetch_public_source(client, item["url"])
             except httpx.HTTPError:
                 continue
             if response.status_code != 200:
@@ -194,6 +195,24 @@ def retrieve_verified_sources(inputs: dict) -> list[VerifiedSource]:
     return validate_verified_sources(verified)
 
 
+def _fetch_public_source(client: httpx.Client, url: str) -> httpx.Response:
+    """Fetch a source normally, with a narrow fallback for a known Rosstat TLS-chain defect."""
+    try:
+        return client.get(url)
+    except httpx.ConnectError as exc:
+        host = (urlparse(url).hostname or "").casefold()
+        certificate_failure = "certificate_verify_failed" in str(exc).casefold()
+        if host not in TRUSTED_SOURCE_HOSTS_WITH_BROKEN_CERTIFICATE_CHAIN or not certificate_failure:
+            raise
+        with httpx.Client(
+            follow_redirects=True,
+            timeout=10.0,
+            headers=SOURCE_REQUEST_HEADERS,
+            verify=False,
+        ) as fallback_client:
+            return fallback_client.get(url)
+
+
 def _discover_source_candidates(inputs: dict) -> list[dict]:
     prompt = (
         "Найди до 6 прямых публичных источников для доказательной базы грантового проекта. "
@@ -222,7 +241,7 @@ def _verify_discovered_source(
 ) -> VerifiedSource | None:
     try:
         provisional = VerifiedSource.model_validate(candidate | {"verified_at": verified_at})
-        response = client.get(provisional.url)
+        response = _fetch_public_source(client, provisional.url)
         if response.status_code != 200:
             return None
         final_url = str(response.url)
