@@ -557,6 +557,9 @@ test("account page keeps a single page title and passwordless card title", () =>
   assert.equal(accountPage.includes("title=\"Войти в личный кабинет\""), true);
   assert.equal(accountWorkspace.includes("Вход без пароля"), true);
   assert.equal(accountWorkspace.includes("Войти в личный кабинет"), false);
+  assert.equal(accountWorkspace.includes("grid min-w-0 max-w-full gap-5"), true);
+  assert.equal(accountWorkspace.includes("w-full min-w-0 rounded-2xl"), true);
+  assert.equal(accountWorkspace.includes("lg:grid-cols-[240px_minmax(0,1fr)]"), true);
 });
 
 test("legal documents use current 26.06.2026 public texts and safe mobile wrapping", () => {

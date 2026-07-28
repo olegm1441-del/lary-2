@@ -173,12 +173,12 @@ export function AccountWorkspace() {
   }
 
   return (
-    <div className="mt-8 grid gap-5">
-      <section className="rounded-3xl border border-slate-200 bg-white p-5">
+    <div className="mt-8 grid min-w-0 max-w-full gap-5">
+      <section className="min-w-0 max-w-full rounded-3xl border border-slate-200 bg-white p-5">
         <h2 className="text-2xl font-bold">Вход без пароля</h2>
         <p className="mt-2 text-lg leading-8 text-slate-700">Укажите email, чтобы получить ссылку для входа. Пароль не нужен.</p>
-        <form onSubmit={requestMagicLink} className="mt-5 grid gap-3 sm:grid-cols-[1fr_auto]">
-          <label className="grid gap-2">
+        <form onSubmit={requestMagicLink} className="mt-5 grid min-w-0 gap-3 sm:grid-cols-[minmax(0,1fr)_auto]">
+          <label className="grid min-w-0 gap-2">
             <span className="text-base font-semibold">Ваш email</span>
             <input
               type="email"
@@ -186,7 +186,7 @@ export function AccountWorkspace() {
               onChange={(event) => setEmail(event.target.value)}
               required
               placeholder="name@example.ru"
-              className="min-h-14 rounded-2xl border border-slate-300 bg-slate-50 px-4 text-lg outline-none focus:border-blue-700 focus:ring-2 focus:ring-blue-100"
+              className="min-h-14 w-full min-w-0 rounded-2xl border border-slate-300 bg-slate-50 px-4 text-lg outline-none focus:border-blue-700 focus:ring-2 focus:ring-blue-100"
             />
           </label>
           <button type="submit" className="self-end min-h-14 rounded-2xl bg-blue-800 px-6 py-4 text-lg font-semibold text-white">
@@ -199,7 +199,7 @@ export function AccountWorkspace() {
       {message ? <p className="rounded-2xl bg-green-50 p-4 text-base leading-7 text-green-900">{message}</p> : null}
       {error ? <p className="rounded-2xl bg-red-50 p-4 text-base leading-7 text-red-900">{error}</p> : null}
 
-      <div className="grid gap-5 lg:grid-cols-[240px_1fr]">
+      <div className="grid min-w-0 max-w-full gap-5 lg:grid-cols-[240px_minmax(0,1fr)]">
         <nav className="grid content-start gap-2 rounded-3xl border border-slate-200 bg-slate-50 p-4 text-base font-semibold">
           <a className="rounded-2xl bg-blue-800 px-4 py-3 text-white" href="#works">Мои работы</a>
           <a className="rounded-2xl px-4 py-3 hover:bg-white" href="#projects">Проекты</a>
@@ -209,8 +209,8 @@ export function AccountWorkspace() {
           <a className="rounded-2xl px-4 py-3 hover:bg-white" href="#security">Безопасность</a>
         </nav>
 
-        <div className="grid gap-5">
-          <section id="works" className="rounded-3xl border border-slate-200 bg-white p-5">
+        <div className="grid min-w-0 max-w-full gap-5">
+          <section id="works" className="min-w-0 max-w-full rounded-3xl border border-slate-200 bg-white p-5">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <h2 className="text-2xl font-bold">Мои работы</h2>
@@ -296,7 +296,7 @@ export function AccountWorkspace() {
           ) : null}
         </section>
 
-        <section id="projects" className="rounded-3xl border border-slate-200 bg-white p-5">
+        <section id="projects" className="min-w-0 max-w-full rounded-3xl border border-slate-200 bg-white p-5">
           <h2 className="text-2xl font-bold">Проекты</h2>
           <p className="mt-2 text-base leading-7 text-slate-700">Проект — необязательная папка для работ и файлов. Создайте его после первого результата или сейчас.</p>
           <label className="mt-4 grid gap-2">
