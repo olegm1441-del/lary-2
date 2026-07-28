@@ -10,6 +10,7 @@ class ModuleItem(BaseModel):
     competition: str
     output_formats: list[str]
     fields: list[str]
+    supported_contests: list[dict] = Field(default_factory=list)
 
 
 class ModulesResponse(BaseModel):

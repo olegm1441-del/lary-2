@@ -8,13 +8,51 @@ from app.services.salary_calculator import SalaryGenerateRequest, SalaryGenerate
 from app.services.salary_sources.aggregator import probe_salary_sources
 from app.services.salary_sources.models import SalaryProbeRequest, SalaryProbeResponse
 from app.services.module_validation import validate_module_inputs
+from app.services.product_registry import (
+    UnknownContestError,
+    UnknownModuleError,
+    get_product_registry,
+)
 
 router = APIRouter(prefix="/api/modules", tags=["Modules"])
 
 
 @router.get("", response_model=ModulesResponse)
 def list_modules():
+    if settings.product_registry_runtime_enabled:
+        registry = get_product_registry()
+        legacy = {item["slug"]: item for item in get_modules()}
+        items = []
+        for module in registry.get_modules():
+            old = legacy.get(module.slug, {})
+            items.append(
+                ModuleItem(
+                    slug=module.slug,
+                    status="active" if module.status == "active" else "coming_soon",
+                    title=module.title,
+                    task_title=module.title,
+                    duration=module.duration,
+                    competition="",
+                    output_formats=module.output_formats,
+                    fields=old.get("fields", []),
+                    supported_contests=[
+                        {"slug": contest.slug, "name": contest.name, "short_name": contest.short_name}
+                        for contest in registry.get_supported_contests(module.slug)
+                    ],
+                )
+            )
+        return ModulesResponse(items=items)
     return ModulesResponse(items=[ModuleItem(**item) for item in get_modules()])
+
+
+@router.get("/{module_slug}/profiles/{contest_slug}")
+def module_profile(module_slug: str, contest_slug: str):
+    try:
+        return get_product_registry().public_profile(module_slug, contest_slug)
+    except UnknownModuleError as exc:
+        raise HTTPException(status_code=404, detail={"message": "Такая задача не найдена."}) from exc
+    except UnknownContestError as exc:
+        raise HTTPException(status_code=404, detail={"message": "Такой конкурс не найден."}) from exc
 
 
 @router.get("/{slug}/schema", response_model=ModuleItem)
