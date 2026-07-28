@@ -12,6 +12,10 @@ class StoredRun:
     sections: list[dict[str, str]]
     downloads: dict[str, str]
     files: dict[str, str]
+    contest_slug: str = "pfki"
+    profile_version: str | None = None
+    project_id: str | None = None
+    error_code: str | None = None
     created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
 

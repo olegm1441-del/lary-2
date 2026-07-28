@@ -19,6 +19,9 @@ class ModulesResponse(BaseModel):
 
 class ModuleRunCreateRequest(BaseModel):
     module_slug: str = Field(..., min_length=2)
+    contest_slug: str = "pfki"
+    project_id: str | None = None
+    profile_version: str | None = None
     inputs: dict[str, str | int | float | bool | list[str] | None] = Field(default_factory=dict)
     presentation_variant: str | None = Field(default=None, description="grant_defense or calendar_plan")
 
@@ -46,6 +49,9 @@ class ModuleRunCreateResponse(BaseModel):
     title: str
     message: str
     downloads: dict[str, str]
+    contest_slug: str = "pfki"
+    profile_version: str | None = None
+    project_id: str | None = None
 
 
 class ModuleRunResultResponse(BaseModel):
@@ -56,6 +62,9 @@ class ModuleRunResultResponse(BaseModel):
     summary: str
     sections: list[dict[str, str]]
     downloads: dict[str, str]
+    contest_slug: str = "pfki"
+    profile_version: str | None = None
+    project_id: str | None = None
 
 
 class EmailFileRequest(BaseModel):
@@ -159,6 +168,7 @@ class AccountWorkItem(BaseModel):
     file_format: str
     download_path: str
     actions: list[str]
+    contest_slug: str = "pfki"
 
 
 class AccountWorksResponse(BaseModel):
@@ -174,19 +184,22 @@ class DeleteWorkResponse(BaseModel):
 
 class ProjectCreateRequest(BaseModel):
     title: str = Field(..., min_length=2)
-    competition: str = "ПФКИ"
+    competition: str | None = None
+    contest_slug: str | None = None
 
 
 class ProjectCreateResponse(BaseModel):
     project_id: str
     title: str
     competition: str
+    contest_slug: str
 
 
 class ProjectItem(BaseModel):
     project_id: str
     title: str
     competition: str
+    contest_slug: str | None = None
     works_count: int
 
 

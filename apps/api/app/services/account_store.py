@@ -144,6 +144,7 @@ def ensure_account_schema() -> dict:
             user_id text,
             title text not null,
             competition text not null,
+            contest_slug text,
             created_at text not null,
             updated_at text not null
         )
@@ -159,6 +160,10 @@ def ensure_account_schema() -> dict:
             files_json text not null,
             created_at text not null,
             deleted_at text
+            ,contest_slug text
+            ,profile_version text
+            ,project_id text
+            ,error_code text
         )
         """,
         """
@@ -189,6 +194,7 @@ def ensure_account_schema() -> dict:
             created_at text not null,
             expires_at text,
             deleted_at text
+            ,contest_slug text
         )
         """,
         """
@@ -267,6 +273,7 @@ def ensure_account_schema() -> dict:
         for statement in statements:
             _execute(conn, statement)
         _ensure_legacy_columns(conn)
+        _backfill_contest_context(conn)
         _execute(
             conn,
             "insert into schema_migrations(version, applied_at) values(?, ?) on conflict(version) do nothing",
@@ -357,8 +364,8 @@ def record_module_run_success(run: StoredRun, decision: ModuleAccessDecision, in
         _execute(
             conn,
             """
-            insert into module_runs(run_id, module_slug, title, status, summary, downloads_json, files_json, created_at, deleted_at)
-            values(?, ?, ?, ?, ?, ?, ?, ?, null)
+            insert into module_runs(run_id, module_slug, title, status, summary, downloads_json, files_json, created_at, deleted_at, contest_slug, profile_version, project_id, error_code)
+            values(?, ?, ?, ?, ?, ?, ?, ?, null, ?, ?, ?, ?)
             on conflict(run_id) do update set
               module_slug = excluded.module_slug,
               title = excluded.title,
@@ -366,9 +373,26 @@ def record_module_run_success(run: StoredRun, decision: ModuleAccessDecision, in
               summary = excluded.summary,
               downloads_json = excluded.downloads_json,
               files_json = excluded.files_json,
+              contest_slug = excluded.contest_slug,
+              profile_version = excluded.profile_version,
+              project_id = excluded.project_id,
+              error_code = excluded.error_code,
               deleted_at = null
             """,
-            (run.run_id, run.module_slug, run.title, run.status, run.summary, _dumps(run.downloads), _dumps(run.files), now),
+            (
+                run.run_id,
+                run.module_slug,
+                run.title,
+                run.status,
+                run.summary,
+                _dumps(run.downloads),
+                _dumps(run.files),
+                now,
+                run.contest_slug,
+                run.profile_version,
+                run.project_id,
+                run.error_code,
+            ),
         )
         _execute(
             conn,
@@ -397,6 +421,7 @@ def _upsert_work(conn: Any, run: StoredRun, decision: ModuleAccessDecision, file
         run.run_id,
         decision.anon_session_id,
         decision.user_id,
+        run.project_id,
         run.module_slug,
         run.title,
         run.status,
@@ -404,13 +429,14 @@ def _upsert_work(conn: Any, run: StoredRun, decision: ModuleAccessDecision, file
         run.downloads[file_format],
         now,
         expires_at,
+        run.contest_slug,
     )
     if _column_exists(conn, "works", "id"):
         _execute(
             conn,
             """
-            insert into works(id, run_id, anon_session_id, user_id, project_id, module_slug, title, status, file_format, download_path, created_at, expires_at, deleted_at)
-            values(?, ?, ?, ?, null, ?, ?, ?, ?, ?, ?, ?, null)
+            insert into works(id, run_id, anon_session_id, user_id, project_id, module_slug, title, status, file_format, download_path, created_at, expires_at, deleted_at, contest_slug)
+            values(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, null, ?)
             on conflict(run_id) do update set
               anon_session_id = excluded.anon_session_id,
               user_id = excluded.user_id,
@@ -420,6 +446,7 @@ def _upsert_work(conn: Any, run: StoredRun, decision: ModuleAccessDecision, file
               file_format = excluded.file_format,
               download_path = excluded.download_path,
               expires_at = excluded.expires_at,
+              contest_slug = excluded.contest_slug,
               deleted_at = null
             """,
             (str(uuid4()), *params),
@@ -429,8 +456,8 @@ def _upsert_work(conn: Any, run: StoredRun, decision: ModuleAccessDecision, file
     _execute(
         conn,
         """
-        insert into works(run_id, anon_session_id, user_id, project_id, module_slug, title, status, file_format, download_path, created_at, expires_at, deleted_at)
-        values(?, ?, ?, null, ?, ?, ?, ?, ?, ?, ?, null)
+        insert into works(run_id, anon_session_id, user_id, project_id, module_slug, title, status, file_format, download_path, created_at, expires_at, deleted_at, contest_slug)
+        values(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, null, ?)
         on conflict(run_id) do update set
           anon_session_id = excluded.anon_session_id,
           user_id = excluded.user_id,
@@ -440,6 +467,7 @@ def _upsert_work(conn: Any, run: StoredRun, decision: ModuleAccessDecision, file
           file_format = excluded.file_format,
           download_path = excluded.download_path,
           expires_at = excluded.expires_at,
+          contest_slug = excluded.contest_slug,
           deleted_at = null
         """,
         params,
@@ -451,7 +479,8 @@ def load_persisted_run(run_id: str) -> StoredRun | None:
         row = _fetchone(
             conn,
             """
-            select run_id, module_slug, title, status, summary, downloads_json, files_json, created_at
+            select run_id, module_slug, title, status, summary, downloads_json, files_json, created_at,
+                   contest_slug, profile_version, project_id, error_code
             from module_runs
             where run_id = ? and deleted_at is null
             """,
@@ -470,6 +499,10 @@ def load_persisted_run(run_id: str) -> StoredRun | None:
         sections=json.loads(output["sections_json"]) if output else [],
         downloads=json.loads(row["downloads_json"]),
         files=json.loads(row["files_json"]),
+        contest_slug=row.get("contest_slug") or "pfki",
+        profile_version=row.get("profile_version"),
+        project_id=row.get("project_id"),
+        error_code=row.get("error_code"),
         created_at=_parse_dt(row["created_at"]),
     )
     return run_store.save(run)
@@ -645,7 +678,8 @@ def get_account_works(context: RequestContext) -> dict:
             "run_id": str(row["run_id"]),
             "date": str(row["created_at"])[:10],
             "work": _display_work_title(row["module_slug"], row["title"]),
-            "competition": "ПФКИ",
+            "competition": _contest_display_name(row.get("contest_slug") or "pfki"),
+            "contest_slug": row.get("contest_slug") or "pfki",
             "project": row["project_title"] or "Без проекта",
             "status": "Готово" if row["status"] == "completed" else "Черновик",
             "file_format": row["file_format"],
@@ -657,19 +691,20 @@ def get_account_works(context: RequestContext) -> dict:
     return {"mode": "account" if context.user_id else "temporary", "items": items}
 
 
-def create_project(title: str, competition: str, context: RequestContext) -> dict:
+def create_project(title: str, competition: str | None, context: RequestContext, *, contest_slug: str | None = None) -> dict:
     clean_title = title.strip()
     if len(clean_title) < 2:
         raise ValueError("Введите название проекта.")
+    normalized_slug, display_name = _resolve_project_contest(competition, contest_slug)
     project_id = str(uuid4())
     with _connect() as conn:
         _execute(
             conn,
-            "insert into projects(id, anon_session_id, user_id, title, competition, created_at, updated_at) values(?, ?, ?, ?, ?, ?, ?)",
-            (project_id, context.anon_session_id, context.user_id, clean_title, competition.strip() or "ПФКИ", _now(), _now()),
+            "insert into projects(id, anon_session_id, user_id, title, competition, contest_slug, created_at, updated_at) values(?, ?, ?, ?, ?, ?, ?, ?)",
+            (project_id, context.anon_session_id, context.user_id, clean_title, display_name, normalized_slug, _now(), _now()),
         )
         conn.commit()
-    return {"project_id": project_id, "title": clean_title, "competition": competition.strip() or "ПФКИ"}
+    return {"project_id": project_id, "title": clean_title, "competition": display_name, "contest_slug": normalized_slug}
 
 
 def get_projects(context: RequestContext) -> dict:
@@ -678,10 +713,10 @@ def get_projects(context: RequestContext) -> dict:
             rows = _fetchall(
                 conn,
                 """
-                select projects.id, projects.title, projects.competition, count(works.run_id) as works_count
+                select projects.id, projects.title, projects.competition, projects.contest_slug, count(works.run_id) as works_count
                 from projects left join works on works.project_id = projects.id and works.deleted_at is null
                 where projects.user_id = ?
-                group by projects.id, projects.title, projects.competition
+                group by projects.id, projects.title, projects.competition, projects.contest_slug
                 order by projects.updated_at desc
                 """,
                 (context.user_id,),
@@ -690,10 +725,10 @@ def get_projects(context: RequestContext) -> dict:
             rows = _fetchall(
                 conn,
                 """
-                select projects.id, projects.title, projects.competition, count(works.run_id) as works_count
+                select projects.id, projects.title, projects.competition, projects.contest_slug, count(works.run_id) as works_count
                 from projects left join works on works.project_id = projects.id and works.deleted_at is null
                 where projects.anon_session_id = ?
-                group by projects.id, projects.title, projects.competition
+                group by projects.id, projects.title, projects.competition, projects.contest_slug
                 order by projects.updated_at desc
                 """,
                 (context.anon_session_id,),
@@ -704,6 +739,7 @@ def get_projects(context: RequestContext) -> dict:
                 "project_id": str(row["id"]),
                 "title": row["title"],
                 "competition": row["competition"],
+                "contest_slug": row.get("contest_slug"),
                 "works_count": int(row["works_count"] or 0),
             }
             for row in rows
@@ -796,9 +832,17 @@ def _ensure_legacy_columns(conn: Any) -> None:
             "file_format": "text",
             "download_path": "text",
             "expires_at": "text",
+            "contest_slug": "text",
         },
         "projects": {
             "updated_at": "text",
+            "contest_slug": "text",
+        },
+        "module_runs": {
+            "contest_slug": "text",
+            "profile_version": "text",
+            "project_id": "text",
+            "error_code": "text",
         },
         "payments": {
             "owner_key": "text",
@@ -845,6 +889,41 @@ def _ensure_legacy_columns(conn: Any) -> None:
         for column, definition in columns.items():
             if not _column_exists(conn, table, column):
                 _execute(conn, f"alter table {table} add column {column} {definition}")
+
+
+def _backfill_contest_context(conn: Any) -> None:
+    _execute(conn, "update projects set contest_slug = 'pfki' where contest_slug is null and competition = 'ПФКИ'")
+    _execute(conn, "update module_runs set contest_slug = 'pfki' where contest_slug is null")
+    _execute(conn, "update works set contest_slug = 'pfki' where contest_slug is null")
+
+
+def _resolve_project_contest(competition: str | None, contest_slug: str | None) -> tuple[str, str]:
+    from app.services.product_registry import UnknownContestError, get_product_registry
+
+    registry = get_product_registry()
+    legacy = (competition or "").strip()
+    slug = (contest_slug or "").strip()
+    if not slug:
+        slug = "pfki" if not legacy or legacy == "ПФКИ" else ""
+    if not slug:
+        matches = [contest for contest in registry.get_contests() if legacy in {contest.name, contest.short_name}]
+        if len(matches) == 1:
+            slug = matches[0].slug
+    try:
+        contest = registry.contests_by_slug[slug]
+    except KeyError as exc:
+        raise ValueError("Выберите конкурс из списка.") from exc
+    if legacy and legacy not in {contest.name, contest.short_name}:
+        raise ValueError("Название конкурса и выбранный конкурс не совпадают.")
+    display_name = legacy or contest.name
+    return contest.slug, display_name
+
+
+def _contest_display_name(contest_slug: str) -> str:
+    from app.services.product_registry import get_product_registry
+
+    contest = get_product_registry().contests_by_slug.get(contest_slug)
+    return contest.name if contest else "Конкурс не указан"
 
 
 def _device_upsert_sql(conn: Any) -> str:

@@ -16,7 +16,7 @@ def list_projects(request: Request, response: Response):
 def create(payload: ProjectCreateRequest, request: Request, response: Response):
     context = get_request_context(request, response)
     try:
-        result = create_project(payload.title, payload.competition, context)
+        result = create_project(payload.title, payload.competition, context, contest_slug=payload.contest_slug)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail={"message": str(exc)}) from exc
     return ProjectCreateResponse(**result)

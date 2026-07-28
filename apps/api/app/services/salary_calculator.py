@@ -68,6 +68,9 @@ class SalaryPositionInput(BaseModel):
 
 class SalaryGenerateRequest(BaseModel):
     region: str = Field(..., min_length=1)
+    contest_slug: str = "pfki"
+    project_id: str | None = None
+    profile_version: str | None = None
     source_scope: SourceScope = "all"
     cofinance_source: CofinanceSource | None = None
     positions: list[SalaryPositionInput] = Field(default_factory=list)
@@ -134,6 +137,9 @@ def create_salary_run(payload: SalaryGenerateRequest) -> tuple[StoredRun, Salary
         sections=sections,
         downloads=downloads,
         files=files,
+        contest_slug=payload.contest_slug,
+        profile_version=payload.profile_version,
+        project_id=payload.project_id,
     )
     run_store.save(run)
     return run, generated
