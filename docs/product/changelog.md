@@ -11,6 +11,7 @@
 - Добавлены draft keys v2 по module + contest + project с миграцией legacy PFKI и защитой от перезаписи при hydration.
 - Добавлены общий ModuleShell, mobile drawer этапов, focus return по Escape и универсальный баланс оплаченных запусков.
 - Выполнена responsive QA-матрица 390/430/768/1024/1440 без horizontal overflow; screenshots сохранены в `docs/qa/phase-1`.
+- Добавлены проверяемые deployment mirrors product registry для изолированных Railway service roots.
 - Rollback выполняется одним production flag `PRODUCT_REGISTRY_RUNTIME_ENABLED=false`; additive columns не удаляются.
 
 ### Phase 0: foundation

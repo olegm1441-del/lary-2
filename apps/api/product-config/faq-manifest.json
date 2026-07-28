@@ -1,0 +1,62 @@
+[
+  {
+    "faq_pack_id": "faq.pfki.social-research.v1",
+    "module_slug": "social-research",
+    "contest_slug": "pfki",
+    "version": "1.0.0",
+    "categories": ["Начало", "Формы", "Источники", "Результаты", "Ошибки"],
+    "entries": [],
+    "migration_status": "legacy_help",
+    "updated_at": "2026-07-28"
+  },
+  {
+    "faq_pack_id": "faq.pfki.legal-acts.v1",
+    "module_slug": "legal-acts",
+    "contest_slug": "pfki",
+    "version": "1.0.0",
+    "categories": ["Начало", "Формы", "Источники", "Результаты", "Ошибки"],
+    "entries": [],
+    "migration_status": "legacy_help",
+    "updated_at": "2026-07-28"
+  },
+  {
+    "faq_pack_id": "faq.pfki.salary.v1",
+    "module_slug": "salary",
+    "contest_slug": "pfki",
+    "version": "1.0.0",
+    "categories": ["Начало", "Формы", "Источники", "Расчет", "Результаты", "Ошибки"],
+    "entries": [],
+    "migration_status": "legacy_help",
+    "updated_at": "2026-07-28"
+  },
+  {
+    "faq_pack_id": "faq.pfki.support-letter.v1",
+    "module_slug": "support-letter",
+    "contest_slug": "pfki",
+    "version": "1.0.0",
+    "categories": ["Начало", "Формы", "Партнеры", "Результаты", "Ошибки"],
+    "entries": [],
+    "migration_status": "legacy_help",
+    "updated_at": "2026-07-28"
+  },
+  {
+    "faq_pack_id": "faq.pfki.presentation.v1",
+    "module_slug": "presentation",
+    "contest_slug": "pfki",
+    "version": "1.0.0",
+    "categories": ["Начало", "Формы", "Шаблоны", "Результаты", "Ошибки"],
+    "entries": [],
+    "migration_status": "legacy_help",
+    "updated_at": "2026-07-28"
+  },
+  {
+    "faq_pack_id": "faq.pfki.scenario-plan.v1",
+    "module_slug": "scenario-plan",
+    "contest_slug": "pfki",
+    "version": "1.0.0",
+    "categories": ["Начало", "Формы", "Структура", "Результаты", "Ошибки"],
+    "entries": [],
+    "migration_status": "legacy_help",
+    "updated_at": "2026-07-28"
+  }
+]

@@ -1,7 +1,7 @@
-import contestsData from "../../../../config/product/contests.json";
-import modulesData from "../../../../config/product/modules.json";
-import profilesData from "../../../../config/product/module-contest-profiles.json";
-import examplesData from "../../../../config/product/examples-manifest.json";
+import contestsData from "../../product-config/contests.json";
+import modulesData from "../../product-config/modules.json";
+import profilesData from "../../product-config/module-contest-profiles.json";
+import examplesData from "../../product-config/examples-manifest.json";
 
 export type Contest = {
   slug: string;
@@ -68,4 +68,3 @@ export function hasRealExample(moduleSlug: string, contestSlug: string) {
       item.migration_status === "legacy_preview",
   );
 }
-

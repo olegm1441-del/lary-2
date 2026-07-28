@@ -6,7 +6,7 @@ const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "utf
 
 test("frontend has one shared registry adapter and generic brand", () => {
   const adapter = read("app/lib/product-registry.ts");
-  assert.match(adapter, /config\/product\/contests\.json/);
+  assert.match(adapter, /product-config\/contests\.json/);
   assert.match(adapter, /getSupportedContests/);
   for (const file of ["app/layout.tsx", "app/page.tsx", "app/components/lary-ui.tsx"]) {
     const source = read(file);

@@ -30,6 +30,8 @@ Source of truth: `config/product/contests.json`.
 - Draft key имеет вид `lary:draft:v2:{module}:{contest}:{project|anonymous}`.
 - Переключатель `PRODUCT_REGISTRY_RUNTIME_ENABLED` включает profile gating на backend и служит аварийным rollback без удаления данных.
 
+Railway собирает `api` и `web` из отдельных service roots, поэтому runtime JSON копируется в `apps/api/product-config` и `apps/web/product-config`. Эти каталоги являются deployment mirrors, а не отдельными authoring registries: `apps/api/tests/test_product_registry.py` сравнивает каждый JSON с `config/product` и блокирует рассинхронизацию.
+
 ## Данные, которых не хватает
 
 Для ФПГ, Росмолодёжь.Гранты и Грантов Первых нужны актуальные положения, формы заявок, критерии и примеры приложений. До их передачи Codex не должен придумывать contest-specific требования.

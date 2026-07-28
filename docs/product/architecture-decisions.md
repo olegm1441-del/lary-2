@@ -62,3 +62,12 @@
 - Причина: одинаковый модуль в разных конкурсах или проектах не должен смешивать ответы.
 - Альтернативы: один draft на module; хранить только server-side.
 - Последствия: hydration завершается до первой записи, чтобы refresh не перезаписал сохраненный draft пустым state.
+
+## ADR-008. Railway service images получают проверяемые mirrors registry
+
+- Дата: 2026-07-28
+- Статус: принято
+- Решение: авторский source of truth остается в `config/product`, а service-root snapshots содержат точные JSON mirrors в `apps/api/product-config` и `apps/web/product-config`.
+- Причина: Railway исключает файлы выше настроенного service root, поэтому прямой monorepo import работает локально, но отсутствует в production image.
+- Альтернативы: сменить root обоих production services на корень monorepo; дублировать registry без проверки.
+- Последствия: contract test сравнивает parsed JSON каждого mirror с source registry; любое расхождение ломает CI/local verification.

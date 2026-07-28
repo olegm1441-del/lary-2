@@ -1,0 +1,72 @@
+[
+  {
+    "slug": "social-research",
+    "status": "active",
+    "category": "Актуальность",
+    "title": "Собрать доказательства актуальности",
+    "promise": "Найти подтвержденные данные, показать динамику проблемы и подготовить рабочий DOCX со ссылками.",
+    "duration": "4–7 минут",
+    "output_formats": ["docx"],
+    "feature_flags": {"voice_input": true, "expert_recommendations": false}
+  },
+  {
+    "slug": "legal-acts",
+    "status": "active",
+    "category": "Обоснование",
+    "title": "Найти нормативные акты и программы",
+    "promise": "Подобрать документы по теме проекта и объяснить, как использовать их в рабочем тексте.",
+    "duration": "3–6 минут",
+    "output_formats": ["docx"],
+    "feature_flags": {"voice_input": true, "expert_recommendations": false}
+  },
+  {
+    "slug": "salary",
+    "status": "active",
+    "category": "Бюджет",
+    "title": "Рассчитать зарплату и обоснование",
+    "promise": "Найти зарплатный ориентир, рассчитать сумму по занятости и подготовить рабочий расчет.",
+    "duration": "5–8 минут",
+    "output_formats": ["docx"],
+    "feature_flags": {"voice_input": true, "expert_recommendations": false}
+  },
+  {
+    "slug": "support-letter",
+    "status": "active",
+    "category": "Партнеры",
+    "title": "Сделать письмо поддержки",
+    "promise": "Подготовить редактируемое письмо о значимости проекта и конкретном вкладе партнера.",
+    "duration": "4–7 минут",
+    "output_formats": ["docx"],
+    "feature_flags": {"voice_input": true, "expert_recommendations": false, "multiple_partners": false}
+  },
+  {
+    "slug": "presentation",
+    "status": "active",
+    "category": "Защита проекта",
+    "title": "Собрать презентацию",
+    "promise": "Подготовить редактируемую презентацию проекта или календарного плана.",
+    "duration": "10–12 минут",
+    "output_formats": ["pptx"],
+    "feature_flags": {"voice_input": true, "expert_recommendations": false}
+  },
+  {
+    "slug": "scenario-plan",
+    "status": "active",
+    "category": "Содержание проекта",
+    "title": "Составить сценарный план",
+    "promise": "Собрать последовательный сценарий мероприятия в редактируемом рабочем файле.",
+    "duration": "6–10 минут",
+    "output_formats": ["docx"],
+    "feature_flags": {"voice_input": true, "expert_recommendations": false}
+  },
+  {
+    "slug": "check-application",
+    "status": "preparing",
+    "category": "Проверка",
+    "title": "Проверить готовую заявку",
+    "promise": "Проверить рабочий текст заявки по критериям выбранного конкурса.",
+    "duration": "Скоро",
+    "output_formats": ["docx"],
+    "feature_flags": {"voice_input": false, "expert_recommendations": false}
+  }
+]

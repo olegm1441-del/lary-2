@@ -136,6 +136,24 @@ class ProductRegistryTest(unittest.TestCase):
             self.assertIn("$id", schema)
             self.assertIn("type", schema)
 
+    def test_deployment_mirrors_match_the_source_registry(self):
+        runtime_files = (
+            "contests.json",
+            "modules.json",
+            "module-contest-profiles.json",
+            "examples-manifest.json",
+            "faq-manifest.json",
+            "feature-flags.json",
+        )
+        for service_dir in (REPO_ROOT / "apps" / "api", REPO_ROOT / "apps" / "web"):
+            mirror = service_dir / "product-config"
+            for name in runtime_files:
+                self.assertEqual(
+                    json.loads((mirror / name).read_text(encoding="utf-8")),
+                    load_json(name),
+                    f"{service_dir.name} deployment mirror differs: {name}",
+                )
+
 
 if __name__ == "__main__":
     unittest.main()
