@@ -13,6 +13,7 @@ from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
 from docx.shared import Cm, Pt, RGBColor
+from json_repair import loads as repair_json_loads
 from pydantic import BaseModel, Field
 
 from app.services import ai_router
@@ -179,7 +180,7 @@ def build_scenario_plan_document(
     for attempt in range(2):
         try:
             raw = ai_generator(prompt if attempt == 0 else _repair_prompt(prompt, error))
-            output = ScenarioPlanOutput.model_validate(json.loads(_extract_json(raw)))
+            output = ScenarioPlanOutput.model_validate(_parse_scenario_json(raw))
             validate_scenario_plan_output(output, inputs)
             break
         except Exception as exc:  # provider/parser details remain internal
@@ -228,6 +229,13 @@ def _extract_json(raw: str) -> str:
     if start < 0 or end <= start:
         raise ValueError("AI не вернул JSON.")
     return cleaned[start : end + 1]
+
+
+def _parse_scenario_json(raw: str) -> dict:
+    parsed = repair_json_loads(_extract_json(raw))
+    if not isinstance(parsed, dict):
+        raise ValueError("AI не вернул JSON-объект.")
+    return parsed
 
 
 def _expected_days(schedule: str) -> int | None:

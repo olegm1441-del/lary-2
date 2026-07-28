@@ -18,6 +18,7 @@ from app.services.scenario_plan import (
     ScenarioPlanGenerationError,
     ScenarioPlanOutput,
     USER_FRIENDLY_SCENARIO_ERROR,
+    _parse_scenario_json,
     build_scenario_plan_document,
     validate_scenario_plan_output,
 )
@@ -195,6 +196,13 @@ class ScenarioPlanContractTest(unittest.TestCase):
             )
         self.assertEqual(result.output.document_title, output_payload()["document_title"])
         self.assertEqual(len(calls), 2)
+
+    def test_malformed_ai_json_is_repaired_before_schema_validation(self):
+        parsed = _parse_scenario_json(
+            '{"document_title":"Сценарный план" "concept":"Рабочая концепция"}'
+        )
+        self.assertEqual(parsed["document_title"], "Сценарный план")
+        self.assertEqual(parsed["concept"], "Рабочая концепция")
 
     def test_default_generator_requests_scenario_json_schema(self):
         with tempfile.TemporaryDirectory() as directory:

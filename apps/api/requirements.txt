@@ -8,6 +8,7 @@ pydantic
 sqlalchemy
 psycopg[binary]
 python-docx
+json-repair==0.*
 docxtpl
 python-pptx
 reportlab
