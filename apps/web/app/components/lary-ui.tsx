@@ -32,7 +32,7 @@ export function Header() {
 
         <nav className="hidden items-center gap-5 text-base font-medium text-slate-700 lg:flex" aria-label="Основная навигация">
           {navItems.map(({ label, href }) => (
-            <Link key={href} href={href} className="rounded-xl px-2 py-2 hover:text-blue-800 focus:outline-none focus:ring-2 focus:ring-blue-700">
+            <Link key={href} href={href} className="inline-flex min-h-11 items-center rounded-xl px-2 py-2 hover:text-blue-800 focus:outline-none focus:ring-2 focus:ring-blue-700">
               {label}
             </Link>
           ))}
@@ -72,20 +72,20 @@ export function Footer() {
         <div>
           <p className="font-semibold">Разделы</p>
           <div className="mt-3 grid gap-2 text-slate-300">
-            <Link href="/modules">Модули</Link>
-            <Link href="/security">Безопасность</Link>
-            <Link href="/help">Помощь</Link>
-            <Link href="/contacts">Контакты</Link>
+            <Link href="/modules" className="inline-flex min-h-11 items-center">Модули</Link>
+            <Link href="/security" className="inline-flex min-h-11 items-center">Безопасность</Link>
+            <Link href="/help" className="inline-flex min-h-11 items-center">Помощь</Link>
+            <Link href="/contacts" className="inline-flex min-h-11 items-center">Контакты</Link>
           </div>
         </div>
         <div>
           <p className="font-semibold">Документы</p>
           <div className="mt-3 grid gap-2 text-slate-300">
-            <Link href="/docs/privacy">Политика персональных данных</Link>
-            <Link href="/docs/agreement">Пользовательское соглашение</Link>
-            <Link href="/docs/offer">Публичная оферта</Link>
-            <Link href="/docs/cookies">Политика cookie</Link>
-            <Link href="/docs/conditions">Оплата и возврат</Link>
+            <Link href="/docs/privacy" className="inline-flex min-h-11 items-center">Политика персональных данных</Link>
+            <Link href="/docs/agreement" className="inline-flex min-h-11 items-center">Пользовательское соглашение</Link>
+            <Link href="/docs/offer" className="inline-flex min-h-11 items-center">Публичная оферта</Link>
+            <Link href="/docs/cookies" className="inline-flex min-h-11 items-center">Политика cookie</Link>
+            <Link href="/docs/conditions" className="inline-flex min-h-11 items-center">Оплата и возврат</Link>
           </div>
         </div>
         <div>
@@ -148,7 +148,7 @@ export function ModuleCard({ module, compact = false, projectId, projectContest 
           href={href}
           className="inline-flex min-h-12 w-full items-center justify-center whitespace-normal rounded-2xl bg-blue-800 px-5 py-3 text-center text-base font-semibold text-white group-hover:bg-blue-900 focus:outline-none focus:ring-2 focus:ring-blue-700 focus:ring-offset-2"
         >
-          {module.status === "active" ? "Начать" : "Сообщить, когда модуль будет готов"}
+          {module.status === "active" ? "Начать" : "Посмотреть"}
         </Link>
         {module.status === "active" && hasRealExample(module.slug, "pfki") ? (
           <Link

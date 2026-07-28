@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ModuleRunner } from "../../components/module-runner";
 import { ModuleAttemptStatus } from "../../components/module-attempt-status";
-import { InfoCallout, PageShell, PrimaryLink, SecondaryLink, WorkPanel } from "../../components/lary-ui";
+import { InfoCallout, PageShell, WorkPanel } from "../../components/lary-ui";
 import { getModuleBySlug, getModuleSlugs } from "../../lib/lary-data";
 import { ContestSelector } from "../../components/contest-selector";
 import { ModuleShell } from "../../components/module-shell";
@@ -53,7 +53,7 @@ export default async function ModulePage({
       <section className="bg-white">
         <div className="mx-auto max-w-7xl px-5 py-12 sm:px-8 lg:py-16">
           <div>
-            <Link href="/modules" className="text-base font-semibold text-blue-800 hover:underline">
+            <Link href="/modules" className="inline-flex min-h-11 items-center text-base font-semibold text-blue-800 hover:underline">
               ← Все модули
             </Link>
             <p className="mt-6 text-base font-semibold uppercase tracking-wide text-blue-800">
@@ -70,25 +70,14 @@ export default async function ModulePage({
         </div>
       </section>
 
-      {isComingSoon ? (
-        <section className="mx-auto max-w-7xl px-5 py-12 sm:px-8">
-          <InfoCallout tone="orange" title="Этот модуль предусмотрен в архитектуре, но еще не включен в первый запуск">
-            Сейчас можно посмотреть будущий сценарий и оставить email на странице контактов. Для текущей версии используйте шесть активных модулей.
-          </InfoCallout>
-          <div className="mt-8 flex flex-col gap-4 sm:flex-row">
-            <PrimaryLink href="/contacts">Оставить заявку</PrimaryLink>
-            <SecondaryLink href="/modules">Вернуться к модулям</SecondaryLink>
-          </div>
-        </section>
-      ) : (
-        <ModuleShell
-          steps={[
-            { id: "contest", label: "Конкурс" },
-            { id: "data", label: "Данные", disabled: !showRunner },
-            { id: "result", label: "Результат", disabled: true },
-          ]}
-          utility={selectedContest ? <WorkPanel module={laryModule} contestName={selectedContest.name} /> : null}
-        >
+      <ModuleShell
+        steps={[
+          { id: "contest", label: "Конкурс" },
+          { id: "data", label: "Данные", disabled: !showRunner },
+          { id: "result", label: "Результат", disabled: true },
+        ]}
+        utility={selectedContest ? <WorkPanel module={laryModule} contestName={selectedContest.name} /> : null}
+      >
           {!selectedContest ? (
             <ContestSelector contests={getPublicContests()} moduleSlug={laryModule.slug} />
           ) : profile?.status !== "ready" ? (
@@ -164,8 +153,7 @@ export default async function ModulePage({
               ) : null}
             </div>
           ) : null}
-        </ModuleShell>
-      )}
+      </ModuleShell>
     </PageShell>
   );
 }

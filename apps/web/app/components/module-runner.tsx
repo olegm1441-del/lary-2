@@ -57,6 +57,7 @@ function GenericModuleRunner({ module, contestSlug, profileVersion, projectId }:
   const audioChunksRef = useRef<Float32Array[]>([]);
   const sourceSampleRateRef = useRef(44100);
   const stopTimerRef = useRef<number | null>(null);
+  const loadedDraftKeyRef = useRef<string | null>(null);
 
   const presentationVariant = useMemo(() => {
     if (module.slug !== "presentation") return undefined;
@@ -86,15 +87,17 @@ function GenericModuleRunner({ module, contestSlug, profileVersion, projectId }:
   );
 
   useEffect(() => {
+    loadedDraftKeyRef.current = null;
     const timer = window.setTimeout(() => {
+      const key = moduleDraftKey(module.slug, contestSlug, projectId);
       try {
-        const key = moduleDraftKey(module.slug, contestSlug, projectId);
         const raw = window.localStorage.getItem(key);
         const draft = raw ? JSON.parse(raw) : migrateLegacyDraft<Record<string, string>>(window.localStorage, module.slug, contestSlug, projectId) || {};
         setValues(applyModuleDefaults(module.slug, draft));
       } catch {
         setValues(applyModuleDefaults(module.slug, {}));
       }
+      loadedDraftKeyRef.current = key;
       setTouchedFields({});
       setFieldHints({});
       setSubmitAttempted(false);
@@ -103,8 +106,10 @@ function GenericModuleRunner({ module, contestSlug, profileVersion, projectId }:
   }, [contestSlug, module.slug, projectId]);
 
   useEffect(() => {
+    const key = moduleDraftKey(module.slug, contestSlug, projectId);
+    if (loadedDraftKeyRef.current !== key) return;
     try {
-      window.localStorage.setItem(moduleDraftKey(module.slug, contestSlug, projectId), JSON.stringify(values));
+      window.localStorage.setItem(key, JSON.stringify(values));
     } catch {
       // Draft persistence is a convenience only. Backend state remains authoritative.
     }

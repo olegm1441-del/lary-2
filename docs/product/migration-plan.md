@@ -53,3 +53,14 @@ Rollback: для PFKI можно временно включить legacy profil
 - Обновить architecture status, API docs и changelog.
 
 Критерий: нет legacy reads в течение согласованного окна, все PFKI E2E и payment flows проходят.
+
+## Production rollout фазы 1
+
+1. Деплой `main` выполняется с `PRODUCT_REGISTRY_RUNTIME_ENABLED=false`.
+2. Проверяются `/health`, read-only product API, idempotent migration и legacy PFKI routes.
+3. Flag включается только у production API.
+4. Проверяются четыре конкурса, ready/preparing profiles, PFKI salary/support-letter generation, DOCX и usage ledger.
+5. Проверяется, что `preparing` profile не создает run и не меняет баланс.
+6. Для rollback flag возвращается в `false`; additive columns не удаляются.
+
+Все Railway-команды обязаны содержать `--environment production`. Test environment в rollout не участвует.

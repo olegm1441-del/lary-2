@@ -26,8 +26,11 @@ test("contest selector and preparing state are explicit", () => {
 
 test("draft keys isolate module contest and project", () => {
   const drafts = read("app/lib/module-drafts.ts");
+  const runner = read("app/components/module-runner.tsx");
   assert.match(drafts, /lary:draft:v2:/);
   assert.match(drafts, /projectId \\|\\| "anonymous"/);
+  assert.match(runner, /loadedDraftKeyRef/);
+  assert.match(runner, /loadedDraftKeyRef\.current !== key/);
 });
 
 test("module shell exposes desktop navigation, mobile stages and typed future slots", () => {

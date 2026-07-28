@@ -458,7 +458,8 @@ test("P0 public copy and account gate match revision spec", () => {
   assert.equal(modulesPage.includes("фильтр по конкурсам"), false);
 
   assert.equal(laryUi.includes("Посмотреть пример"), true);
-  assert.equal(laryUi.includes("Сообщить, когда модуль будет готов"), true);
+  assert.equal(laryUi.includes("Сообщить, когда модуль будет готов"), false);
+  assert.equal(laryUi.includes('module.status === "active" ? "Начать" : "Посмотреть"'), true);
   assert.equal(laryUi.includes("Результат можно скачать и доработать вручную."), true);
   assert.equal(laryUi.includes("Закройте одну задачу по заявке."), false);
   assert.equal(laryUi.includes("MVP"), false);

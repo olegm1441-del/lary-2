@@ -92,7 +92,7 @@ git commit -m "Add LARI multi-contest architecture foundation"
 - Produces: `get_contests()`, `get_modules()`, `get_profile(module_slug, contest_slug)`.
 - Produces: `ProfileNotReadyError` for `preparing` and `disabled` profiles.
 
-- [ ] **Step 1: Write failing loader tests**
+- [x] **Step 1: Write failing loader tests**
 
 ```python
 class ProductRegistryRuntimeTest(unittest.TestCase):
@@ -117,7 +117,7 @@ class ProductRegistryRuntimeTest(unittest.TestCase):
             ProductRegistry.load(broken)
 ```
 
-- [ ] **Step 2: Run tests and verify RED**
+- [x] **Step 2: Run tests and verify RED**
 
 Run:
 
@@ -127,7 +127,7 @@ PYTHONPATH=apps/api python3 -m unittest apps/api/tests/test_product_registry_run
 
 Expected: import failure because `app.services.product_registry` does not exist.
 
-- [ ] **Step 3: Implement typed loader and settings**
+- [x] **Step 3: Implement typed loader and settings**
 
 Add:
 
@@ -165,7 +165,7 @@ product_config_dir = os.getenv("PRODUCT_CONFIG_DIR")
 
 The default config path resolves from repository root. Startup validation rejects duplicate slugs, duplicate profile pairs, missing references and secrets/prompt text in public JSON.
 
-- [ ] **Step 4: Run targeted and full backend tests**
+- [x] **Step 4: Run targeted and full backend tests**
 
 ```bash
 PYTHONPATH=apps/api python3 -m unittest apps/api/tests/test_product_registry.py apps/api/tests/test_product_registry_runtime.py
@@ -174,7 +174,7 @@ PYTHONPATH=apps/api python3 -m unittest discover -s apps/api/tests
 
 Expected: all tests pass.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/api/app/core/config.py apps/api/app/schemas/product.py apps/api/app/services/product_registry.py apps/api/tests/test_product_registry_runtime.py
@@ -198,7 +198,7 @@ git commit -m "Add validated product registry loader"
   - `GET /api/modules/{module}/profiles/{contest}`
 - Preserves: legacy `GET /api/modules/{slug}/schema`.
 
-- [ ] **Step 1: Write failing API contract tests**
+- [x] **Step 1: Write failing API contract tests**
 
 ```python
 def test_contests_endpoint_returns_four_public_choices(self):
@@ -218,7 +218,7 @@ def test_unknown_profile_is_404_with_safe_message(self):
     assert response.json()["detail"]["message"] == "Такая задача не найдена."
 ```
 
-- [ ] **Step 2: Verify RED**
+- [x] **Step 2: Verify RED**
 
 Run:
 
@@ -228,11 +228,11 @@ PYTHONPATH=apps/api python3 -m unittest apps/api/tests/test_product_api.py
 
 Expected: `/api/contests` returns 404.
 
-- [ ] **Step 3: Implement router and response schemas**
+- [x] **Step 3: Implement router and response schemas**
 
 Only public metadata and pack ids are returned. No prompt text, provider settings, credentials, template filesystem path or internal source failure is serialized.
 
-- [ ] **Step 4: Verify targeted and existing module contracts**
+- [x] **Step 4: Verify targeted and existing module contracts**
 
 ```bash
 PYTHONPATH=apps/api python3 -m unittest apps/api/tests/test_product_api.py apps/api/tests/test_mvp_contracts.py
@@ -240,7 +240,7 @@ PYTHONPATH=apps/api python3 -m unittest apps/api/tests/test_product_api.py apps/
 
 Expected: both suites pass; legacy module catalog remains compatible.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/api/app/main.py apps/api/app/routers/product.py apps/api/tests/test_product_api.py
@@ -269,7 +269,7 @@ git commit -m "Expose public contest and profile registry"
 - Adds `contest_slug: str = "pfki"` to legacy-compatible requests.
 - Preserves `competition` during migration window.
 
-- [ ] **Step 1: Write migration and compatibility tests**
+- [x] **Step 1: Write migration and compatibility tests**
 
 ```python
 def test_legacy_project_is_backfilled_to_pfki(self):
@@ -289,17 +289,17 @@ def test_legacy_run_payload_defaults_to_pfki(self):
     assert persisted_run(response.json()["run_id"])["contest_slug"] == "pfki"
 ```
 
-- [ ] **Step 2: Verify RED**
+- [x] **Step 2: Verify RED**
 
 Expected failures: missing `contest_slug` columns and response fields.
 
-- [ ] **Step 3: Implement idempotent additive migration**
+- [x] **Step 3: Implement idempotent additive migration**
 
 Use the existing `_column_exists` compatibility layer. Backfill only recognized legacy value `ПФКИ`; unknown legacy strings remain unchanged and receive no runnable profile until manually mapped.
 
 Write both `competition` and `contest_slug` during migration. Never drop or rename a column in Phase 1.
 
-- [ ] **Step 4: Verify restart and backward compatibility**
+- [x] **Step 4: Verify restart and backward compatibility**
 
 ```bash
 PYTHONPATH=apps/api python3 -m unittest apps/api/tests/test_contest_migration.py apps/api/tests/test_mvp_contracts.py
@@ -307,7 +307,7 @@ PYTHONPATH=apps/api python3 -m unittest apps/api/tests/test_contest_migration.py
 
 Expected: schema initialization is idempotent for SQLite and PostgreSQL query paths; existing account/project tests pass.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/api/app/services/account_store.py apps/api/app/schemas/modules.py apps/api/app/routers/projects.py apps/api/app/routers/module_runs.py apps/api/tests/test_contest_migration.py
@@ -341,7 +341,7 @@ git commit -m "Add backward-compatible contest context"
 
 - Safe preparing response: HTTP 409 with code `MODULE_CONTEST_PROFILE_PREPARING` and message `Для этого конкурса модуль пока готовится.`
 
-- [ ] **Step 1: Write failing gate and ledger tests**
+- [x] **Step 1: Write failing gate and ledger tests**
 
 ```python
 def test_ready_pfki_profile_runs_existing_engine(self):
@@ -389,15 +389,15 @@ def test_mismatched_profile_version_is_rejected_without_spend(self):
     assert client.get("/api/usage").json() == before
 ```
 
-- [ ] **Step 2: Verify RED**
+- [x] **Step 2: Verify RED**
 
 Expected: current endpoint ignores `contest_slug` and attempts legacy generation.
 
-- [ ] **Step 3: Add profile resolution before access reservation**
+- [x] **Step 3: Add profile resolution before access reservation**
 
 Resolve and validate profile before `prepare_module_access`. Legacy request without contest selects `pfki` and server-owned current `profile_version`. Client cannot select an arbitrary prompt/template id.
 
-- [ ] **Step 4: Run profile, salary, support-letter and ledger regression tests**
+- [x] **Step 4: Run profile, salary, support-letter and ledger regression tests**
 
 ```bash
 PYTHONPATH=apps/api python3 -m unittest \
@@ -409,7 +409,7 @@ PYTHONPATH=apps/api python3 -m unittest \
 
 Expected: all pass; provider or file errors still do not spend a run.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/api/app/schemas/modules.py apps/api/app/routers/module_runs.py apps/api/app/routers/modules.py apps/api/app/services/module_engine.py apps/api/app/services/account_store.py apps/api/tests/test_profile_gated_runs.py
@@ -441,7 +441,7 @@ getModuleProfile(moduleSlug: string, contestSlug: string): ModuleContestProfile 
 getSupportedContests(moduleSlug: string): Contest[]
 ```
 
-- [ ] **Step 1: Write failing frontend registry and copy tests**
+- [x] **Step 1: Write failing frontend registry and copy tests**
 
 ```js
 test("public registry exposes four contests and no private prompts", () => {
@@ -456,17 +456,17 @@ test("generic brand is not tied to PFKI", () => {
 });
 ```
 
-- [ ] **Step 2: Verify RED**
+- [x] **Step 2: Verify RED**
 
 Expected: adapter file is missing and current header/footer contain PFKI-specific generic branding.
 
-- [ ] **Step 3: Implement shared typed adapter and copy**
+- [x] **Step 3: Implement shared typed adapter and copy**
 
 Use brand exactly: `Лари — AI-помощник по составлению грантовых заявок`.
 
 Landing cards show `Подходит для` chips and actions `Начать` / `Посмотреть пример`. Current PFKI module details remain available through the profile adapter.
 
-- [ ] **Step 4: Verify frontend tests, lint and build**
+- [x] **Step 4: Verify frontend tests, lint and build**
 
 ```bash
 cd apps/web
@@ -477,7 +477,7 @@ pnpm build
 
 Expected: all pass. Build must prove cross-root JSON imports are bundled in Railway-compatible output. If cross-root import fails, stop and resolve packaging without copying a second registry.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/web/app/lib/product-registry.ts apps/web/app/lib/lary-data.ts apps/web/app/components/lary-ui.tsx apps/web/app/layout.tsx apps/web/app/page.tsx apps/web/app/modules/page.tsx apps/web/tests
@@ -502,7 +502,7 @@ git commit -m "Use multi-contest product registry in public shell"
 - Selector emits `onSelect(contestSlug)`.
 - Preparing state contains two actions: `Выбрать другой конкурс` and `Вернуться к модулям`.
 
-- [ ] **Step 1: Write failing state transition tests**
+- [x] **Step 1: Write failing state transition tests**
 
 ```js
 test("legacy draft migrates to pfki without losing fields", () => {
@@ -518,17 +518,17 @@ test("preparing profile never renders the module runner", () => {
 });
 ```
 
-- [ ] **Step 2: Verify RED**
+- [x] **Step 2: Verify RED**
 
 Expected: v2 draft adapter and selector are absent.
 
-- [ ] **Step 3: Implement selector and draft migration**
+- [x] **Step 3: Implement selector and draft migration**
 
 When a project has `contest_slug`, select it initially. Otherwise show four radio cards. Changing contest preserves compatible field keys; if schemas differ, show confirmation before discarding only incompatible values.
 
 Preparing profile renders no form CTA and no generic prompt path.
 
-- [ ] **Step 4: Verify frontend tests and build**
+- [x] **Step 4: Verify frontend tests and build**
 
 ```bash
 cd apps/web
@@ -539,7 +539,7 @@ pnpm build
 
 Expected: all pass.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/web/app/components/contest-selector.tsx apps/web/app/lib/module-drafts.ts apps/web/app/m/'[slug]'/page.tsx apps/web/app/components/module-runner.tsx apps/web/app/components/salary-module-runner.tsx apps/web/tests
@@ -565,7 +565,7 @@ git commit -m "Add draft-safe contest selection"
 - `ModuleStepNavigation` renders sticky desktop navigation and mobile drawer.
 - `RunBalance` consumes existing `/api/usage` and links to `/pay` at zero paid balance.
 
-- [ ] **Step 1: Write failing structural/accessibility tests**
+- [x] **Step 1: Write failing structural/accessibility tests**
 
 ```js
 test("module shell exposes desktop navigation and mobile stages", () => {
@@ -581,17 +581,17 @@ test("run balance uses user-facing terms", () => {
 });
 ```
 
-- [ ] **Step 2: Verify RED**
+- [x] **Step 2: Verify RED**
 
 Expected: new components are missing.
 
-- [ ] **Step 3: Implement common shell**
+- [x] **Step 3: Implement common shell**
 
 Desktop layout: sticky header, left navigation, 760–840 px main content, utility rail only at ≥1280 px. Mobile layout: compact header, `Этап N из M`, `Этапы` drawer, no permanent sidebar and no covered CTA.
 
 Run balance preserves existing cookie credentials and payment route. It does not expose technical ledger terms.
 
-- [ ] **Step 4: Run tests, lint and build**
+- [x] **Step 4: Run tests, lint and build**
 
 ```bash
 cd apps/web
@@ -602,7 +602,7 @@ pnpm build
 
 Expected: all pass.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/web/app/components/module-shell.tsx apps/web/app/components/module-step-navigation.tsx apps/web/app/components/run-balance.tsx apps/web/app/components/lary-ui.tsx apps/web/app/components/mobile-menu.tsx apps/web/app/m/'[slug]'/page.tsx apps/web/app/globals.css apps/web/tests
@@ -628,11 +628,11 @@ git commit -m "Add accessible common module shell"
 - QA widths: 390, 430, 768, 1024, 1440 px.
 - Critical flow: contest selection → ready/preparing state → form/draft → PFKI result → return to draft.
 
-- [ ] **Step 1: Add production contract test**
+- [x] **Step 1: Add production contract test**
 
 The test fetches production HTML after deploy for `/`, `/modules`, `/m/salary`, `/m/support-letter`, `/pay`, `/account`, confirms generic branding, four contest labels, no banned technical text and no PFKI-specific generic subtitle.
 
-- [ ] **Step 2: Run complete local verification**
+- [x] **Step 2: Run complete local verification**
 
 ```bash
 PYTHONPATH=apps/api python3 -m unittest discover -s apps/api/tests
@@ -645,7 +645,7 @@ pnpm build
 
 Expected: zero failures.
 
-- [ ] **Step 3: Run local browser QA and capture screenshots**
+- [x] **Step 3: Run local browser QA and capture screenshots**
 
 Capture `/`, `/modules`, ready PFKI salary module and preparing FPG salary state at 390, 430, 768, 1024 and 1440 px. Verify keyboard focus, Esc close, focus restoration, 44×44 targets, Russian label wrapping and absence of horizontal scroll.
 

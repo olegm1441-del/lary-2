@@ -9,7 +9,7 @@
 | Фаза | Статус | Что входит | Условие перехода |
 | --- | --- | --- | --- |
 | 0. Foundation docs | ready | Master architecture, ADR, registry schemas, feature flags, migration plan, product docs | Registry tests проходят; пользовательское поведение не изменено |
-| 1. Global shell + multi-contest | planned | Брендинг, четыре конкурса, selector, matrix, заглушка, баланс, common shell, mobile navigation | Утвержден план фазы 1 |
+| 1. Global shell + multi-contest | ready | Брендинг, четыре конкурса, selector, matrix, безопасное состояние `preparing`, баланс, common shell, mobile navigation, draft v2 | Production smoke и PFKI regression пройдены; rollback flag проверен |
 | 2. Example/help/question marks | planned | Versioned examples, global help, module help, contextual question marks | Фаза 1 принята |
 | 3. Expert recommendations | planned | Consent, рекомендации, уточнения, TTL, redaction, admin | Фаза 2 принята |
 | 4. Salary | planned | Навигация позиций, partial calculation, competence, verified official source | Подтверждена региональная база Росстата |
@@ -21,7 +21,7 @@
 
 ## Module–contest profiles
 
-Текущий runtime остается прежним до фазы 1. Матрица в `config/product/module-contest-profiles.json` является утвержденной целью миграции.
+Runtime читает матрицу из `config/product/module-contest-profiles.json`. Backend разрешает генерацию только для профиля `ready`; `preparing` и неизвестные связки отклоняются до AI, создания работы и списания запуска.
 
 | Конкурс | Готовые профили | Готовятся |
 | --- | --- | --- |
@@ -30,9 +30,10 @@
 | Росмолодёжь.Гранты | — | все 7 модулей |
 | Гранты Первых | — | все 7 модулей |
 
-## Известные ограничения фазы 0
+## Известные ограничения после фазы 1
 
-- Registry пока не подключен к frontend/backend runtime; два legacy registry продолжают обслуживать production.
-- `example` и `faq` manifests фиксируют legacy packs без versioned файлов. Полные assets и FAQ появятся в фазе 2.
+- Детальные legacy form metadata пока дополняют общий registry на frontend; публичные module/contest metadata имеют один source of truth в `config/product`.
+- `example` и `faq` manifests фиксируют legacy packs без versioned файлов. Полные versioned assets и FAQ появятся в фазе 2.
 - Методические материалы ФПГ, Росмолодёжь.Гранты и Грантов Первых не переданы; такие профили нельзя переводить в `ready`.
-- Изменения БД и публичного UI в фазе 0 отсутствуют.
+- Payload без `contest_slug` временно трактуется как legacy `pfki`; удаление fallback требует отдельного migration window.
+- Additive DB columns остаются при rollback. Runtime возвращается на legacy PFKI через `PRODUCT_REGISTRY_RUNTIME_ENABLED=false`.

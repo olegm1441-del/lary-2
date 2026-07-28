@@ -33,4 +33,6 @@ Module описывает универсальную прикладную зад
 
 ## Переходный период
 
-`apps/web/app/data/modules.json` и `apps/api/app/data/modules.py` остаются runtime source до фазы 1. В фазе 1 они должны быть заменены чтением общего registry после contract и rollback tests.
+С фазы 1 публичные module metadata и module–contest profiles читаются из `config/product`. Legacy `apps/web/app/data/modules.json` пока содержит только детальные поля форм и примеры, которые объединяются с общим registry в одном typed frontend adapter. Backend legacy schema endpoint сохраняется для совместимости, но runnable profile всегда разрешается через `ProductRegistry` при включенном runtime flag.
+
+Единственный владелец каталога — `GET /api/modules`. Отдельный endpoint профиля: `GET /api/modules/{module_slug}/profiles/{contest_slug}`.
