@@ -42,3 +42,30 @@ pnpm test:production-contract
 - этап результата включается только после успешной генерации.
 
 Свежие screenshots этого прогона сохраняются в этой папке.
+
+## Фактический production smoke
+
+- Публичный home, catalog и module routes проверены без cache.
+- Общий бренд и четыре конкурса присутствуют; старый общий PFKI-брендинг отсутствует.
+- Selector без конкурса не открывает форму.
+- PFKI открывает decision/form/example только в PFKI-контексте.
+- FPG показывает `preparing`, не создаёт run и не изменяет usage.
+- Project contest автоматически подставляется по `project_id`.
+- Смена конкурса сохраняет `project_id`; PFKI и FPG drafts изолированы, возврат к PFKI восстанавливает PFKI draft.
+- Мобильные menu и stages drawer закрываются Escape и возвращают focus.
+- После реальной генерации появляется `#result`; этап «Результат» становится доступным, переход к данным не удаляет результат.
+- Anonymous/account cookie в production использует `SameSite=None; Secure`, поэтому проект и временные работы сохраняются между cross-origin запросами web → API.
+- Salary run `7a9bccc2-9cff-44b7-88ce-b76374a70b4e`: DOCX zip-valid, читается `python-docx`, SHA-256 `cb8c42617307f9ef9c34658cd68c823aebc1a0f492ea8fad5e16a7f1aa00f992`.
+- Support-letter run `abf60e6c-a9ab-42e4-b1c1-4bcd8b28e522`: DOCX zip-valid, читается `python-docx`, нет `{{...}}`, SHA-256 `3fdd4dabded609df5070b071422fb532ed071b2a9804d5bbe9b93e3fd1abf15a`.
+- После production API restart оба файла скачались побайтно идентичными.
+
+## Screenshots
+
+- `home-390.jpg`, `home-768.jpg`;
+- `modules-390.jpg`, `modules-430.jpg`, `modules-1440.jpg`;
+- `m-salary-contest-fpg-390.jpg`;
+- `m-salary-contest-pfki-1024.jpg`;
+- `m-salary-contest-pfki-mode-start-430.jpg`, `m-salary-contest-pfki-mode-start-1440.jpg`;
+- `m-support-letter-contest-pfki-mode-start-390.jpg`, `m-support-letter-contest-pfki-mode-start-430.jpg`;
+- `pay-390.jpg`;
+- `account-390.jpg`, `account-430.jpg`.

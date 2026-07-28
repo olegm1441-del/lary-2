@@ -11,6 +11,8 @@
 - Example CTA больше не подставляет PFKI без выбора конкурса и не показывает пример неподдерживаемого профиля.
 - Универсальный баланс запусков доступен в мобильной шапке; технические названия коммерческого учета пользователю не показываются.
 - Этап «Результат» становится доступен после успешной генерации, ведет к реальной секции `#result` и работает в desktop/mobile navigation.
+- Production anonymous/account cookies переведены на `SameSite=None; Secure`, чтобы временные работы и проекты сохранялись между Railway web/API hostnames.
+- Устранено мобильное обрезание карточек и длинного selector конкурса в `/account` на 390/430 px.
 - Подключен валидируемый runtime `ProductRegistry` и безопасные public endpoints конкурсов, модулей и профилей.
 - Добавлены additive contest/profile/project columns, idempotent backfill legacy PFKI и сохранение contest context в проектах, работах и запусках.
 - Запуск блокируется до AI и списания, если module–contest profile не имеет статус `ready`.
