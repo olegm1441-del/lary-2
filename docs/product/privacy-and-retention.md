@@ -11,7 +11,8 @@
 
 - Anonymous draft и result должны иметь явный срок хранения и owner key.
 - Account works и projects хранятся в PostgreSQL до удаления пользователем или по правилам legal documents.
-- Файлы хранятся в управляемом storage; БД хранит owner, run, format, size, checksum и lifecycle status.
+- Production-файлы хранятся на Railway Volume в `/data/lary-generated`; локальная разработка использует `/tmp/lary-generated`.
+- БД хранит owner, run, format и lifecycle status; download остается доступен после restart production API.
 - Удаление work должно удалять или ставить в очередь связанные файлы без воздействия на чужие записи.
 
 ## Help и expert threads

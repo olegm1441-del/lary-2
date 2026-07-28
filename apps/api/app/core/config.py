@@ -1,6 +1,10 @@
 import os
 
 
+def default_file_storage_dir(app_env: str) -> str:
+    return "/data/lary-generated" if app_env == "production" else "/tmp/lary-generated"
+
+
 class Settings:
     app_name: str = os.getenv("APP_NAME", "Лари")
     app_env: str = os.getenv("APP_ENV", "development")
@@ -11,7 +15,7 @@ class Settings:
     )
     database_url: str | None = os.getenv("DATABASE_URL")
     state_sqlite_path: str = os.getenv("LARY_STATE_SQLITE_PATH", "/tmp/lary-state.sqlite3")
-    file_storage_dir: str = os.getenv("FILE_STORAGE_DIR", "/tmp/lary-generated")
+    file_storage_dir: str = os.getenv("FILE_STORAGE_DIR", default_file_storage_dir(app_env))
 
     gigachat_credentials: str | None = os.getenv("GIGACHAT_CREDENTIALS")
     gigachat_scope: str = os.getenv("GIGACHAT_SCOPE", "GIGACHAT_API_PERS")

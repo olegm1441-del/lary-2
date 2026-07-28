@@ -12,6 +12,7 @@
 - Добавлены общий ModuleShell, mobile drawer этапов, focus return по Escape и универсальный баланс оплаченных запусков.
 - Выполнена responsive QA-матрица 390/430/768/1024/1440 без horizontal overflow; screenshots сохранены в `docs/qa/phase-1`.
 - Добавлены проверяемые deployment mirrors product registry для изолированных Railway service roots.
+- Production file storage переведен с ephemeral `/tmp` на подключенный Railway Volume `/data`.
 - Rollback выполняется одним production flag `PRODUCT_REGISTRY_RUNTIME_ENABLED=false`; additive columns не удаляются.
 
 ### Phase 0: foundation
